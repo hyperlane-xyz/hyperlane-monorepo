@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -13,6 +14,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  type ChainMap,
   ContractVerifier,
   type DerivedTokenRouterConfig,
   EvmLayerZeroV2HookIsmModule,
@@ -38,6 +40,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  deriveOnChainStandards,
   fullyConnectTokens,
   generateTokenConfigs,
   runWarpRouteApply,
@@ -95,6 +98,187 @@ describe('generateTokenConfigs', () => {
       });
     });
   }
+
+  interface StandardsCase {
+    name: string;
+    standards?: ChainMap<TokenStandard>;
+    expected: TokenStandard;
+  }
+
+  const standardsCases: StandardsCase[] = [
+    {
+      name: 'gives the standard of the token type when no standards are derived',
+      expected: TokenStandard.EvmHypXERC20,
+    },
+    {
+      name: 'gives the standard that was derived for the chain',
+      standards: { [TestChainName.test1]: TokenStandard.EvmHypAevoXERC20 },
+      expected: TokenStandard.EvmHypAevoXERC20,
+    },
+    {
+      name: 'gives the standard that was derived for a Velodrome router',
+      standards: { [TestChainName.test1]: TokenStandard.EvmHypVSXERC20 },
+      expected: TokenStandard.EvmHypVSXERC20,
+    },
+    {
+      name: 'gives the standard of the token type to a chain with none derived',
+      standards: { [TestChainName.test2]: TokenStandard.EvmHypAevoXERC20 },
+      expected: TokenStandard.EvmHypXERC20,
+    },
+  ];
+
+  for (const c of standardsCases) {
+    it(`${c.name}`, () => {
+      const address = '0x1111111111111111111111111111111111111111';
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [TestChainName.test1]: {
+          type: TokenType.XERC20,
+          token: address,
+          owner: address,
+          mailbox: address,
+        },
+      };
+      const metadata = new TokenMetadataMap();
+      metadata.set(TestChainName.test1, {
+        name: 'USD Coin',
+        symbol: 'USDC',
+        decimals: 6,
+      });
+      const core: WarpCoreConfig = { tokens: [] };
+
+      generateTokenConfigs(
+        MultiProvider.createTestMultiProvider(),
+        core,
+        config,
+        { [TestChainName.test1]: address },
+        metadata,
+        c.standards,
+      );
+
+      expect(core.tokens[0]).to.include({
+        chainName: TestChainName.test1,
+        standard: c.expected,
+        tokenType: TokenType.XERC20,
+      });
+    });
+  }
+});
+
+describe('deriveOnChainStandards', () => {
+  const address = '0x1111111111111111111111111111111111111111';
+  const standardToken = '0x2222222222222222222222222222222222222222';
+  const aevoToken = '0x3333333333333333333333333333333333333333';
+  const veloToken = '0x4444444444444444444444444444444444444444';
+  // The selectors the recorded Aevo token carries: authorities, caps,
+  // updateAuthority and setCap.
+  const AEVO_CODE = '0x91223d6966d97b21' + '6cd22eaf80ad2cf3';
+  const STANDARD_CODE = `0x${ethers.utils
+    .id('setLimits(address,uint256,uint256)')
+    .slice(2, 10)}`;
+  const VELO_CODE = `0x${ethers.utils
+    .id('setBufferCap(address,uint256)')
+    .slice(2, 10)}`;
+  const codes: Record<string, string> = {
+    [standardToken]: STANDARD_CODE,
+    [aevoToken]: AEVO_CODE,
+    [veloToken]: VELO_CODE,
+  };
+
+  const xerc20 = (
+    token: string,
+  ): WarpRouteDeployConfigMailboxRequired[string] => ({
+    type: TokenType.XERC20,
+    token,
+    owner: address,
+    mailbox: address,
+  });
+
+  let multiProvider: MultiProvider;
+
+  beforeEach(() => {
+    multiProvider = new MultiProvider({
+      ...testChainMetadata,
+      aleo: {
+        name: 'aleo',
+        protocol: ProtocolType.Aleo,
+        chainId: 1,
+        domainId: 1634493807,
+        nativeToken: { name: 'Aleo', symbol: 'ALEO', decimals: 6 },
+        rpcUrls: [{ http: 'http://127.0.0.1:13030' }],
+      },
+      tron: {
+        name: 'tron',
+        protocol: ProtocolType.Tron,
+        chainId: 2494104990,
+        domainId: 728126428,
+        nativeToken: { name: 'Tron', symbol: 'TRX', decimals: 6 },
+        rpcUrls: [{ http: 'http://127.0.0.1:8090' }],
+      },
+    });
+    // Answers the bytecode of the tokens above, and fails for any other
+    // address: a chain that needs no derivation must not be read.
+    for (const chain of [
+      TestChainName.test1,
+      TestChainName.test2,
+      TestChainName.test3,
+    ]) {
+      sinon
+        .stub(multiProvider.getProvider(chain), 'getCode')
+        .callsFake(async (addressOrName) => {
+          const target = await addressOrName;
+          const code = codes[target];
+          if (code === undefined) {
+            throw new Error(`Unexpected getCode call for ${target}`);
+          }
+          return code;
+        });
+    }
+  });
+
+  afterEach(() => sinon.restore());
+
+  it('derives the standard of the token an EVM xERC20 router wraps', async () => {
+    expect(
+      await deriveOnChainStandards(multiProvider, {
+        [TestChainName.test1]: xerc20(aevoToken),
+        [TestChainName.test2]: xerc20(standardToken),
+        [TestChainName.test3]: xerc20(veloToken),
+      }),
+    ).to.deep.equal({
+      [TestChainName.test1]: TokenStandard.EvmHypAevoXERC20,
+      [TestChainName.test2]: TokenStandard.EvmHypXERC20,
+      [TestChainName.test3]: TokenStandard.EvmHypVSXERC20,
+    });
+  });
+
+  it('leaves out the chains whose token type alone decides their standard', async () => {
+    expect(
+      await deriveOnChainStandards(multiProvider, {
+        [TestChainName.test1]: {
+          type: TokenType.collateral,
+          token: aevoToken,
+          owner: address,
+          mailbox: address,
+        },
+        [TestChainName.test2]: {
+          type: TokenType.synthetic,
+          owner: address,
+          mailbox: address,
+          name: 'USD Coin',
+          symbol: 'USDC',
+          decimals: 6,
+        },
+        aleo: {
+          type: TokenType.XERC20,
+          token: aevoToken,
+          owner: 'aleo1owner',
+          mailbox: 'aleo1mailbox',
+        },
+        // Its standard stays the one of its token type, TronHypXERC20.
+        tron: xerc20(aevoToken),
+      }),
+    ).to.deep.equal({});
+  });
 });
 
 describe('fullyConnectTokens', () => {

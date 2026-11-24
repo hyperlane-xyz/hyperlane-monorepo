@@ -63,6 +63,7 @@ import {
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
+  type TokenStandard,
   TokenType,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
@@ -84,6 +85,7 @@ import {
   collectIsmAddresses,
   deriveCctpDomains,
   deriveDelayedFlowEnrollmentTargets,
+  deriveEvmXERC20Standard,
   enrollCrossChainRouters,
   executeWarpDeploy,
   executeWarpRouteExtensionDeploy,
@@ -589,12 +591,18 @@ async function getWarpCoreConfig(
       deployedWarpConfig,
     );
 
+  const standards = await deriveOnChainStandards(
+    params.context.multiProvider,
+    deployedWarpConfig,
+  );
+
   generateTokenConfigs(
     params.context.multiProvider,
     warpCoreConfig,
     deployedWarpConfig,
     contracts,
     tokenMetadataMap,
+    standards,
   );
 
   fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
@@ -605,7 +613,34 @@ async function getWarpCoreConfig(
 }
 
 /**
- * Creates token configs.
+ * The standards that the token a router wraps decides: an EVM xERC20 router has
+ * the standard of its token, one of its own for a Velodrome or an Aevo token.
+ * The chains of any other route are left out, as their token type alone decides
+ * their standard.
+ */
+export async function deriveOnChainStandards(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+): Promise<ChainMap<TokenStandard>> {
+  const entries = await Promise.all(
+    Object.entries(warpDeployConfig).flatMap(([chain, config]) =>
+      config.type === TokenType.XERC20 &&
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+        ? [
+            deriveEvmXERC20Standard(multiProvider, chain, config.token).then(
+              (standard) => [chain, standard] as const,
+            ),
+          ]
+        : [],
+    ),
+  );
+
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Creates token configs. A chain in `standards` has the standard it gives,
+ * the others have the one of their token type.
  */
 export function generateTokenConfigs(
   multiProvider: MultiProvider,
@@ -613,6 +648,7 @@ export function generateTokenConfigs(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: ChainMap<Address>,
   tokenMetadataMap: TokenMetadataMap,
+  standards?: ChainMap<TokenStandard>,
 ): void {
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -629,7 +665,9 @@ export function generateTokenConfigs(
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      standard:
+        standards?.[chainName] ??
+        tokenTypeToStandard(protocol as ProtocolType, config.type),
       tokenType: config.type,
       decimals: tokenMetadataMap.getDecimals(chainName)!,
       scale: tokenMetadataMap.getScale(chainName),
