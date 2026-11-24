@@ -51,9 +51,7 @@ contract HypXERC20 is TokenRouter {
      * @inheritdoc TokenRouter
      * @dev Overrides to burn tokens on outbound transfer.
      */
-    function _transferFromSender(
-        uint256 _amountOrId
-    ) internal virtual override {
+    function _transferFromSender(uint256 _amountOrId) internal override {
         wrappedToken.burn(msg.sender, _amountOrId);
     }
 

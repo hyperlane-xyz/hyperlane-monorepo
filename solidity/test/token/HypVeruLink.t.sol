@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
 import {HypVeruLink} from "../../contracts/token/extensions/HypVeruLink.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -78,7 +77,7 @@ contract HypVeruLinkTest is Test {
                         address(implementation),
                         address(0x37),
                         abi.encodeCall(
-                            HypXERC20.initialize,
+                            HypVeruLink.initialize,
                             (address(hook), address(0), address(this))
                         )
                     )
@@ -263,6 +262,17 @@ contract HypVeruLinkTest is Test {
         vm.expectRevert("Enrolled router does not match sender");
         router.handle(REMOTE_DOMAIN, bytes32(uint256(456)), body);
         assertEq(token.totalSupply(), 100e6);
+    }
+
+    function testImplementationCannotBeInitialized() public {
+        HypVeruLink implementation = new HypVeruLink(
+            address(token),
+            1,
+            1,
+            address(mailbox)
+        );
+        vm.expectRevert("Initializable: contract is already initialized");
+        implementation.initialize(address(0), address(0), ALICE);
     }
 
     function testInitializationAndOwnerConfigurationAreProtected() public {
