@@ -560,6 +560,16 @@ export const validatorChainConfig = (
         'zerogravity',
       ),
     },
+    mantra: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mantra'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'mantra',
+      ),
+    },
     monad: {
       interval: 5,
       reorgPeriod: getReorgPeriod('monad'),

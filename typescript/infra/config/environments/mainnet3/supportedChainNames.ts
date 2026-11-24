@@ -36,6 +36,7 @@ export const mainnet3SupportedChainNames = [
   'linea',
   'lukso',
   'mantle',
+  'mantra',
   'metal',
   'metis',
   'mitosis',

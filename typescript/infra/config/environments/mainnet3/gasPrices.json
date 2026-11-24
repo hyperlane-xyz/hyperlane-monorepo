@@ -139,6 +139,10 @@
     "amount": "0.02",
     "decimals": 9
   },
+  "mantra": {
+    "amount": "11.25",
+    "decimals": 9
+  },
   "metal": {
     "amount": "0.001000252",
     "decimals": 9

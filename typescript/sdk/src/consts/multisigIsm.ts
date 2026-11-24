@@ -497,6 +497,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  mantra: {
+    threshold: 2,
+    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
+  },
+
   metal: {
     threshold: 3,
     validators: [
