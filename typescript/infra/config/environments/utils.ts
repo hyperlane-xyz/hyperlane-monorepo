@@ -17,6 +17,7 @@ export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
 export const ccipReadAllowedDomains = [
   'offchain-lookup.services.hyperlane.xyz',
   'testnet-offchain-lookup.services.hyperlane.xyz',
+  'hyperlane-worker.mainnet.citrea.xyz',
 ];
 
 export const fallbackHedgeConfig = {

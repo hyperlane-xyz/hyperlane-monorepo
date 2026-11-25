@@ -19,6 +19,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import {
   CrossCollateralRoutingFeeConfig,
@@ -194,18 +195,34 @@ export class EvmTokenFeeReader extends HyperlaneReader {
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 
-    if (routingDestinations)
-      await Promise.all(
-        routingDestinations.map(async (destination) => {
-          const subFeeAddress = await routingFee.feeContracts(destination);
-          if (subFeeAddress === constants.AddressZero) return;
-          const chainName = this.multiProvider.tryGetChainName(destination);
-          if (!chainName) return;
-          feeContracts[chainName] = await this.deriveTokenFeeConfig({
-            address: subFeeAddress,
-          });
-        }),
-      );
+    // Enumerate the contract's own domain set so every configured destination is
+    // discovered, not only those supplied via routingDestinations hints. Hints can be
+    // derived from router enrollment and omit orphan pointers (routers unenrolled while
+    // their fee pointer is still set); union them in for any extra caller-requested reads.
+    // domains() was introduced in core 11.0.0; RoutingFee contracts from 10.0.0 lack the
+    // selector, so fall back to hints for those while rethrowing genuine RPC failures.
+    let onchainDomains: number[] = [];
+    try {
+      onchainDomains = (await routingFee.domains()).map(Number);
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+    }
+
+    const destinations = Array.from(
+      new Set<number>([...onchainDomains, ...(routingDestinations ?? [])]),
+    );
+
+    await Promise.all(
+      destinations.map(async (destination) => {
+        const subFeeAddress = await routingFee.feeContracts(destination);
+        if (subFeeAddress === constants.AddressZero) return;
+        const chainName = this.multiProvider.tryGetChainName(destination);
+        if (!chainName) return;
+        feeContracts[chainName] = await this.deriveTokenFeeConfig({
+          address: subFeeAddress,
+        });
+      }),
+    );
     return {
       type: TokenFeeType.RoutingFee,
       address,
