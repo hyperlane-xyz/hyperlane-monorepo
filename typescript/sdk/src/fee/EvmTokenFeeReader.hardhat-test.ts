@@ -346,25 +346,23 @@ describe('EvmTokenFeeReader', () => {
       const routingFeeAddress =
         deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee].address;
 
-      const realRoutingFee = RoutingFee__factory.connect(
-        routingFeeAddress,
-        multiProvider.getProvider(TestChainName.test2),
-      );
-      // ethers contract methods are non-writable, so expose a minimal delegate
-      // that forwards the reads the reader makes but rejects domains() the way a
-      // legacy (pre-11.0.0) contract missing the selector would.
-      const legacyRoutingFee = {
-        token: () => realRoutingFee.token(),
-        owner: () => realRoutingFee.owner(),
-        feeContracts: (destination: number) =>
-          realRoutingFee.feeContracts(destination),
-        domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
-      };
-      const connectStub = sinon
-        .stub(RoutingFee__factory, 'connect')
-        // CAST: partial mock exposing only the reads the reader calls; matches
-        // the sinon mock pattern used elsewhere in this file.
-        .returns(legacyRoutingFee as any);
+      // Simulate a legacy (pre-11.0.0) contract missing the domains() selector by
+      // returning empty call data for that selector at the provider level, so the
+      // real contract throws a genuine missing-selector CALL_EXCEPTION. Other reads
+      // pass through untouched.
+      const provider = multiProvider.getProvider(TestChainName.test2);
+      const domainsSelector =
+        RoutingFee__factory.createInterface().getSighash('domains');
+      const originalCall = provider.call.bind(provider);
+      const callStub = sinon
+        .stub(provider, 'call')
+        .callsFake((transaction, blockTag) => {
+          const data = transaction.data?.toString() ?? '';
+          if (data.startsWith(domainsSelector)) {
+            return Promise.resolve('0x');
+          }
+          return originalCall(transaction, blockTag);
+        });
 
       try {
         const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
@@ -384,7 +382,7 @@ describe('EvmTokenFeeReader', () => {
           normalizeConfig(routingFeeConfig),
         );
       } finally {
-        connectStub.restore();
+        callStub.restore();
       }
     });
 
