@@ -8,6 +8,7 @@ import { SafeQueueService, SafeQueueServiceError } from './safeQueueService.js';
 const gateway = 'https://api.safe.global';
 const safe = '0x0000000000000000000000000000000000000001';
 const owner = '0x0000000000000000000000000000000000000002';
+const secondOwner = '0x0000000000000000000000000000000000000003';
 const delegate = '0x00000000000000000000000000000000000000aa';
 const safeTxHash = `0x${'11'.repeat(32)}`;
 const signature = '0x1234';
@@ -60,15 +61,25 @@ describe('SafeQueueService', () => {
 
   afterEach(() => request.restore());
 
+  it('rejects HTTP before a request can send a signature or API key', () => {
+    expect(
+      () => new SafeQueueService('http://api.safe.global', 1, 'test-api-key'),
+    ).to.throw('Safe Queue Service requires HTTPS');
+    expect(request.called).to.equal(false);
+  });
+
   it('paginates pending results using the requested Safe and chain', async () => {
     const destination = '0xcd2E72aEBe2A203b84f46DEEC948E6465dB51c75';
-    request
-      .onFirstCall()
-      .resolves(
-        jsonResponse({ results: [queuedTransaction], next: '?offset=1' }),
-      );
+    request.onFirstCall().resolves(
+      jsonResponse({
+        count: 2,
+        results: [queuedTransaction],
+        next: '?offset=1',
+      }),
+    );
     request.onSecondCall().resolves(
       jsonResponse({
+        count: 2,
         results: [
           {
             ...queuedTransaction,
@@ -113,8 +124,39 @@ describe('SafeQueueService', () => {
     });
   });
 
+  it('restarts pagination when removal from the first page would skip a pending proposal', async () => {
+    const pending = Array.from({ length: 101 }, (_, nonce) => ({
+      ...queuedTransaction,
+      nonce: String(nonce),
+      safeTxHash: `0x${nonce.toString(16).padStart(64, '0')}`,
+    }));
+    request.onFirstCall().resolves(
+      jsonResponse({
+        count: pending.length,
+        results: pending.slice(0, 100),
+        next: '?offset=100',
+      }),
+    );
+    request
+      .onSecondCall()
+      .resolves(jsonResponse({ count: 100, results: [], next: null }));
+    request
+      .onThirdCall()
+      .resolves(
+        jsonResponse({ count: 100, results: pending.slice(1), next: null }),
+      );
+
+    const transactions = await service.getPendingTransactions(safe);
+    expect(transactions.map(({ safeTxHash }) => safeTxHash)).to.deep.equal(
+      pending.slice(1).map(({ safeTxHash }) => safeTxHash),
+    );
+    expect(
+      new URL(String(request.thirdCall.args[0])).searchParams.get('offset'),
+    ).to.equal('0');
+  });
+
   it('uses the per-Safe endpoint to include stale unexecuted proposals', async () => {
-    request.resolves(jsonResponse({ results: [], next: null }));
+    request.resolves(jsonResponse({ count: 0, results: [], next: null }));
 
     await service.getPendingTransactions(safe, { includeStale: true });
 
@@ -127,12 +169,16 @@ describe('SafeQueueService', () => {
   });
 
   it('allocates one above the highest pending nonce or uses the on-chain nonce for an empty queue', async () => {
+    request.onFirstCall().resolves(
+      jsonResponse({
+        count: 2,
+        results: [queuedTransaction],
+        next: '?offset=1',
+      }),
+    );
     request
-      .onFirstCall()
-      .resolves(
-        jsonResponse({ results: [queuedTransaction], next: '?offset=1' }),
-      );
-    request.onSecondCall().resolves(jsonResponse({ results: [], next: null }));
+      .onSecondCall()
+      .resolves(jsonResponse({ count: 0, results: [], next: null }));
     const currentNonce = sinon.stub().resolves(8);
 
     expect(await service.getNextNonce(safe, currentNonce)).to.equal('4');
@@ -212,13 +258,13 @@ describe('SafeQueueService', () => {
   it('submits the new owner signature separately when another owner already proposed the transaction', async () => {
     request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
     request.onSecondCall().resolves(jsonResponse(queuedTransaction));
-    request.onThirdCall().resolves(jsonResponse([], 201));
+    request.onThirdCall().resolves(jsonResponse([{ owner: secondOwner }], 201));
 
     await service.proposeTransaction({
       safeAddress: safe,
       safeTransactionData: transactionData,
       safeTxHash,
-      senderAddress: '0x0000000000000000000000000000000000000003',
+      senderAddress: secondOwner,
       senderSignature: signature,
     });
 
@@ -230,6 +276,61 @@ describe('SafeQueueService', () => {
     expect(JSON.parse(String(options?.body))).to.deep.equal({
       signatures: [signature],
     });
+  });
+
+  it('rejects a successful signature response that omits the signer', async () => {
+    request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
+    request.onSecondCall().resolves(jsonResponse(queuedTransaction));
+    request.onThirdCall().resolves(jsonResponse([{ owner }], 201));
+
+    try {
+      await service.proposeTransaction({
+        safeAddress: safe,
+        safeTransactionData: transactionData,
+        safeTxHash,
+        senderAddress: secondOwner,
+        senderSignature: signature,
+      });
+      expect.fail('Expected the unverified confirmation to reject');
+    } catch (error) {
+      expect(error).to.be.instanceOf(Error);
+      expect(error)
+        .to.have.property('message')
+        .that.includes('did not return a confirmation');
+    }
+  });
+
+  it('reads back the signer when a concurrent signature POST returns 409', async () => {
+    request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
+    request.onSecondCall().resolves(jsonResponse(queuedTransaction));
+    request
+      .onThirdCall()
+      .resolves(jsonResponse({ detail: 'already confirmed' }, 409));
+    request.onCall(3).resolves(
+      jsonResponse({
+        ...queuedTransaction,
+        confirmations: [
+          {
+            owner: secondOwner,
+            signature,
+            signatureType: 'EOA',
+            created: queuedTransaction.created,
+          },
+        ],
+      }),
+    );
+
+    await service.proposeTransaction({
+      safeAddress: safe,
+      safeTransactionData: transactionData,
+      safeTxHash,
+      senderAddress: secondOwner,
+      senderSignature: signature,
+    });
+    expect(request.callCount).to.equal(4);
+    expect(String(request.lastCall.args[0])).to.equal(
+      `${gateway}/queue/api/v1/multisig-transactions/${safeTxHash}`,
+    );
   });
 
   it('accepts a delegate retry without trying to record a confirmation', async () => {
@@ -261,9 +362,10 @@ describe('SafeQueueService', () => {
     ];
     request
       .onFirstCall()
-      .resolves(jsonResponse({ results: delegations, next: null }));
+      .resolves(jsonResponse({ count: 3, results: delegations, next: null }));
     request.onSecondCall().resolves(
       jsonResponse({
+        count: 4,
         results: [
           ...delegations,
           { delegate, delegator: owner, chainId: null, safe: null },

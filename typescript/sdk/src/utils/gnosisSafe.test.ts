@@ -162,7 +162,9 @@ describe('gnosisSafe utils', () => {
     it('uses the canonical HTTPS origin of the configured Safe gateway', async () => {
       const request = sinon
         .stub(globalThis, 'fetch')
-        .resolves(new Response(JSON.stringify({ next: null, results: [] })));
+        .resolves(
+          new Response(JSON.stringify({ count: 0, next: null, results: [] })),
+        );
       try {
         const service = getSafeQueueService(
           'testchain',

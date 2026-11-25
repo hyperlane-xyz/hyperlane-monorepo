@@ -1121,6 +1121,7 @@ describe('hyperlane warp apply with submitters', async function () {
             expect(request.method).to.equal('GET');
             expect(url.searchParams.get('delegate')).to.equal(delegate.address);
             return Response.json({
+              count: 1,
               next: null,
               results: [
                 {
@@ -1141,6 +1142,7 @@ describe('hyperlane warp apply with submitters', async function () {
             expect(url.searchParams.get('nonceOrder')).to.equal('desc');
             expect(url.searchParams.get('limit')).to.equal('1');
             return Response.json({
+              count: 1,
               next: null,
               results: [
                 {

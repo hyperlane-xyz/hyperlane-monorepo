@@ -10,11 +10,13 @@ import {
 } from '@hyperlane-xyz/utils';
 
 const PAGE_SIZE = 100;
+const MAX_PAGE_RESTARTS = 2;
 const MULTISIG_TRANSACTIONS = 'multisig-transactions';
 const QUEUE = `${MULTISIG_TRANSACTIONS}/queue`;
 const DecimalString = z.string().regex(/^\d+$/);
 const TransactionHash = z.string().regex(/^0x[\da-f]{64}$/i);
 const SafeAddress = z.string().refine(isAddressEvm);
+const SignatureOwnersSchema = z.array(z.object({ owner: SafeAddress }));
 // The Queue responds with lowercase addresses. Transaction Service gas
 // estimation requires an EIP-55 destination address.
 const AddressOrZero = SafeAddress.nullable().transform((address) =>
@@ -92,6 +94,10 @@ export class SafeQueueService {
     apiKey?: string,
   ) {
     this.baseUrl = new URL('/queue/api/v1/', gatewayOrigin);
+    assert(
+      this.baseUrl.protocol === 'https:',
+      'Safe Queue Service requires HTTPS',
+    );
     this.headers = new Headers();
     if (apiKey) this.headers.set('Authorization', `Bearer ${apiKey}`);
   }
@@ -198,14 +204,34 @@ export class SafeQueueService {
       // The legacy proposal endpoint stored new owner signatures on repeat POSTs.
       // Queue rejects repeat proposals and collects confirmations separately.
       try {
-        await this.request(`${this.transactionPath(safeTxHash)}/signatures`, {
-          method: 'POST',
-          body: { signatures: [senderSignature] },
-        });
+        const response = await this.request(
+          `${this.transactionPath(safeTxHash)}/signatures`,
+          {
+            method: 'POST',
+            body: { signatures: [senderSignature] },
+          },
+        );
+        const confirmations = SignatureOwnersSchema.parse(
+          await response.json(),
+        );
+        assert(
+          confirmations.some(({ owner }) => eqAddressEvm(owner, senderAddress)),
+          `Safe Queue Service did not return a confirmation from ${senderAddress} for ${safeTxHash}`,
+        );
       } catch (signatureError) {
         if (
           !(signatureError instanceof SafeQueueServiceError) ||
           signatureError.status !== 409
+        ) {
+          throw signatureError;
+        }
+        const updated = await this.getTransaction(safeTxHash);
+        if (!updated) throw signatureError;
+        this.assertScope(updated, safeAddress);
+        if (
+          !updated.confirmations.some(({ owner }) =>
+            eqAddressEvm(owner, senderAddress),
+          )
         ) {
           throw signatureError;
         }
@@ -270,12 +296,25 @@ export class SafeQueueService {
     schema: z.ZodType<T>,
   ): Promise<T[]> {
     const results: T[] = [];
+    let count: number | undefined;
+    let restarts = 0;
     for (;;) {
       const page = await this.getPage(
         path,
         { ...query, limit: String(PAGE_SIZE), offset: String(results.length) },
         schema,
       );
+      // An insertion or removal can move pending entries across offsets.
+      if (count !== undefined && page.count !== count) {
+        assert(
+          ++restarts <= MAX_PAGE_RESTARTS,
+          'Safe Queue Service results changed repeatedly during pagination',
+        );
+        count = undefined;
+        results.length = 0;
+        continue;
+      }
+      count = page.count;
       results.push(...page.results);
       if (!page.next) return results;
       assert(
@@ -294,7 +333,11 @@ export class SafeQueueService {
       `${path}?${new URLSearchParams(query)}`,
     );
     return z
-      .object({ results: z.array(schema), next: z.string().nullable() })
+      .object({
+        count: z.int().nonnegative(),
+        results: z.array(schema),
+        next: z.string().nullable(),
+      })
       .parse(await response.json());
   }
 
