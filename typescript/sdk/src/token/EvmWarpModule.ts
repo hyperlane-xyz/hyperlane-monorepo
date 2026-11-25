@@ -2833,11 +2833,6 @@ export class EvmWarpModule extends HyperlaneModule<
         ),
       };
     }
-    // Plain RoutingFee updates need no destination hints: EvmTokenFeeReader enumerates
-    // the RoutingFee contract's own domains(), so orphan feeContracts entries (including
-    // destinations whose routers are unenrolled) are discovered and reconciled without
-    // depending on the token router's partial enrollment view.
-
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,
       effectiveTokenReaderParams,
