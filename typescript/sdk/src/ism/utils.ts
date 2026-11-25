@@ -914,3 +914,54 @@ export function offchainLookupRequestMessageHash(
     ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
   );
 }
+
+const OFFCHAIN_LOOKUP_V2_TAG = 'HYPERLANE_OFFCHAINLOOKUP_V2';
+
+/** The fields a framed (v2) offchain lookup signature covers. */
+export interface OffchainLookupRequest {
+  /** Public URL template the request is sent to. */
+  urlTemplate: string;
+  /** `OffchainLookup.sender`: the ISM that reverted with the lookup. */
+  sender: string;
+  /** `OffchainLookup.callData`, hex encoded. */
+  callData: string;
+  /** Id of the message being delivered; taken from that message, never from `callData`. */
+  messageId: string;
+  /** Hash of the transaction that dispatched the message, hex encoded. */
+  originTxHash: string;
+  /** Unix seconds at which the request was signed. */
+  issuedAt: number;
+}
+
+/**
+ * `keccak256(abi.encode(keccak256(tag), keccak256(url), sender,
+ * keccak256(callData), messageId, keccak256(originTxHash), uint64 issuedAt))`.
+ * The first word is a hash, so no packed v1 preimage is a v2 preimage.
+ */
+export function offchainLookupRequestHash(
+  request: OffchainLookupRequest,
+): string {
+  return utils.keccak256(
+    utils.defaultAbiCoder.encode(
+      [
+        'bytes32',
+        'bytes32',
+        'address',
+        'bytes32',
+        'bytes32',
+        'bytes32',
+        'uint64',
+      ],
+      [
+        utils.id(OFFCHAIN_LOOKUP_V2_TAG),
+        utils.keccak256(utils.toUtf8Bytes(request.urlTemplate)),
+        // ABI address encoding rejects mixed-case addresses with a bad checksum.
+        request.sender.toLowerCase(),
+        utils.keccak256(request.callData),
+        request.messageId,
+        utils.keccak256(request.originTxHash),
+        request.issuedAt,
+      ],
+    ),
+  );
+}

@@ -444,6 +444,8 @@ export {
   isStaticDeploymentSupported,
   isStaticIsm,
   moduleCanCertainlyVerify,
+  type OffchainLookupRequest,
+  offchainLookupRequestHash,
   offchainLookupRequestMessageHash,
 } from './ism/utils.js';
 export {

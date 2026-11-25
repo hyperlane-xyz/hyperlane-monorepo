@@ -15,6 +15,8 @@ import {
   collectValidators,
   moduleCanCertainlyVerify,
   moduleMatchesConfig,
+  type OffchainLookupRequest,
+  offchainLookupRequestHash,
 } from './utils.js';
 
 describe('ism utils', () => {
@@ -224,5 +226,81 @@ describe('ism utils', () => {
     it('returns an empty set when the origin is absent from routingMessageIdMultisigIsm', () => {
       expect(collectValidators(TestChainName.test1, config).size).to.equal(0);
     });
+  });
+
+  describe('offchainLookupRequestHash', () => {
+    const request: OffchainLookupRequest = {
+      urlTemplate:
+        'https://ccs.example/callCommitments/getCallsFromRevealMessage',
+      sender: '0x' + '03'.repeat(20),
+      callData: '0x' + '11'.repeat(32),
+      messageId: '0x' + '22'.repeat(32),
+      originTxHash: '0x' + '33'.repeat(32),
+      issuedAt: 1_700_000_000,
+    };
+    // Shared with the Rust relayer's `OffchainLookupRequest::signing_hash` test.
+    const expected =
+      '0x8ef3fe80017b834f4d5cbf461faa54a6180fad62f4eb0c575ba712679ff51ffb';
+
+    it('matches the shared vector', () => {
+      expect(offchainLookupRequestHash(request)).to.equal(expected);
+    });
+
+    it('accepts a mixed-case sender without a valid checksum', () => {
+      expect(
+        offchainLookupRequestHash({
+          urlTemplate: request.urlTemplate,
+          sender: '0x' + 'aB'.repeat(20),
+          callData: request.callData,
+          messageId: request.messageId,
+          originTxHash: request.originTxHash,
+          issuedAt: request.issuedAt,
+        }),
+      ).to.equal(
+        offchainLookupRequestHash({
+          urlTemplate: request.urlTemplate,
+          sender: '0x' + 'ab'.repeat(20),
+          callData: request.callData,
+          messageId: request.messageId,
+          originTxHash: request.originTxHash,
+          issuedAt: request.issuedAt,
+        }),
+      );
+    });
+
+    interface Case {
+      name: string;
+      change: Partial<OffchainLookupRequest>;
+    }
+    const cases: Case[] = [
+      {
+        name: 'url template',
+        change: {
+          urlTemplate: 'https://ccs.example/callCommitments/calldata',
+        },
+      },
+      { name: 'sender', change: { sender: '0x' + '04'.repeat(20) } },
+      { name: 'call data', change: { callData: '0x' + '11'.repeat(33) } },
+      { name: 'message id', change: { messageId: '0x' + '23'.repeat(32) } },
+      {
+        name: 'origin transaction hash',
+        change: { originTxHash: '0x' + '34'.repeat(32) },
+      },
+      { name: 'issued at', change: { issuedAt: 1_700_000_001 } },
+    ];
+    for (const c of cases) {
+      it(`signs the ${c.name}`, () => {
+        expect(
+          offchainLookupRequestHash({
+            urlTemplate: c.change.urlTemplate ?? request.urlTemplate,
+            sender: c.change.sender ?? request.sender,
+            callData: c.change.callData ?? request.callData,
+            messageId: c.change.messageId ?? request.messageId,
+            originTxHash: c.change.originTxHash ?? request.originTxHash,
+            issuedAt: c.change.issuedAt ?? request.issuedAt,
+          }),
+        ).to.not.equal(expected);
+      });
+    }
   });
 });
