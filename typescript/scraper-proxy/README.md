@@ -167,7 +167,8 @@ query Insertions($domain: bigint!, $hook: bytea!, $from: bigint) {
 `from_index` is inclusive and defaults to zero; `limit` defaults to 1,000 and
 must be between 1 and 1,000. Pass `next_index` as the next request's `from_index`.
 A null cursor means no further confirmed rows are currently available. To poll
-for new rows later, resume at the last received leaf index plus one. Clients
+for new rows later, resume at the last received leaf index plus one. Stop polling
+if the last index is 4,294,967,295, the largest cursor the API accepts. Clients
 must detect missing sequences and independently verify roots before signing.
 
 Fetch a single leaf with

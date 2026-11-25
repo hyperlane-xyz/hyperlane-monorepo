@@ -94,33 +94,23 @@ export class ScraperDbService {
       Number.isInteger(args.limit) && args.limit >= 1 && args.limit <= 1000,
       'limit must be between 1 and 1000',
     );
-    const rows: ScraperDbRow[] = [];
-    // PostgreSQL stores u32 values as signed integers. Scan each signed half
-    // separately to retain index ordering across the 2^31 boundary.
-    const ranges =
+    // Each signed range uses the existing index. Both see the same confirmed
+    // height, and the final unsigned sort covers at most two bounded pages.
+    const range = (predicate: string) =>
+      `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion e
+       WHERE domain=$1 AND merkle_tree_hook=$2 AND ${predicate}
+       ORDER BY e.leaf_index LIMIT $4`;
+    const sql =
       from <= MAX_INT32
-        ? [
-            [from, MAX_INT32],
-            [MAX_INT32 + 1, MAX_UINT32],
-          ]
-        : [[from, MAX_UINT32]];
-    for (const [start, end] of ranges) {
-      rows.push(
-        ...(await this.historyQuery(
-          `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion
-         WHERE domain=$1 AND merkle_tree_hook=$2
-           AND leaf_index >= $3 AND leaf_index <= $4
-         ORDER BY confirmed_merkle_tree_insertion.leaf_index LIMIT $5`,
-          [
-            ...scope,
-            signedUint32(start),
-            signedUint32(end),
-            args.limit + 1 - rows.length,
-          ],
-        )),
-      );
-      if (rows.length > args.limit) break;
-    }
+        ? `SELECT * FROM ((${range('e.leaf_index >= $3')})
+             UNION ALL (${range('e.leaf_index < 0')})) AS page
+           ORDER BY page.leaf_index LIMIT $4`
+        : range('e.leaf_index >= $3 AND e.leaf_index < 0');
+    const rows = await this.historyQuery(sql, [
+      ...scope,
+      signedUint32(from),
+      args.limit + 1,
+    ]);
     return {
       insertions: rows.slice(0, args.limit),
       next_index: rows[args.limit]?.leaf_index ?? null,

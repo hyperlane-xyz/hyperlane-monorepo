@@ -15,9 +15,11 @@ const pageQuery = `query Page($domain: bigint!, $hook: bytea!, $from: bigint, $l
 
 void it('rejects invalid insertion scopes, cursors and page sizes before database reads', async () => {
   const { createScraperProxyApp } = await import('../module.js');
+  let databaseCalls = 0;
   const app = await createScraperProxyApp({
     async query() {
-      assert.fail('Invalid input must not query the database');
+      databaseCalls++;
+      return [];
     },
   });
   try {
@@ -42,6 +44,7 @@ void it('rejects invalid insertion scopes, cursors and page sizes before databas
           variables: { domain: 1, hook, ...invalid },
         },
       });
+      assert.equal(databaseCalls, 0, JSON.stringify(invalid));
       assert(response.json().errors?.length, JSON.stringify(invalid));
     }
     const single = await app.inject({
@@ -51,6 +54,7 @@ void it('rejects invalid insertion scopes, cursors and page sizes before databas
         query: `{ merkle_tree_insertion(domain: 1, merkle_tree_hook: "${hook}", leaf_index: -1) { leaf_index } }`,
       },
     });
+    assert.equal(databaseCalls, 0);
     assert(single.json().errors?.length);
   } finally {
     await app.close();
@@ -62,11 +66,12 @@ void it(
   {
     skip: !process.env.SCRAPER_TEST_DATABASE_URL,
   },
-  async () => {
+  async (t) => {
     const { createScraperProxyApp } = await import('../module.js');
     pg.types.setTypeParser(17, (value) => value);
     const client = new pg.Client(process.env.SCRAPER_TEST_DATABASE_URL);
     await client.connect();
+    t.after(() => client.end());
     const plans: string[] = [];
     const app = await createScraperProxyApp({
       async query(sql, values) {
@@ -121,8 +126,17 @@ void it(
       assert.equal(first.next_index, '1000');
       const firstPlan = plans[0];
       assert(firstPlan);
-      assert.match(firstPlan, /"Node Type":"Index(?: Only)? Scan"/);
-      assert.doesNotMatch(firstPlan, /"Node Type":"(?:Incremental )?Sort"/);
+      // Both ranges use the leaf index. Only their bounded merge needs a sort.
+      assert.equal(
+        firstPlan.match(/"Index Name":"merkle_tree_insertion_[^"]+"/g)?.length,
+        2,
+        firstPlan,
+      );
+      assert(
+        (firstPlan.match(/"Node Type":"(?:Incremental )?Sort"/g) ?? [])
+          .length <= 1,
+        firstPlan,
+      );
       assert.deepEqual(first.insertions[0], {
         domain: '1',
         merkle_tree_hook: `\\x${'11'.repeat(20)}`,
@@ -170,6 +184,7 @@ void it(
       ).merkle_tree_insertion;
       assert.equal(otherDomain.message_id, `\\x${'33'.repeat(32)}`);
 
+      const plansBeforeBoundary = plans.length;
       const boundary = (
         await request(pageQuery, {
           domain: '4294967295',
@@ -184,6 +199,7 @@ void it(
         ),
         ['2147483647', '2147483648'],
       );
+      assert.equal(plans.length - plansBeforeBoundary, 1);
       assert.equal(boundary.next_index, '4294967295');
       const last = (
         await request(pageQuery, {
@@ -207,7 +223,6 @@ void it(
       );
     } finally {
       await app.close();
-      await client.end();
     }
   },
 );
