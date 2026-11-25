@@ -91,10 +91,11 @@ impl Store {
         through: i64,
     ) -> Result<()> {
         // Two index seeks find the unsigned tip, including indices stored as negative i32s.
-        let row = tx.query_one(sql(
-            "SELECT c.hash AS anchor,s.*,
-               NOT EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=$2 AND leaf_index=0)
-               AND EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=$2) AS missing_prefix
+        let row = tx
+            .query_one(sql(
+                "SELECT c.hash AS anchor,s.*,
+               EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=$2
+                      AND leaf_index=0 AND block_number<=$3) AS has_confirmed_leaf_zero
              FROM scraper_checkpoint c LEFT JOIN merkle_tree_snapshot s
                ON (s.domain,s.confirmed_height,s.block_hash)=(c.domain,c.height,c.hash)
                AND s.merkle_tree_hook=$2 AND s.leaf_count=1+COALESCE(
@@ -105,13 +106,15 @@ impl Store {
                    WHERE domain=$1 AND merkle_tree_hook=$2 AND block_number<=$3 AND leaf_index>=0
                    ORDER BY leaf_index DESC LIMIT 1), -1)
              WHERE c.domain=$1 AND c.height=$3",
-            vec![self.domain(), hook.clone().into(), through.into()],
-        )).await?.ok_or_else(|| eyre::eyre!("Missing confirmed Merkle checkpoint"))?;
-        if row.try_get::<bool>("", "missing_prefix")? {
+                vec![self.domain(), hook.clone().into(), through.into()],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmed Merkle checkpoint"))?;
+        if !row.try_get::<bool>("", "has_confirmed_leaf_zero")? {
             self.lock_recovery_head(tx).await?;
-            tracing::warn!(
+            tracing::debug!(
                 domain = self.domain,
-                "Merkle history is missing leaf zero; skipping snapshot until next startup"
+                "Skipping Merkle snapshot until leaf zero is confirmed"
             );
             return self.discard_snapshot(tx).await;
         }
@@ -159,6 +162,7 @@ impl Store {
         after: i64,
         boundary: &Header,
         has_insertions: bool,
+        has_snapshot: bool,
     ) -> Result<()> {
         let scope = "scraper_head h JOIN scraper_checkpoint c ON (c.domain,c.height)=(h.domain,h.confirmed_height)
                       WHERE h.domain=$1 AND (s.domain,s.merkle_tree_hook,s.confirmed_height,s.block_hash)
@@ -170,17 +174,36 @@ impl Store {
             ensure!(result.rows_affected() == 1, missing);
             return Ok(());
         }
-        let row = tx
-            .query_one(sql(
-                format!("SELECT s.* FROM merkle_tree_snapshot s, {scope}"),
-                vec![self.domain()],
-            ))
-            .await?
-            .ok_or_else(|| eyre::eyre!(missing))?;
-        let mut tree = restore(&row)?.ok_or_else(|| {
-            eyre::eyre!("Invalid Merkle snapshot root; restart scraper to rebuild")
-        })?;
-        let hook: Vec<u8> = row.try_get("", "merkle_tree_hook")?;
+        let (hook, mut tree) = if has_snapshot {
+            let row = tx
+                .query_one(sql(
+                    format!("SELECT s.* FROM merkle_tree_snapshot s, {scope}"),
+                    vec![self.domain()],
+                ))
+                .await?
+                .ok_or_else(|| eyre::eyre!(missing))?;
+            let tree = restore(&row)?.ok_or_else(|| {
+                eyre::eyre!("Invalid Merkle snapshot root; restart scraper to rebuild")
+            })?;
+            (row.try_get::<Vec<u8>>("", "merkle_tree_hook")?, tree)
+        } else {
+            // A late-starting scraper can confirm other events without a frontier.
+            let Some(row) = tx
+                .query_one(sql(
+                    "SELECT i.merkle_tree_hook FROM merkle_tree_insertion i
+                 JOIN scraper_head h USING (domain, merkle_tree_hook)
+                 WHERE i.domain=$1 AND i.leaf_index=0 AND i.block_number>$2 AND i.block_number<=$3",
+                    vec![self.domain(), after.into(), number(boundary.height)?],
+                ))
+                .await?
+            else {
+                return Ok(());
+            };
+            (
+                row.try_get("", "merkle_tree_hook")?,
+                IncrementalMerkle::default(),
+            )
+        };
         let mut rows = tx
             .stream(sql(
                 "SELECT leaf_index,message_id FROM merkle_tree_insertion

@@ -523,8 +523,12 @@ async fn confirmed_merkle_snapshot_rebuilds_and_advances_atomically() -> Result<
                 "SELECT * FROM merkle_tree_snapshot WHERE domain=1",
                 vec![],
             ))
-            .await?
-            .unwrap();
+            .await?;
+        if tree.count() == 0 {
+            assert!(row.is_none());
+            return Ok(());
+        }
+        let row = row.unwrap();
         assert_eq!(
             row.try_get::<i64>("", "confirmed_height")?,
             i64::try_from(height)?
@@ -552,7 +556,6 @@ async fn confirmed_merkle_snapshot_rebuilds_and_advances_atomically() -> Result<
     };
 
     store.initialize(&header(0), &contracts).await?;
-    store.prepare_snapshot().await?;
     let mut expected = IncrementalMerkle::default();
     check(0, &expected).await?;
     store
@@ -567,6 +570,7 @@ async fn confirmed_merkle_snapshot_rebuilds_and_advances_atomically() -> Result<
             ],
         )
         .await?;
+    store.prepare_snapshot().await?;
     check(0, &expected).await?;
     let mut wrong_fork = header(1);
     wrong_fork.hash = H256::repeat_byte(99);
@@ -578,7 +582,7 @@ async fn confirmed_merkle_snapshot_rebuilds_and_advances_atomically() -> Result<
     store.db.execute_unprepared(
         "CREATE FUNCTION expire_observation() RETURNS trigger LANGUAGE plpgsql AS $$
          BEGIN UPDATE scraper_head SET updated_at='-infinity' WHERE domain=NEW.domain; RETURN NEW; END $$;
-         CREATE TRIGGER expire_observation AFTER UPDATE ON merkle_tree_snapshot
+         CREATE TRIGGER expire_observation AFTER INSERT ON merkle_tree_snapshot
          FOR EACH ROW EXECUTE FUNCTION expire_observation()",
     ).await?;
     let error = store.confirm(&state, &header(1), LEASE).await.unwrap_err();

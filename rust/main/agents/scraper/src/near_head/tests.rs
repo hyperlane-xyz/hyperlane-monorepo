@@ -1015,14 +1015,13 @@ async fn missing_leaf_zero_skips_only_snapshots_until_next_startup() -> Result<(
     store
         .initialize(&chain.header(0u64.into()).await?, &contracts())
         .await?;
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
     ingest_head(&chain, &store).await?;
     store
         .db
         .execute_unprepared("UPDATE merkle_tree_insertion SET leaf_index=17")
         .await?;
 
-    store.prepare_snapshot().await?;
-    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
     let event_block = chain.header(2u64.into()).await?;
     let counts = store
         .confirm(
@@ -1032,6 +1031,8 @@ async fn missing_leaf_zero_skips_only_snapshots_until_next_startup() -> Result<(
         )
         .await?;
     assert_eq!(counts, [1; 4]);
+    assert_eq!(store.state().await?.unwrap().confirmed, event_block.height);
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
     store.prepare_snapshot().await?;
     assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
 

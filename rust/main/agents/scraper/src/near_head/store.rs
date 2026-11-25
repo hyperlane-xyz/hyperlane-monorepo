@@ -514,9 +514,10 @@ impl Store {
             counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
         }
 
-        // Startup leaves the snapshot absent when the hook's history starts late.
-        if count_row.try_get::<bool>("", "has_snapshot")? {
-            self.advance_snapshot(&tx, after, boundary, counts[3] > 0)
+        let has_snapshot = count_row.try_get::<bool>("", "has_snapshot")?;
+        let has_insertions = counts[3] > 0;
+        if has_snapshot || has_insertions {
+            self.advance_snapshot(&tx, after, boundary, has_insertions, has_snapshot)
                 .await?;
         }
         tx.execute(sql(
