@@ -367,7 +367,10 @@ describe('EvmTokenFeeReader', () => {
       );
 
       try {
-        const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+        const reader = new EvmTokenFeeReader(
+          multiProvider,
+          TestChainName.test2,
+        );
         const routingFee = await reader.deriveTokenFeeConfig({
           address: routingFeeAddress,
           routingDestinations: [multiProvider.getDomainId(TestChainName.test3)],

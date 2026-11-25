@@ -64,7 +64,10 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
-import { mergeCrossCollateralRouters } from '../fee/crossCollateralUtils.js';
+import {
+  getConfiguredRoutingDestinations,
+  mergeCrossCollateralRouters,
+} from '../fee/crossCollateralUtils.js';
 import { TokenFeeType } from '../fee/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import {
@@ -2830,6 +2833,36 @@ export class EvmWarpModule extends HyperlaneModule<
         crossCollateralRouters: mergeCrossCollateralRouters(
           tokenReaderParams?.crossCollateralRouters,
           onchainRoutersByDomain,
+        ),
+      };
+    } else if (
+      currentTokenFee.type === TokenFeeType.RoutingFee &&
+      resolvedTokenFee.type === TokenFeeType.RoutingFee
+    ) {
+      // Forward the already-observed on-chain destinations as read hints. Modern
+      // RoutingFee contracts enumerate their own domains() during the reread, but
+      // legacy pre-11.0.0 contracts lack that selector and fall back to hints
+      // derived from the target config alone (deriveReadParams). Without the
+      // observed keys, an orphan destination dropped from the target is never
+      // reread, so update() returns early and never clears its pointer. Union the
+      // observed, target, and caller destinations so the reread sees every one
+      // (target keys kept to avoid needlessly redeploying an existing sub-fee).
+      const getDomainId = (chainName: ChainName): number =>
+        this.multiProvider.getDomainId(chainName);
+      effectiveTokenReaderParams = {
+        ...tokenReaderParams,
+        routingDestinations: Array.from(
+          new Set<number>([
+            ...(tokenReaderParams?.routingDestinations ?? []),
+            ...getConfiguredRoutingDestinations(
+              currentTokenFee.feeContracts,
+              getDomainId,
+            ),
+            ...getConfiguredRoutingDestinations(
+              resolvedTokenFee.feeContracts,
+              getDomainId,
+            ),
+          ]),
         ),
       };
     }

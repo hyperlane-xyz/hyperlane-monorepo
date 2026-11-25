@@ -25,6 +25,8 @@ import {
   MockEverclearAdapter,
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
+  RoutingFee,
+  RoutingFee__factory,
   StaticAggregationIsm__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
@@ -68,12 +70,15 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { collectHybridIsmNodes, normalizeConfig } from '../utils/ism.js';
 
+import { EvmTokenFeeDeployer } from '../fee/EvmTokenFeeDeployer.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { DEFAULT_ROUTER_KEY } from '../fee/types.js';
+import { convertToBps } from '../fee/utils.js';
 import {
   EvmWarpModule,
   MAX_LEGACY_BRIDGE_APPROVAL_VERSION,
@@ -3307,6 +3312,150 @@ describe('EvmWarpModule', async () => {
         staleRouterKey.toLowerCase(),
       ]);
       expect(decoded[2]).to.deep.equal([hre.ethers.constants.AddressZero]);
+    });
+
+    it('clears a removed RoutingFee destination on a legacy contract without domains() (CLI path)', async () => {
+      // Legacy (pre-11.0.0) RoutingFee contracts lack the domains() selector, so
+      // the fee-module reread cannot enumerate on-chain destinations and falls back
+      // to hints. Without forwarding the already-observed destinations, the CLI path
+      // (createTokenFeeUpdateTxs called without tokenReaderParams) only hints the
+      // target destination and never clears an orphan one. This exercises the
+      // observed-destination union that fixes that.
+      const MAX_FEE = 1_000_000_000n;
+      const HALF_AMOUNT = 500_000_000n;
+      const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
+      const subFeeInput = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+      };
+
+      // 1. Deploy a real RoutingFee wired to two destinations: test2 (kept) and
+      //    test3 (removed from the target).
+      const feeDeployer = new EvmTokenFeeDeployer(multiProvider, chain);
+      const deployedFee = await feeDeployer.deploy({
+        [chain]: {
+          type: TokenFeeType.RoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: {
+            [TestChainName.test2]: subFeeInput,
+            [TestChainName.test3]: subFeeInput,
+          },
+        },
+      });
+      const routingFeeAddress =
+        deployedFee[chain][TokenFeeType.RoutingFee].address;
+
+      // 2. Build a real collateral module (valid DerivedTokenRouterConfig base).
+      const module = await EvmWarpModule.create({
+        chain,
+        config: {
+          ...baseConfig,
+          type: TokenType.collateral,
+          token: token.address,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const readConfig = await module.read();
+
+      // 3. actualConfig: the warp read observed both destinations (via router
+      //    enrollment) before the fee key removal. Sub-fee addresses are unused
+      //    by the helper (keys drive the forwarded hints), so they can be stubbed.
+      const derivedSubFee = {
+        type: TokenFeeType.LinearFee,
+        address: randomAddress(),
+        token: token.address,
+        owner: signer.address,
+        bps: BPS,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      };
+      const actualConfig = {
+        ...readConfig,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          address: routingFeeAddress,
+          token: token.address,
+          owner: signer.address,
+          feeContracts: {
+            [TestChainName.test2]: derivedSubFee,
+            [TestChainName.test3]: derivedSubFee,
+          },
+        },
+      } satisfies DerivedTokenRouterConfig;
+
+      // 4. expectedConfig: test3 dropped; only test2 remains.
+      const expectedConfig: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: signer.address,
+          feeContracts: {
+            [TestChainName.test2]: subFeeInput,
+          },
+        },
+      };
+
+      // 5. Force the legacy path: domains() reverts with a missing-selector
+      //    CALL_EXCEPTION while token/owner/feeContracts still delegate to the
+      //    real contract. The typed double keeps every member checked against
+      //    RoutingFee.
+      const realRoutingFee = RoutingFee__factory.connect(
+        routingFeeAddress,
+        multiProvider.getProvider(chain),
+      );
+      const connectStub = sinon.stub(RoutingFee__factory, 'connect').returns(
+        contractDouble<RoutingFee>({
+          token: () => realRoutingFee.token(),
+          owner: () => realRoutingFee.owner(),
+          feeContracts: (destination) =>
+            realRoutingFee.feeContracts(destination),
+          domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
+        }),
+      );
+
+      try {
+        // 6. Call createTokenFeeUpdateTxs WITHOUT explicit tokenReaderParams.
+        const txs = await module.createTokenFeeUpdateTxs(
+          actualConfig,
+          expectedConfig,
+        );
+
+        const clearTx = txs.find((tx) =>
+          tx.annotation?.includes(
+            `Clearing removed RoutingFee destination ${TestChainName.test3}`,
+          ),
+        );
+        expect(clearTx, 'expected orphan clearing tx for test3').to.not.be
+          .undefined;
+
+        const decoded =
+          RoutingFee__factory.createInterface().decodeFunctionData(
+            'setFeeContract(uint32,address)',
+            clearTx!.data!,
+          );
+        expect(Number(decoded[0])).to.equal(
+          multiProvider.getDomainId(TestChainName.test3),
+        );
+        expect(decoded[1]).to.equal(hre.ethers.constants.AddressZero);
+
+        // The retained destination must not be cleared.
+        const test2ClearTx = txs.find((tx) =>
+          tx.annotation?.includes(
+            `Clearing removed RoutingFee destination ${TestChainName.test2}`,
+          ),
+        );
+        expect(test2ClearTx, 'test2 must be retained').to.be.undefined;
+      } finally {
+        connectStub.restore();
+      }
     });
   });
 
