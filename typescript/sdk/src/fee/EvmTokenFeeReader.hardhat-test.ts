@@ -7,12 +7,14 @@ import sinon from 'sinon';
 import {
   ERC20Test,
   ERC20Test__factory,
+  RoutingFee,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomInt } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -346,23 +348,23 @@ describe('EvmTokenFeeReader', () => {
       const routingFeeAddress =
         deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee].address;
 
-      // Simulate a legacy (pre-11.0.0) contract missing the domains() selector by
-      // returning empty call data for that selector at the provider level, so the
-      // real contract throws a genuine missing-selector CALL_EXCEPTION. Other reads
-      // pass through untouched.
-      const provider = multiProvider.getProvider(TestChainName.test2);
-      const domainsSelector =
-        RoutingFee__factory.createInterface().getSighash('domains');
-      const originalCall = provider.call.bind(provider);
-      const callStub = sinon
-        .stub(provider, 'call')
-        .callsFake((transaction, blockTag) => {
-          const data = transaction.data?.toString() ?? '';
-          if (data.startsWith(domainsSelector)) {
-            return Promise.resolve('0x');
-          }
-          return originalCall(transaction, blockTag);
-        });
+      // Simulate a legacy (pre-11.0.0) contract missing the domains() selector:
+      // token/owner/feeContracts delegate to the real contract, but domains()
+      // rejects with a missing-selector CALL_EXCEPTION the way an absent selector
+      // would. The typed double keeps every member checked against RoutingFee.
+      const realRoutingFee = RoutingFee__factory.connect(
+        routingFeeAddress,
+        multiProvider.getProvider(TestChainName.test2),
+      );
+      const connectStub = sinon.stub(RoutingFee__factory, 'connect').returns(
+        contractDouble<RoutingFee>({
+          token: () => realRoutingFee.token(),
+          owner: () => realRoutingFee.owner(),
+          feeContracts: (destination) =>
+            realRoutingFee.feeContracts(destination),
+          domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
+        }),
+      );
 
       try {
         const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
@@ -382,7 +384,7 @@ describe('EvmTokenFeeReader', () => {
           normalizeConfig(routingFeeConfig),
         );
       } finally {
-        callStub.restore();
+        connectStub.restore();
       }
     });
 
