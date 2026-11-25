@@ -19,6 +19,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import {
   CrossCollateralRoutingFeeConfig,
@@ -187,10 +188,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
-    const [token, owner, onchainDomains] = await Promise.all([
+    const [token, owner] = await Promise.all([
       routingFee.token(),
       routingFee.owner(),
-      routingFee.domains(),
     ]);
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
@@ -199,11 +199,17 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     // discovered, not only those supplied via routingDestinations hints. Hints can be
     // derived from router enrollment and omit orphan pointers (routers unenrolled while
     // their fee pointer is still set); union them in for any extra caller-requested reads.
+    // domains() was introduced in core 11.0.0; RoutingFee contracts from 10.0.0 lack the
+    // selector, so fall back to hints for those while rethrowing genuine RPC failures.
+    let onchainDomains: number[] = [];
+    try {
+      onchainDomains = (await routingFee.domains()).map(Number);
+    } catch (error) {
+      throwIfNotMissingSelector(error);
+    }
+
     const destinations = Array.from(
-      new Set<number>([
-        ...onchainDomains.map(Number),
-        ...(routingDestinations ?? []),
-      ]),
+      new Set<number>([...onchainDomains, ...(routingDestinations ?? [])]),
     );
 
     await Promise.all(

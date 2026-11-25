@@ -2,8 +2,13 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  RoutingFee__factory,
+} from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -309,6 +314,78 @@ describe('EvmTokenFeeReader', () => {
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig(routingFeeConfig),
       );
+    });
+
+    it('falls back to routingDestinations hints for legacy contracts without domains()', async () => {
+      // domains() was introduced in core 11.0.0; RoutingFee contracts from 10.0.0
+      // lack the selector. Simulate that by making domains() revert with no return
+      // data (missing-selector) while token/owner/feeContracts still work, and
+      // confirm the read still discovers the hinted destination.
+      const routingFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [TestChainName.test3]: {
+            owner: signer.address,
+            token: token.address,
+            type: TokenFeeType.LinearFee,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+          },
+        },
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: routingFeeConfig,
+      });
+      const routingFeeAddress =
+        deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee].address;
+
+      const realRoutingFee = RoutingFee__factory.connect(
+        routingFeeAddress,
+        multiProvider.getProvider(TestChainName.test2),
+      );
+      // ethers contract methods are non-writable, so expose a minimal delegate
+      // that forwards the reads the reader makes but rejects domains() the way a
+      // legacy (pre-11.0.0) contract missing the selector would.
+      const legacyRoutingFee = {
+        token: () => realRoutingFee.token(),
+        owner: () => realRoutingFee.owner(),
+        feeContracts: (destination: number) =>
+          realRoutingFee.feeContracts(destination),
+        domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
+      };
+      const connectStub = sinon
+        .stub(RoutingFee__factory, 'connect')
+        // CAST: partial mock exposing only the reads the reader calls; matches
+        // the sinon mock pattern used elsewhere in this file.
+        .returns(legacyRoutingFee as any);
+
+      try {
+        const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+        const routingFee = await reader.deriveTokenFeeConfig({
+          address: routingFeeAddress,
+          routingDestinations: [multiProvider.getDomainId(TestChainName.test3)],
+        });
+
+        assert(
+          routingFee.type === TokenFeeType.RoutingFee,
+          `Must be ${TokenFeeType.RoutingFee}`,
+        );
+        expect(Object.keys(routingFee.feeContracts)).to.deep.equal([
+          TestChainName.test3,
+        ]);
+        expect(normalizeConfig(routingFee)).to.deep.equal(
+          normalizeConfig(routingFeeConfig),
+        );
+      } finally {
+        connectStub.restore();
+      }
     });
 
     it('should derive cross collateral routing fee config from DEFAULT_ROUTER entries', async () => {
