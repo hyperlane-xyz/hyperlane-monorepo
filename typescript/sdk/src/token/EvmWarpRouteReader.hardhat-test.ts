@@ -968,11 +968,27 @@ describe('EvmWarpRouteReader', async () => {
       warpRoute[chain].collateral.address,
     );
 
-    expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
-    expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
-    expect(
-      Object.keys((derivedConfig.tokenFee as any).feeContracts as any),
-    ).to.have.length(0);
+    const { tokenFee } = derivedConfig;
+    assert(
+      tokenFee?.type === TokenFeeType.RoutingFee,
+      'Expected derived token fee to be a RoutingFee config',
+    );
+    expect(tokenFee.owner).to.equal(mailbox.address);
+    // The reader enumerates the RoutingFee contract's own domains(), so the
+    // configured test3 destination is discovered without being passed any
+    // routing destination hints.
+    const { feeContracts } = tokenFee;
+    expect(Object.keys(feeContracts)).to.deep.equal([TestChainName.test3]);
+    expect(normalizeConfig(feeContracts[TestChainName.test3])).to.deep.equal(
+      normalizeConfig({
+        type: TokenFeeType.LinearFee,
+        owner: mailbox.address,
+        bps: BPS,
+        token: token.address,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      }),
+    );
   });
 
   it('should return undefined fee token config if it is not set onchain', async () => {

@@ -53,6 +53,7 @@ jobs:
           - warp-apply-delayed-flow-1
           - warp-apply-delayed-flow-2
           - warp-apply-delayed-flow-3
+          - warp-apply-fee-removal
           - warp-check-1
           - warp-send
           - warp-fork
@@ -105,6 +106,7 @@ jobs:
           - warp-apply-delayed-flow-1
           - warp-apply-delayed-flow-2
           - warp-apply-delayed-flow-3
+          - warp-apply-fee-removal
           - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates

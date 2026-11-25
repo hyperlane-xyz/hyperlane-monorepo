@@ -2,12 +2,19 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  RoutingFee,
+  RoutingFee__factory,
+} from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { contractDouble } from '../test/contractDouble.js';
 import { randomInt } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -264,7 +271,7 @@ describe('EvmTokenFeeReader', () => {
       );
     });
 
-    it('should derive routing fee config without routingDestinations', async () => {
+    it('discovers configured destinations from domains() without routingDestinations', async () => {
       const routingFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
@@ -299,10 +306,95 @@ describe('EvmTokenFeeReader', () => {
         routingFee.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
-      expect(Object.keys((routingFee as any).feeContracts)).to.have.length(0);
+      // The reader enumerates the contract's own domains(), so the configured destination
+      // is discovered even though no routingDestinations hints were supplied.
+      expect(Object.keys(routingFee.feeContracts)).to.deep.equal([
+        TestChainName.test2,
+      ]);
+      expect(normalizeConfig(routingFee)).to.deep.equal(
+        normalizeConfig(routingFeeConfig),
+      );
+    });
+
+    it('falls back to routingDestinations hints for legacy contracts without domains()', async () => {
+      // domains() was introduced in core 11.0.0; RoutingFee contracts from 10.0.0
+      // lack the selector. Simulate that by making domains() revert with no return
+      // data (missing-selector) while token/owner/feeContracts still work, and
+      // confirm the read still discovers the hinted destination.
+      const routingFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [TestChainName.test3]: {
+            owner: signer.address,
+            token: token.address,
+            type: TokenFeeType.LinearFee,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+          },
+        },
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: routingFeeConfig,
+      });
+      const routingFeeAddress =
+        deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee].address;
+
+      // Simulate a legacy (pre-11.0.0) contract missing the domains() selector:
+      // token/owner/feeContracts delegate to the real contract, but domains()
+      // rejects with a missing-selector CALL_EXCEPTION the way an absent selector
+      // would. The typed double keeps every member checked against RoutingFee.
+      const realRoutingFee = RoutingFee__factory.connect(
+        routingFeeAddress,
+        multiProvider.getProvider(TestChainName.test2),
+      );
+      const connectStub = sinon.stub(RoutingFee__factory, 'connect').returns(
+        contractDouble<RoutingFee>({
+          token: () => realRoutingFee.token(),
+          owner: () => realRoutingFee.owner(),
+          feeContracts: (destination) =>
+            realRoutingFee.feeContracts(destination),
+          domains: () =>
+            Promise.reject(
+              Object.assign(new Error('Missing selector'), {
+                code: 'CALL_EXCEPTION',
+                data: '0x',
+              }),
+            ),
+        }),
+      );
+
+      try {
+        const reader = new EvmTokenFeeReader(
+          multiProvider,
+          TestChainName.test2,
+        );
+        const routingFee = await reader.deriveTokenFeeConfig({
+          address: routingFeeAddress,
+          routingDestinations: [multiProvider.getDomainId(TestChainName.test3)],
+        });
+
+        assert(
+          routingFee.type === TokenFeeType.RoutingFee,
+          `Must be ${TokenFeeType.RoutingFee}`,
+        );
+        expect(Object.keys(routingFee.feeContracts)).to.deep.equal([
+          TestChainName.test3,
+        ]);
+        expect(normalizeConfig(routingFee)).to.deep.equal(
+          normalizeConfig(routingFeeConfig),
+        );
+      } finally {
+        connectStub.restore();
+      }
     });
 
     it('should derive cross collateral routing fee config from DEFAULT_ROUTER entries', async () => {
