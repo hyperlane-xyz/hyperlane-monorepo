@@ -21,7 +21,7 @@ import { getInfraPath } from '../src/utils/utils.js';
 
 describe('USDT Eclipse production manifest', () => {
   afterEach(() => Sinon.restore());
-  it('renders its actual config with all three signers and its dedicated provider key', async () => {
+  it('renders its actual config with all three signers and the shared swaps.xyz key', async () => {
     const loaded = readRebalancerConfig(
       path.join(
         getInfraPath(),
@@ -129,7 +129,7 @@ describe('USDT Eclipse production manifest', () => {
       secret.spec.data.find(
         (d: { secretKey: string }) => d.secretKey === 'swapsxyz_api_key',
       ).remoteRef.key,
-    ).to.equal('mainnet3-swapsxyz-api-key-usdt-eclipse');
+    ).to.equal('mainnet3-swapsxyz-api-key');
     const sts = documents.find((d) => d.kind === 'StatefulSet');
     const container = sts.spec.template.spec.containers[0];
     expect(container.envFrom).to.deep.equal([
