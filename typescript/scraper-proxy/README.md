@@ -164,9 +164,10 @@ query Insertions($domain: bigint!, $hook: bytea!, $from: bigint) {
 }
 ```
 
-`from_index` is inclusive and defaults to zero; `limit` defaults to 1,000 and
-must be between 1 and 1,000. Pass `next_index` as the next request's `from_index`.
-A null cursor means no further confirmed rows are currently available. If the
+`from_index` is inclusive. Omit it to start at zero. Omit `limit` to request
+1,000 leaves, or supply a value between 1 and 1,000. Explicit `null` is invalid
+for either argument. When `next_index` has a value, pass it as the next request's
+`from_index`. A null cursor means no further confirmed rows are currently available. If the
 page is empty, retry later with the same `from_index` (zero if omitted). If the
 page contains leaves, poll later from the last returned leaf index plus one. Stop polling
 if the last index is 4,294,967,295, the largest cursor the API accepts. Clients
