@@ -504,7 +504,7 @@ impl Store {
         .await?;
         let count_row = tx
             .query_one(sql(
-                format!("SELECT {count_projection}"),
+                format!("SELECT {count_projection}, EXISTS(SELECT 1 FROM merkle_tree_snapshot WHERE domain=$1) AS has_snapshot"),
                 vec![self.domain(), after.into(), number(through)?],
             ))
             .await?
@@ -514,8 +514,11 @@ impl Store {
             counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
         }
 
-        self.advance_snapshot(&tx, after, boundary, counts[3] > 0)
-            .await?;
+        // Startup leaves the snapshot absent when the hook's history starts late.
+        if count_row.try_get::<bool>("", "has_snapshot")? {
+            self.advance_snapshot(&tx, after, boundary, counts[3] > 0)
+                .await?;
+        }
         tx.execute(sql(
             "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<(
                 SELECT max(height) FROM scraper_checkpoint WHERE domain=$1 AND height<=$2

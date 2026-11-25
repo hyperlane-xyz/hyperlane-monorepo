@@ -92,7 +92,10 @@ impl Store {
     ) -> Result<()> {
         // Two index seeks find the unsigned tip, including indices stored as negative i32s.
         let row = tx.query_one(sql(
-            "SELECT c.hash AS anchor,s.* FROM scraper_checkpoint c LEFT JOIN merkle_tree_snapshot s
+            "SELECT c.hash AS anchor,s.*,
+               NOT EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=$2 AND leaf_index=0)
+               AND EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=$2) AS missing_prefix
+             FROM scraper_checkpoint c LEFT JOIN merkle_tree_snapshot s
                ON (s.domain,s.confirmed_height,s.block_hash)=(c.domain,c.height,c.hash)
                AND s.merkle_tree_hook=$2 AND s.leaf_count=1+COALESCE(
                   (SELECT leaf_index::bigint+4294967296 FROM merkle_tree_insertion
@@ -104,6 +107,14 @@ impl Store {
              WHERE c.domain=$1 AND c.height=$3",
             vec![self.domain(), hook.clone().into(), through.into()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing confirmed Merkle checkpoint"))?;
+        if row.try_get::<bool>("", "missing_prefix")? {
+            self.lock_recovery_head(tx).await?;
+            tracing::warn!(
+                domain = self.domain,
+                "Merkle history is missing leaf zero; skipping snapshot until next startup"
+            );
+            return self.discard_snapshot(tx).await;
+        }
         if row.try_get::<Option<i32>>("", "domain")?.is_some() && restore(&row)?.is_some() {
             return Ok(());
         }
