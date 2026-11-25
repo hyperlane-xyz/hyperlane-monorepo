@@ -139,6 +139,45 @@ For a combined live list:
 
 Only canonical pages should be used as durable history cursors.
 
+### Merkle tree insertion history
+
+The same `/graphql` endpoint exposes confirmed insertions for one domain and
+Merkle hook, using the existing history database pool/read replica:
+
+```graphql
+query Insertions($domain: bigint!, $hook: bytea!, $from: bigint) {
+  merkle_tree_insertions(
+    domain: $domain
+    merkle_tree_hook: $hook
+    from_index: $from
+    limit: 1000
+  ) {
+    insertions {
+      domain
+      merkle_tree_hook
+      leaf_index
+      message_id
+      block_number
+    }
+    next_index
+  }
+}
+```
+
+`from_index` is inclusive and defaults to zero; `limit` defaults to 1,000 and
+must be between 1 and 1,000. Pass `next_index` as the next request's `from_index`.
+A null cursor means no further confirmed rows are currently available. To poll
+for new rows later, resume at the last received leaf index plus one. Clients
+must detect missing sequences and independently verify roots before signing.
+
+Fetch a single leaf with
+`merkle_tree_insertion(domain: $domain, merkle_tree_hook: $hook, leaf_index: $index)`;
+it returns the same insertion fields, or null if absent or not yet confirmed.
+Domains and leaf indices accept unsigned 32-bit values through `bigint`.
+Hook addresses accept `0x` or `\x` hex prefixes and must match the stored 20-byte
+or 32-byte address. Both queries inherit existing GraphQL admission, query-plan
+budgets, timeouts, and optional `@cached` response caching.
+
 ### Relayer diagnostics
 
 ```graphql
