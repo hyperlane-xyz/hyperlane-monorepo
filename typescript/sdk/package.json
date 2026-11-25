@@ -49,6 +49,14 @@
       "types": "./dist/middleware/account/*.d.ts",
       "default": "./dist/middleware/account/*.js"
     },
+    "./middleware/web2/*": {
+      "types": "./dist/middleware/web2/*.d.ts",
+      "default": "./dist/middleware/web2/*.js"
+    },
+    "./middleware/web2": {
+      "types": "./dist/middleware/web2/index.d.ts",
+      "default": "./dist/middleware/web2/index.js"
+    },
     "./predicate/PredicateApiClient": {
       "types": "./dist/predicate/PredicateApiClient.d.ts",
       "default": "./dist/predicate/PredicateApiClient.js"
