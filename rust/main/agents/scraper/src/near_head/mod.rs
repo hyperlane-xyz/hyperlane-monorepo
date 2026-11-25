@@ -202,9 +202,10 @@ async fn prepare<'a>(
     let current = source.header(BlockSelector::Latest).await?;
     source.counts(current.hash).await?;
     if let Some(anchor) = anchor {
-        store.initialize(anchor, contracts).await?;
+        store.initialize(anchor, contracts).await
+    } else {
+        store.prepare_snapshot().await
     }
-    Ok(())
 }
 
 fn resolve_index_from(index_from: i64, tip: u64) -> Result<u64> {

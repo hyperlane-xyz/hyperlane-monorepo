@@ -487,3 +487,214 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
     assert_eq!(store.confirm(&state, &header(10_000), LEASE).await?, [0; 4]);
     Ok(())
 }
+
+#[tokio::test]
+async fn confirmed_merkle_snapshot_rebuilds_and_advances_atomically() -> Result<()> {
+    use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let contracts = Contracts {
+        mailbox: H160::repeat_byte(1).into(),
+        hook: H160::repeat_byte(2).into(),
+        paymaster: H160::repeat_byte(3).into(),
+    };
+    let leaf = |height, index, id| {
+        event(
+            height,
+            u64::from(index),
+            contracts.hook,
+            EventData::Insertion {
+                index,
+                message_id: hyperlane_core::H256::repeat_byte(id),
+            },
+        )
+    };
+    let check = async |height: u64, tree: &IncrementalMerkle| -> Result<()> {
+        let row = store
+            .db
+            .query_one(sql(
+                "SELECT * FROM merkle_tree_snapshot WHERE domain=1",
+                vec![],
+            ))
+            .await?
+            .unwrap();
+        assert_eq!(
+            row.try_get::<i64>("", "confirmed_height")?,
+            i64::try_from(height)?
+        );
+        assert_eq!(
+            row.try_get::<Vec<u8>>("", "block_hash")?,
+            header(height).hash.as_bytes()
+        );
+        assert_eq!(
+            row.try_get::<i64>("", "leaf_count")?,
+            i64::try_from(tree.count())?
+        );
+        assert_eq!(
+            row.try_get::<Option<i64>>("", "leaf_index")?,
+            tree.count().checked_sub(1).map(i64::try_from).transpose()?
+        );
+        assert_eq!(row.try_get::<Vec<u8>>("", "root")?, tree.root().as_bytes());
+        for (i, node) in tree.branch().iter().enumerate() {
+            assert_eq!(
+                row.try_get::<Vec<u8>>("", &format!("branch_{i}"))?,
+                node.as_bytes()
+            );
+        }
+        Ok(())
+    };
+
+    store.initialize(&header(0), &contracts).await?;
+    store.prepare_snapshot().await?;
+    let mut expected = IncrementalMerkle::default();
+    check(0, &expected).await?;
+    store
+        .observe(&store.state().await?.unwrap(), &header(0), &header(5))
+        .await?;
+    store
+        .append(
+            &store.state().await?.unwrap(),
+            &[
+                (header(1), vec![leaf(1, 0, 10), leaf(1, 1, 11)]),
+                (header(2), vec![leaf(2, 2, 12)]),
+            ],
+        )
+        .await?;
+    check(0, &expected).await?;
+    let mut wrong_fork = header(1);
+    wrong_fork.hash = H256::repeat_byte(99);
+    let state = store.state().await?.unwrap();
+    assert!(store.confirm(&state, &wrong_fork, LEASE).await.is_err());
+    check(0, &expected).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 0);
+    // Expire the observation during publication without relying on wall-clock sleeps.
+    store.db.execute_unprepared(
+        "CREATE FUNCTION expire_observation() RETURNS trigger LANGUAGE plpgsql AS $$
+         BEGIN UPDATE scraper_head SET updated_at='-infinity' WHERE domain=NEW.domain; RETURN NEW; END $$;
+         CREATE TRIGGER expire_observation AFTER UPDATE ON merkle_tree_snapshot
+         FOR EACH ROW EXECUTE FUNCTION expire_observation()",
+    ).await?;
+    let error = store.confirm(&state, &header(1), LEASE).await.unwrap_err();
+    assert!(error.to_string().contains("observation expired"), "{error}");
+    check(0, &expected).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 0);
+    store
+        .db
+        .execute_unprepared("DROP TRIGGER expire_observation ON merkle_tree_snapshot")
+        .await?;
+    store
+        .confirm(&store.state().await?.unwrap(), &header(1), LEASE)
+        .await?;
+    for id in [10, 11] {
+        expected.ingest(hyperlane_core::H256::repeat_byte(id));
+    }
+    check(1, &expected).await?;
+
+    // First deployment over existing history, then restart after a stale anchor.
+    for repair in [
+        "DELETE FROM merkle_tree_snapshot",
+        "UPDATE merkle_tree_snapshot SET confirmed_height=0",
+        "UPDATE merkle_tree_snapshot SET root=decode(repeat('ff',32),'hex')",
+        "UPDATE merkle_tree_snapshot SET leaf_count=0,leaf_index=NULL",
+    ] {
+        store.db.execute_unprepared(repair).await?;
+        store.prepare_snapshot().await?;
+        check(1, &expected).await?;
+    }
+    store
+        .rewind_to_confirmed(&store.state().await?.unwrap())
+        .await?;
+    check(1, &expected).await?;
+    store
+        .observe(&store.state().await?.unwrap(), &header(1), &header(5))
+        .await?;
+    store
+        .append(
+            &store.state().await?.unwrap(),
+            &[
+                (header(2), vec![leaf(2, 2, 42)]),
+                (header(3), vec![]),
+                (header(4), vec![leaf(4, 4, 44)]),
+            ],
+        )
+        .await?;
+    store
+        .confirm(&store.state().await?.unwrap(), &header(2), LEASE)
+        .await?;
+    expected.ingest(hyperlane_core::H256::repeat_byte(42));
+    check(2, &expected).await?;
+    store
+        .confirm(&store.state().await?.unwrap(), &header(3), LEASE)
+        .await?;
+    check(3, &expected).await?;
+    let error = store
+        .confirm(&store.state().await?.unwrap(), &header(4), LEASE)
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("Non-contiguous Merkle history"),
+        "{error}"
+    );
+    assert_eq!(store.state().await?.unwrap().confirmed, 3);
+    check(3, &expected).await?;
+    // Simulate a second scraper advancing the head while startup is reading history.
+    // The repair must release the writer immediately and discard its stale result.
+    store
+        .db
+        .execute_unprepared("DELETE FROM merkle_tree_snapshot")
+        .await?;
+    let blocker = store.db.begin().await?;
+    blocker
+        .execute_unprepared("LOCK merkle_tree_insertion IN ACCESS EXCLUSIVE MODE")
+        .await?;
+    let writer = async {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let waiting = blocker.query_one(sql(
+                    "SELECT EXISTS(SELECT FROM pg_locks WHERE relation='merkle_tree_insertion'::regclass AND NOT granted) AS waiting",
+                    vec![],
+                )).await?.unwrap();
+                if waiting.try_get::<bool>("", "waiting")? { return Ok::<_, eyre::Report>(()); }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await??;
+        blocker.execute_unprepared("SET LOCAL lock_timeout='2s'; UPDATE scraper_head SET head_height=head_height+1 WHERE domain=1").await?;
+        blocker.commit().await?;
+        Ok::<_, eyre::Report>(())
+    };
+    let (repair, write) = tokio::join!(store.prepare_snapshot(), writer);
+    write?;
+    assert!(
+        repair.unwrap_err().to_string().contains("serialize"),
+        "expected stale recovery transaction"
+    );
+    store.prepare_snapshot().await?;
+    check(3, &expected).await?;
+
+    // A lagging RPC preserves the last good snapshot. A confirmed fork conflict
+    // revokes it atomically, and restarting the halted domain cannot recreate it.
+    store.pause(false).await?;
+    check(3, &expected).await?;
+    store.pause(true).await?;
+    for restart in [false, true] {
+        if restart {
+            store.prepare_snapshot().await?;
+        }
+        assert!(store
+            .db
+            .query_one(sql(
+                "SELECT domain FROM merkle_tree_snapshot WHERE domain=1",
+                vec![]
+            ))
+            .await?
+            .is_none());
+    }
+    Ok(())
+}

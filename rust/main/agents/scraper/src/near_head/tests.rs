@@ -553,6 +553,14 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert!(permission.try_get::<bool>("", "head")?);
     assert!(permission.try_get::<bool>("", "events")?);
+    let acl = db.query_one(Statement::from_string(DbBackend::Postgres,
+        "SELECT has_table_privilege('scraper_notification_reader','merkle_tree_snapshot','SELECT') AS reader,
+                has_table_privilege('scraper_notification_reader','merkle_tree_snapshot','INSERT, UPDATE, DELETE') AS reader_write,
+                has_table_privilege('scraper_writer','merkle_tree_snapshot','DELETE') AS writer_delete"
+    )).await?.unwrap();
+    assert!(acl.try_get::<bool>("", "reader")?);
+    assert!(!acl.try_get::<bool>("", "reader_write")?);
+    assert!(acl.try_get::<bool>("", "writer_delete")?);
     let writer_permission = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
