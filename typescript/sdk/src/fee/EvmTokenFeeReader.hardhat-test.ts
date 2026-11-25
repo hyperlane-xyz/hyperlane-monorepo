@@ -362,7 +362,13 @@ describe('EvmTokenFeeReader', () => {
           owner: () => realRoutingFee.owner(),
           feeContracts: (destination) =>
             realRoutingFee.feeContracts(destination),
-          domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
+          domains: () =>
+            Promise.reject(
+              Object.assign(new Error('Missing selector'), {
+                code: 'CALL_EXCEPTION',
+                data: '0x',
+              }),
+            ),
         }),
       );
 

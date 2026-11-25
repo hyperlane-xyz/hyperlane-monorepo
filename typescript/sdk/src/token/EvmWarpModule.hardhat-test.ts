@@ -3417,7 +3417,13 @@ describe('EvmWarpModule', async () => {
           owner: () => realRoutingFee.owner(),
           feeContracts: (destination) =>
             realRoutingFee.feeContracts(destination),
-          domains: () => Promise.reject({ code: 'CALL_EXCEPTION', data: '0x' }),
+          domains: () =>
+            Promise.reject(
+              Object.assign(new Error('Missing selector'), {
+                code: 'CALL_EXCEPTION',
+                data: '0x',
+              }),
+            ),
         }),
       );
 
@@ -3436,10 +3442,11 @@ describe('EvmWarpModule', async () => {
         expect(clearTx, 'expected orphan clearing tx for test3').to.not.be
           .undefined;
 
+        assert(clearTx?.data, 'expected clearing tx to carry calldata');
         const decoded =
           RoutingFee__factory.createInterface().decodeFunctionData(
             'setFeeContract(uint32,address)',
-            clearTx!.data!,
+            clearTx.data,
           );
         expect(Number(decoded[0])).to.equal(
           multiProvider.getDomainId(TestChainName.test3),
