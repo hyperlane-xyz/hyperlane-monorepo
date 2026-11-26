@@ -85,6 +85,20 @@ type query_root {
     merkle_tree_hook: bytea!
     leaf_index: bigint!
   ): merkle_tree_insertion
+  "fetch the latest confirmed frontier for one Merkle tree"
+  merkle_tree_snapshot(domain: bigint!, merkle_tree_hook: bytea!): merkle_tree_snapshot
+}
+
+type merkle_tree_snapshot {
+  domain: bigint!
+  merkle_tree_hook: bytea!
+  confirmed_height: bigint!
+  block_hash: bytea!
+  root: bytea!
+  leaf_count: bigint!
+  leaf_index: bigint
+  "32 branch hashes in tree-level order, starting at level zero"
+  branch: [bytea!]!
 }
 
 type merkle_tree_insertion {

@@ -41,6 +41,9 @@ const MERKLE_HOOK_REGEX = /^(?:0x|\\x)(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
 const MERKLE_COLUMNS = `(domain::bigint & 4294967295) AS domain,
   merkle_tree_hook, (leaf_index::bigint & 4294967295) AS leaf_index,
   message_id, block_number`;
+const BRANCH_COLUMNS = Array.from({ length: 32 }, (_, i) => `branch_${i}`).join(
+  ', ',
+);
 
 // Bound unauthenticated custom-frontier scans; larger history uses canonical queries.
 const MAX_CONFIRMATIONS = 1_000;
@@ -123,6 +126,17 @@ export class ScraperDbService {
       `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion
        WHERE domain=$1 AND merkle_tree_hook=$2 AND leaf_index=$3`,
       [...scope, signedUint32(uint32(args.leaf_index))],
+    );
+    return row ?? null;
+  }
+
+  async merkleTreeSnapshot(args: MerkleTreeArgs) {
+    const [row] = await this.historyQuery(
+      `SELECT (domain::bigint & 4294967295) AS domain, merkle_tree_hook,
+              confirmed_height, block_hash, root, leaf_count, leaf_index,
+              ARRAY[${BRANCH_COLUMNS}]::text[] AS branch
+       FROM merkle_tree_snapshot WHERE domain=$1 AND merkle_tree_hook=$2`,
+      merkleTreeScope(args),
     );
     return row ?? null;
   }

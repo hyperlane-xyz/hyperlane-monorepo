@@ -181,6 +181,25 @@ Hook addresses accept `0x` or `\x` hex prefixes and must match the stored 20-byt
 or 32-byte address. Both queries inherit existing GraphQL admission, query-plan
 budgets, timeouts, and optional `@cached` response caching.
 
+### Confirmed Merkle snapshot
+
+```graphql
+query Snapshot($domain: bigint!, $hook: bytea!) {
+  merkle_tree_snapshot(domain: $domain, merkle_tree_hook: $hook) {
+    confirmed_height
+    block_hash
+    root
+    leaf_count
+    branch
+  }
+}
+```
+
+The result is `null` until the scraper has a confirmed snapshot for that domain
+and hook. Restore the tree from `leaf_count` and the 32 hashes in `branch`
+(level zero first). Verify the root and count against the hook at the returned
+block, then use `leaf_count` as `from_index` for `merkle_tree_insertions`.
+
 ### Relayer diagnostics
 
 ```graphql
