@@ -1033,7 +1033,14 @@ async fn missing_leaf_zero_skips_only_snapshots_until_next_startup() -> Result<(
     assert_eq!(counts, [1; 4]);
     assert_eq!(store.state().await?.unwrap().confirmed, event_block.height);
     assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
-    store.prepare_snapshot().await?;
+    // A lease renewal holds the head row while startup sees an empty snapshot.
+    // Recovery must finish even while that write is outstanding.
+    let writer = store.db.begin().await?;
+    writer
+        .execute_unprepared("UPDATE scraper_head SET writer_lease_until=now() WHERE domain=1")
+        .await?;
+    timeout(Duration::from_secs(2), store.prepare_snapshot()).await??;
+    writer.rollback().await?;
     assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
 
     // Repair the fixture's prefix while running. Only startup should rebuild it.
