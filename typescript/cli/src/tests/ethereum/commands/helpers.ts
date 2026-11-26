@@ -348,7 +348,6 @@ export async function deployAevoXERC20TokenOnChain(
   );
 
   return deployAevoXERC20Token({
-    provider,
     deployer: new ethers.Wallet(privateKey, provider),
   });
 }

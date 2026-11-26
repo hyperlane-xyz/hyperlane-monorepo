@@ -3,8 +3,13 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Contract, ethers } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test__factory,
+  Mailbox,
+  Mailbox__factory,
+} from '@hyperlane-xyz/core';
 import {
   HyperlaneAddresses,
   HyperlaneContractsMap,
@@ -42,6 +47,7 @@ import {
 import { deployAevoXERC20Token } from '../test/aevoToken.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
+import { revertToSnapshot, snapshot } from '../utils/fork.js';
 
 import { EvmWarpModule } from './EvmWarpModule.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -135,10 +141,7 @@ describe('Aevo xERC20 token', async () => {
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
 
-    const deployedToken = await deployAevoXERC20Token({
-      provider: hre.ethers.provider,
-      deployer: signer,
-    });
+    const deployedToken = await deployAevoXERC20Token({ deployer: signer });
     aevoToken = new Contract(
       deployedToken.address,
       [
@@ -158,6 +161,22 @@ describe('Aevo xERC20 token', async () => {
     );
   });
 
+  // The tests authorize minters, set caps and hand the token over, so each of
+  // them starts from the state the setup left, whichever tests ran before it and
+  // however often it runs. A revert consumes its snapshot, so each test takes
+  // its own.
+  let snapshotId: string | undefined;
+  beforeEach(async () => {
+    snapshotId = await snapshot(hre.ethers.provider);
+  });
+  afterEach(async () => {
+    assert(!isNullish(snapshotId), 'Missing snapshot of the setup');
+    assert(
+      await revertToSnapshot(hre.ethers.provider, snapshotId),
+      `Failed to revert to the snapshot ${snapshotId} of the setup`,
+    );
+  });
+
   describe('deployAevoXERC20Token', () => {
     const setAccountsCode = (code: string) =>
       hre.network.provider.send('hardhat_setCode', [AEVO_ACCOUNTS, code]);
@@ -166,10 +185,7 @@ describe('Aevo xERC20 token', async () => {
     // no code at its address.
     it('lets an authorized minter mint on a node that had no code at the Accounts address', async () => {
       await setAccountsCode('0x');
-      await deployAevoXERC20Token({
-        provider: hre.ethers.provider,
-        deployer: signer,
-      });
+      await deployAevoXERC20Token({ deployer: signer });
       const address = randomAddress();
       await authorize(address);
 
@@ -187,10 +203,7 @@ describe('Aevo xERC20 token', async () => {
       await setAccountsCode(found);
 
       for (let run = 0; run < 2; run++) {
-        await deployAevoXERC20Token({
-          provider: hre.ethers.provider,
-          deployer: signer,
-        });
+        await deployAevoXERC20Token({ deployer: signer });
 
         expect(await hre.ethers.provider.getCode(AEVO_ACCOUNTS)).to.equal(
           found,
@@ -198,6 +211,179 @@ describe('Aevo xERC20 token', async () => {
       }
 
       await setAccountsCode(AEVO_ACCOUNTS_STAND_IN_CODE);
+    });
+
+    interface BalanceCase {
+      name: string;
+      balance: bigint;
+      // Whether the owner is funded to pay for the hand-over, which it is only
+      // where it holds less than it needs.
+      funded: boolean;
+    }
+
+    const FUNDS = 2n * 10n ** 18n;
+
+    // Taking the token back is done as its owner, which is impersonated for it,
+    // gets the funds to pay for it only when it holds too little, and is left
+    // with the balance it had, as a node that keeps its state, or a fork, has it
+    // as it left it.
+    const balanceCases: BalanceCase[] = [
+      { name: 'more than it needs', balance: 10n * 10n ** 18n, funded: false },
+      { name: 'less than it needs', balance: 10n ** 15n, funded: true },
+      { name: 'nothing', balance: 0n, funded: true },
+    ];
+
+    for (const c of balanceCases) {
+      it(`takes the token back from an owner with ${c.name}, and leaves its balance as it found it`, async () => {
+        const previousOwner = randomAddress();
+        await (await aevoToken.setOwner(previousOwner)).wait();
+        await hre.network.provider.send('hardhat_setBalance', [
+          previousOwner,
+          ethers.utils.hexValue(c.balance),
+        ]);
+
+        // A provider of its own, on the same node, whose requests can be read.
+        const provider = new ethers.providers.Web3Provider((method, params) =>
+          hre.network.provider.send(method, params),
+        );
+        const send = sinon.spy(provider, 'send');
+
+        await deployAevoXERC20Token({
+          deployer: provider.getSigner(signer.address),
+        });
+
+        expect(await aevoToken.owner()).to.equal(signer.address);
+        expect(
+          (await hre.ethers.provider.getBalance(previousOwner)).toBigInt(),
+        ).to.equal(c.balance);
+        // What it asked of the node for the previous owner, in order.
+        expect(
+          send.args
+            .filter(
+              ([method, [address]]) =>
+                method.startsWith('hardhat_') &&
+                eqAddress(address, previousOwner),
+            )
+            .map(([method, [, balance]]) => [method, balance]),
+        ).to.deep.equal([
+          ['hardhat_impersonateAccount', undefined],
+          ...(c.funded
+            ? [['hardhat_setBalance', ethers.utils.hexValue(FUNDS)]]
+            : []),
+          ['hardhat_setBalance', ethers.utils.hexValue(c.balance)],
+          ['hardhat_stopImpersonatingAccount', undefined],
+        ]);
+      });
+    }
+
+    interface FailureCase {
+      name: string;
+      // The requests for the previous owner that the node fails.
+      failing: string[];
+    }
+
+    // The hand-over, the restoring of the balance and the end of the
+    // impersonation each run whichever of the others failed, and every one that
+    // failed is reported.
+    const failureCases: FailureCase[] = [
+      {
+        name: 'the balance cannot be restored',
+        failing: ['hardhat_setBalance'],
+      },
+      {
+        name: 'the impersonation cannot be ended',
+        failing: ['hardhat_stopImpersonatingAccount'],
+      },
+      {
+        name: 'neither the balance can be restored nor the impersonation ended',
+        failing: ['hardhat_setBalance', 'hardhat_stopImpersonatingAccount'],
+      },
+      { name: 'the hand-over fails', failing: ['eth_sendTransaction'] },
+      {
+        name: 'the hand-over fails and the balance cannot be restored',
+        failing: ['eth_sendTransaction', 'hardhat_setBalance'],
+      },
+      {
+        name: 'nothing succeeds after the impersonation starts',
+        failing: [
+          'eth_sendTransaction',
+          'hardhat_setBalance',
+          'hardhat_stopImpersonatingAccount',
+        ],
+      },
+    ];
+
+    for (const c of failureCases) {
+      it(`ends the impersonation and restores the balance of the previous owner, as far as the node lets it, when ${c.name}`, async () => {
+        const previousOwner = randomAddress();
+        const balance = 10n * 10n ** 18n;
+        await (await aevoToken.setOwner(previousOwner)).wait();
+        await hre.network.provider.send('hardhat_setBalance', [
+          previousOwner,
+          ethers.utils.hexValue(balance),
+        ]);
+
+        const provider = new ethers.providers.Web3Provider((method, params) =>
+          hre.network.provider.send(method, params),
+        );
+        const send = sinon
+          .stub(provider, 'send')
+          .callsFake(async (method, params) => {
+            const [first] = params;
+            const address = typeof first === 'string' ? first : first?.from;
+            if (
+              c.failing.includes(method) &&
+              eqAddress(address, previousOwner)
+            ) {
+              throw new Error(`injected ${method} failure`);
+            }
+            return hre.network.provider.send(method, params);
+          });
+
+        let thrown: unknown;
+        try {
+          await deployAevoXERC20Token({
+            deployer: provider.getSigner(signer.address),
+          });
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).to.be.instanceOf(Error);
+        for (const method of c.failing) {
+          expect(thrown)
+            .to.have.property('message')
+            .that.includes(`injected ${method} failure`);
+        }
+        expect(
+          send.args
+            .filter(
+              ([method, [address]]) =>
+                method.startsWith('hardhat_') &&
+                eqAddress(address, previousOwner),
+            )
+            .map(([method]) => method),
+        ).to.deep.equal([
+          'hardhat_impersonateAccount',
+          'hardhat_setBalance',
+          'hardhat_stopImpersonatingAccount',
+        ]);
+        if (!c.failing.includes('hardhat_setBalance')) {
+          expect(
+            (await hre.ethers.provider.getBalance(previousOwner)).toBigInt(),
+          ).to.equal(balance);
+        }
+      });
+    }
+
+    // The node it puts the token on is the one the deployer is connected to,
+    // so that what it checks is the owner of the token it put there.
+    it('rejects a deployer that is not connected to a JSON-RPC provider', async () => {
+      await expect(
+        deployAevoXERC20Token({ deployer: ethers.Wallet.createRandom() }),
+      ).to.be.rejectedWith(
+        'Expected the deployer to be connected to the JSON-RPC provider',
+      );
     });
   });
 
@@ -410,25 +596,32 @@ describe('Aevo xERC20 token', async () => {
       });
     });
 
-    // setOwner takes effect at once and the new owner accepts nothing, so each
-    // test hands the token back to the signer, which the next test relies on.
+    // setOwner takes effect at once and the new owner accepts nothing.
     describe('its owner', () => {
       const setOwnerData = (owner: Address) =>
         `${AEVO_OWNER_SELECTORS.setOwner}${abiWord(owner)}`;
-
-      afterEach(async () => {
-        const holder = await aevoToken.owner();
-        if (!eqAddress(holder, signer.address)) {
-          const asHolder = await impersonate(holder);
-          await (await asHolder.setOwner(signer.address)).wait();
-        }
-      });
 
       it('is read as the owner of the token', async () => {
         const { module } = createModule(aevoUnlimited());
 
         expect(await module.reader.readOwner(AEVO_USDC_PROXY)).to.equal(
           signer.address,
+        );
+      });
+
+      // The errors a node answers with are what tell a token without an
+      // owner() from a failure to read it.
+      it('is read as none for a token that has no owner()', async () => {
+        const { module } = createModule(aevoUnlimited());
+        const token = await new ERC20Test__factory(signer).deploy(
+          'Token',
+          'TKN',
+          1000,
+          18,
+        );
+
+        expect(await module.reader.readOwner(token.address)).to.equal(
+          undefined,
         );
       });
 

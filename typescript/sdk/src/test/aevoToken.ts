@@ -4,6 +4,7 @@ import {
   Address,
   assert,
   eqAddress,
+  formatError,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -22,6 +23,10 @@ const AEVO_TOKEN_ABI = [
   'function owner() view returns (address)',
   'function setOwner(address newOwner)',
 ];
+
+// What the previous owner of the token is funded with, when it holds less, to
+// pay for handing the token over.
+const PREVIOUS_OWNER_FUNDS = utils.parseEther('2');
 
 export interface DeployedAevoXERC20Token {
   address: Address;
@@ -43,23 +48,28 @@ export interface DeployedAevoXERC20Token {
  * keeps what it has.
  *
  * It does so with the `hardhat_*` cheat RPCs, which Hardhat and Anvil answer,
- * so it works on those nodes and never on a real chain. It can run again on a
- * node that keeps its state: the code of the token is etched again, the
- * stand-in is not, an initialized token is not initialized twice, and a token
- * another account owns is taken back for `deployer`, by impersonating that
- * account.
+ * so it works on those nodes and never on a real chain, on the node `deployer`
+ * is connected to. It can run again on a node that keeps its state: the code of
+ * the token is etched again, the stand-in is not, an initialized token is not
+ * initialized twice, and a token another account owns is taken back for
+ * `deployer`, by impersonating that account. That account gets the funds to pay
+ * for it only when it holds too little, and has the balance it had afterwards.
  */
 export async function deployAevoXERC20Token({
-  provider,
   deployer,
   name = 'USDC',
   symbol = 'USDC',
 }: {
-  provider: providers.JsonRpcProvider;
   deployer: Signer;
   name?: string;
   symbol?: string;
 }): Promise<DeployedAevoXERC20Token> {
+  const provider = deployer.provider;
+  assert(
+    provider instanceof providers.JsonRpcProvider,
+    'Expected the deployer to be connected to the JSON-RPC provider of the node that gets the Aevo token',
+  );
+
   for (const address of [AEVO_USDC_IMPLEMENTATION, AEVO_USDC_PROXY]) {
     await provider.send('hardhat_setCode', [address, aevoTokenCode(address)]);
   }
@@ -82,17 +92,36 @@ export async function deployAevoXERC20Token({
   if (isZeroishAddress(owner)) {
     await (await token.initialize(deployerAddress, name, symbol)).wait();
   } else if (!eqAddress(owner, deployerAddress)) {
+    const balance = await provider.getBalance(owner);
     await provider.send('hardhat_impersonateAccount', [owner]);
+    const failures: unknown[] = [];
     try {
-      await provider.send('hardhat_setBalance', [
-        owner,
-        utils.hexValue(utils.parseEther('2')),
-      ]);
+      if (balance.lt(PREVIOUS_OWNER_FUNDS)) {
+        await provider.send('hardhat_setBalance', [
+          owner,
+          utils.hexValue(PREVIOUS_OWNER_FUNDS),
+        ]);
+      }
       await (
         await token.connect(provider.getSigner(owner)).setOwner(deployerAddress)
       ).wait();
-    } finally {
-      await provider.send('hardhat_stopImpersonatingAccount', [owner]);
+    } catch (error: unknown) {
+      failures.push(error);
+    }
+    // Both steps that undo it run whether or not the hand-over worked and
+    // whether or not the other failed, and every failure is reported.
+    const undone = await Promise.allSettled([
+      provider.send('hardhat_setBalance', [owner, utils.hexValue(balance)]),
+      provider.send('hardhat_stopImpersonatingAccount', [owner]),
+    ]);
+    for (const result of undone) {
+      if (result.status === 'rejected') failures.push(result.reason);
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new Error(
+        `Failed to take the Aevo token back from ${owner}: ${failures.map((failure) => formatError(failure)).join('; ')}`,
+      );
     }
   }
 
