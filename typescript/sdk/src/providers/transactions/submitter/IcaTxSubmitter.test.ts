@@ -1,8 +1,11 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  Address,
+  ProtocolType,
   bytes32ToAddress,
   formatStandardHookMetadata,
 } from '@hyperlane-xyz/utils';
@@ -15,6 +18,12 @@ import {
   EvmIcaTxSubmitter,
   ICA_QUOTE_BUFFER_MULTIPLIER,
 } from './IcaTxSubmitter.js';
+import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
+import { getSubmitter } from './submitterBuilderGetter.js';
+import { SubmitterMetadata } from './types.js';
+
+chai.use(chaiAsPromised);
 
 describe('EvmIcaTxSubmitter.submit', () => {
   const origin = TestChainName.test1;
@@ -108,6 +117,36 @@ describe('EvmIcaTxSubmitter.submit', () => {
     );
   });
 
+  it('encodes the configured refundAddress into hookMetadata instead of the owner', async () => {
+    const estimatedGas = BigNumber.from(150_000);
+    mockApp.estimateIcaHandleGas.resolves(estimatedGas);
+    mockApp.getCallRemote.resolves({
+      to: randomAddress(),
+      data: '0x',
+      value: undefined,
+    });
+    const refundAddress = '0x00000000000000000000000000000000000000AA';
+
+    const { chainId: destChainId } =
+      multiProvider.getChainMetadata(destination);
+    await makeSubmitter({ refundAddress }).submit({
+      to: randomAddress(),
+      data: '0x1234',
+      chainId: destChainId,
+    });
+
+    expect(mockApp.getCallRemote.firstCall.args[0].hookMetadata).to.equal(
+      formatStandardHookMetadata({
+        refundAddress,
+        gasLimit: estimatedGas.toBigInt(),
+      }),
+    );
+    // callRemote must still be sent by the owner
+    expect(mockSubmitter.submit.firstCall.args[0].from).to.equal(
+      bytes32ToAddress(owner),
+    );
+  });
+
   it('forwards the callRemote tx to the inner submitter with `from` set to the ICA owner', async () => {
     mockApp.estimateIcaHandleGas.resolves(BigNumber.from(150_000));
     // Simulate getCallRemote populating `from` with the signer (deployer) address;
@@ -166,4 +205,81 @@ describe('EvmIcaTxSubmitter.submit', () => {
     // The `from` override must not clobber other populated fields.
     expect(forwarded.from).to.equal(bytes32ToAddress(owner));
   });
+});
+
+describe('EvmIcaTxSubmitter.fromConfig with an AccessManager internal submitter', () => {
+  const origin = TestChainName.test1;
+  const destination = TestChainName.test2;
+  const accessManagerAddress: Address =
+    '0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863';
+  const refundAddress: Address = '0x00000000000000000000000000000000000000AA';
+
+  function buildIcaConfig(fields: {
+    owner: Address;
+    refundAddress?: Address;
+  }): EvmIcaTxSubmitterProps {
+    return {
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      chain: origin,
+      destinationChain: destination,
+      owner: fields.owner,
+      refundAddress: fields.refundAddress,
+      originInterchainAccountRouter: randomAddress(),
+      internalSubmitter: {
+        type: TxSubmitterType.ACCESS_MANAGER,
+        chain: origin,
+        accessManagerAddress,
+        proposerSubmitter: { type: TxSubmitterType.JSON_RPC, chain: origin },
+      },
+    };
+  }
+
+  const missingRefundMessage = `Interchain account on ${origin} owned by AccessManager ${accessManagerAddress} requires a refundAddress other than the AccessManager`;
+
+  const cases: Array<{
+    name: string;
+    metadata: SubmitterMetadata;
+    expectedError: string;
+  }> = [
+    {
+      name: 'the refundAddress is missing',
+      metadata: buildIcaConfig({ owner: accessManagerAddress }),
+      expectedError: missingRefundMessage,
+    },
+    {
+      name: 'the refundAddress is the AccessManager',
+      metadata: buildIcaConfig({
+        owner: accessManagerAddress,
+        refundAddress: accessManagerAddress.toLowerCase(),
+      }),
+      expectedError: missingRefundMessage,
+    },
+    {
+      name: 'the owner is not the AccessManager',
+      metadata: buildIcaConfig({ owner: randomAddress(), refundAddress }),
+      expectedError: `must be AccessManager ${accessManagerAddress}`,
+    },
+    {
+      name: 'the refundAddress is missing on an interchain account nested as an AccessManager proposer',
+      metadata: {
+        type: TxSubmitterType.ACCESS_MANAGER,
+        chain: destination,
+        accessManagerAddress: randomAddress(),
+        proposerSubmitter: buildIcaConfig({ owner: accessManagerAddress }),
+      },
+      expectedError: missingRefundMessage,
+    },
+  ];
+
+  for (const { name, metadata, expectedError } of cases) {
+    it(`should reject the config when ${name}`, async () => {
+      await expect(
+        getSubmitter<ProtocolType.Ethereum>(
+          MultiProvider.createTestMultiProvider(),
+          metadata,
+          {},
+        ),
+      ).to.be.rejectedWith(expectedError);
+    });
+  }
 });

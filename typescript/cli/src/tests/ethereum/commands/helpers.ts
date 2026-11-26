@@ -27,6 +27,8 @@ import {
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
+  increaseTime,
+  mine,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -404,6 +406,7 @@ export function hyperlaneStatus({
   relay,
   key,
   quick,
+  registry = REGISTRY_PATH,
 }: {
   origin: string;
   messageId?: string;
@@ -411,9 +414,10 @@ export function hyperlaneStatus({
   relay?: boolean;
   key?: string;
   quick?: boolean;
+  registry?: string;
 }) {
   return $`${localTestRunCmdPrefix()} hyperlane status \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registry} \
         --origin ${origin} \
         ${messageId ? ['--id', messageId] : []} \
         ${dispatchTx ? ['--dispatchTx', dispatchTx] : []} \
@@ -532,6 +536,19 @@ export async function restoreSnapshot(
   assert(result, 'Failed to restore snapshot');
 }
 
+/**
+ * Advances the node clock by `seconds` and mines a block so the next
+ * transaction observes the new timestamp.
+ */
+export async function increaseEvmTime(
+  rpcUrl: string,
+  seconds: number,
+): Promise<void> {
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+  await increaseTime(provider, seconds);
+  await mine(provider);
+}
+
 async function snapshotBaseCall<T>(
   rpcUrl: string,
   method: string,
@@ -559,17 +576,19 @@ export async function hyperlaneSubmit({
   signerConfigPath,
   receiptsPath,
   hypKey,
+  registry = REGISTRY_PATH,
 }: {
   transactionsPath: string;
   strategyPath?: string;
   signerConfigPath?: string;
   receiptsPath?: string;
   hypKey?: string;
+  registry?: string;
 }) {
   return $`${
     hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane submit \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registry} \
         --transactions ${transactionsPath} \
         ${
           signerConfigPath

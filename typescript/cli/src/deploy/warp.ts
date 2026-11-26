@@ -138,6 +138,7 @@ import {
   type ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   type ExtendedSubmissionStrategy,
+  isRecord,
 } from '../submitters/types.js';
 import {
   indentYamlOrJson,
@@ -1179,6 +1180,53 @@ function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
   );
 }
 
+function withSafeAddress(
+  payload: SafeTxBuilderPayload,
+  safeAddress: string,
+): SafeTxBuilderPayload {
+  return {
+    version: payload.version,
+    chainId: payload.chainId,
+    meta: { ...payload.meta, _safeAddress: safeAddress },
+    transactions: payload.transactions,
+  };
+}
+
+/**
+ * Splits a submit result into its Safe TX Builder payloads, tagged with the Safe
+ * address that keys the combined bundle, and the remaining receipts. Composite
+ * submitters (timelock, AccessManager) return the proposer's payload followed by
+ * the deferred execute txs, which end up in `rest`.
+ */
+export function splitSafeTxBuilderPayloads<T>(
+  result: void | T | T[],
+  safeAddress: string,
+): { safePayloads: SafeTxBuilderPayload[]; rest: void | T | T[] } {
+  if (!Array.isArray(result)) {
+    return isSafeTxBuilderPayload(result)
+      ? {
+          safePayloads: [withSafeAddress(result, safeAddress)],
+          rest: undefined,
+        }
+      : { safePayloads: [], rest: result };
+  }
+
+  const safePayloads: SafeTxBuilderPayload[] = [];
+  const rest: T[] = [];
+  for (const item of result) {
+    if (isSafeTxBuilderPayload(item)) {
+      safePayloads.push(withSafeAddress(item, safeAddress));
+    } else {
+      rest.push(item);
+    }
+  }
+
+  if (safePayloads.length === 0) {
+    return { safePayloads, rest: result };
+  }
+  return { safePayloads, rest: rest.length > 0 ? rest : undefined };
+}
+
 /** EVM update planning may deploy contracts, so it must never auto-retry. */
 export async function runWarpUpdatePlanning<T>(
   protocolType: ProtocolType,
@@ -1827,18 +1875,15 @@ type ChainTxPayloads = {
 };
 
 // Extracts the Gnosis Safe address from a submitter metadata object via duck-typing.
-// Handles both direct Safe submitters (safeAddress) and ICA submitters with a
-// nested internalSubmitter that holds the Safe address.
-function extractSafeAddressFromSubmitter(meta: unknown): string {
-  if (meta == null || typeof meta !== 'object') return '';
-  const obj = meta as Record<string, unknown>;
-  if (typeof obj.safeAddress === 'string') return obj.safeAddress;
-  const inner = obj.internalSubmitter;
-  if (inner != null && typeof inner === 'object') {
-    const innerObj = inner as Record<string, unknown>;
-    if (typeof innerObj.safeAddress === 'string') return innerObj.safeAddress;
-  }
-  return '';
+// Handles direct Safe submitters (safeAddress) and wrapping submitters (ICA,
+// timelock, AccessManager) by recursing into internalSubmitter/proposerSubmitter.
+export function extractSafeAddressFromSubmitter(meta: unknown): string {
+  if (!isRecord(meta)) return '';
+  if (typeof meta.safeAddress === 'string') return meta.safeAddress;
+  return (
+    extractSafeAddressFromSubmitter(meta.internalSubmitter) ||
+    extractSafeAddressFromSubmitter(meta.proposerSubmitter)
+  );
 }
 
 /**
@@ -1860,6 +1905,7 @@ function submitterProducesPayload(
     case TxSubmitterType.INTERCHAIN_ACCOUNT:
       return submitterProducesPayload(submitter.internalSubmitter);
     case TxSubmitterType.TIMELOCK_CONTROLLER:
+    case TxSubmitterType.ACCESS_MANAGER:
       return submitterProducesPayload(submitter.proposerSubmitter);
     default:
       return false;
@@ -1886,6 +1932,64 @@ function submitChainBatch(
 }
 
 /**
+ * Retries a chain submission with fresh payload/fee-error state per attempt, so
+ * a failed attempt's payloads (e.g. an already-built schedule tx) are not
+ * duplicated into the result of the attempt that succeeds.
+ */
+export async function retryChainSubmission(
+  runAttempt: (attempt: ChainTxPayloads) => Promise<void>,
+  attempts: number,
+  baseRetryMs: number,
+): Promise<ChainTxPayloads> {
+  return retryAsync(
+    async () => {
+      const attempt: ChainTxPayloads = { safePayloads: [] };
+      await runAttempt(attempt);
+      return attempt;
+    },
+    attempts,
+    baseRetryMs,
+  );
+}
+
+/**
+ * Self-relays the message dispatched by the submitted receipts when `--relay`
+ * is set and the strategy allows it. Relay errors are logged, not thrown, so a
+ * failed relay does not re-run the already broadcast submission.
+ *
+ * @returns true when a self-relay was attempted and failed
+ */
+async function selfRelayReceipts({
+  params,
+  config,
+  receipts,
+}: {
+  params: WarpApplyParams;
+  config: ExtendedSubmissionStrategy;
+  receipts: Awaited<ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>>;
+}): Promise<boolean> {
+  const canRelay = canSelfRelay(params.selfRelay ?? false, config, receipts);
+  if (!canRelay.relay) {
+    return false;
+  }
+
+  try {
+    await retryAsync(() =>
+      runSelfRelay({
+        txReceipt: canRelay.txReceipt,
+        multiProvider: params.context.multiProvider,
+        registry: params.context.registry,
+        successMessage: WarpSendLogs.SUCCESS,
+      }),
+    );
+    return false;
+  } catch (error) {
+    warnYellow(`Error when self-relaying Warp transaction`, error);
+    return true;
+  }
+}
+
+/**
  * Submits transactions for a single chain and handles receipts/self-relay.
  * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
  * so callers can merge payloads across chains into combined files per chain ID.
@@ -1899,8 +2003,6 @@ async function submitChainTransactions(
   isExtendedChain: boolean,
 ): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
-  const safePayloads: SafeTxBuilderPayload[] = [];
-  let returnedFeeError: string | undefined;
 
   // Read safe addresses once; used to key combined bundles by (chainId, safeAddress)
   // so payloads for two different Safes on the same origin chain stay separate.
@@ -1931,8 +2033,8 @@ async function submitChainTransactions(
     ? [...transactions, ...feeTxs]
     : transactions;
 
-  await retryAsync(
-    async () => {
+  return retryChainSubmission(
+    async (attempt) => {
       const { submitter, config } = await getSubmitterByStrategy({
         chain,
         context: params.context,
@@ -1945,48 +2047,31 @@ async function submitChainTransactions(
           ? await submitChainBatch(submitter, mainTransactions)
           : undefined;
 
-      if (isSafeTxBuilderPayload(transactionReceipts)) {
-        safePayloads.push({
-          ...transactionReceipts,
-          meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
-        });
-      }
+      const { safePayloads: mainSafePayloads, rest: mainReceipts } =
+        splitSafeTxBuilderPayloads(transactionReceipts, mainSafeAddress);
+      attempt.safePayloads.push(...mainSafePayloads);
 
+      let mainRelayFailed = false;
       if (!isSafeTxBuilderPayload(transactionReceipts)) {
         if (!isEVMLike(protocol)) {
           return;
         }
 
-        if (transactionReceipts) {
+        if (mainReceipts) {
           const receiptPath = `${params.receiptsDir}/${chain}-${
             submitter.txSubmitterType
           }-${Date.now()}-receipts.json`;
-          writeYamlOrJson(receiptPath, transactionReceipts);
+          writeYamlOrJson(receiptPath, mainReceipts);
           logGreen(
             `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
           );
         }
 
-        const canRelay = canSelfRelay(
-          params.selfRelay ?? false,
+        mainRelayFailed = await selfRelayReceipts({
+          params,
           config,
-          transactionReceipts,
-        );
-
-        if (canRelay.relay) {
-          try {
-            await retryAsync(() =>
-              runSelfRelay({
-                txReceipt: canRelay.txReceipt,
-                multiProvider: params.context.multiProvider,
-                registry: params.context.registry,
-                successMessage: WarpSendLogs.SUCCESS,
-              }),
-            );
-          } catch (error) {
-            warnYellow(`Error when self-relaying Warp transaction`, error);
-          }
-        }
+          receipts: mainReceipts,
+        });
       }
 
       // Runs whenever fee txs were NOT merged into the main submission: either a
@@ -1995,7 +2080,7 @@ async function submitChainTransactions(
       // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
       // up to retryAsync and re-run the main submit block (which would rebroadcast
       // already-submitted main txs); the failure is surfaced as a soft warning via
-      // returnedFeeError instead.
+      // attempt.feeError instead.
       if (!mergeFeeIntoMain && feeTxs.length > 0) {
         try {
           const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
@@ -2006,32 +2091,37 @@ async function submitChainTransactions(
           // Fall back to the main submitter when no dedicated feeSubmitter is
           // configured (live-broadcast strategies that opted out of merging).
           const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
+          let feeConfig: ExtendedSubmissionStrategy = config;
+          if (dedicatedFeeSubmitter) {
+            assert(
+              chainStrategyEntry?.feeSubmitter,
+              `Missing feeSubmitter strategy for ${chain}`,
+            );
+            feeConfig = { submitter: chainStrategyEntry.feeSubmitter };
+          }
           const feeSafeAddressForBundle = dedicatedFeeSubmitter
             ? feeSafeAddress
             : mainSafeAddress;
-          const feeReceipts = await submitChainBatch(feeSubmitter, feeTxs);
-          if (isSafeTxBuilderPayload(feeReceipts)) {
-            safePayloads.push({
-              ...feeReceipts,
-              meta: {
-                ...feeReceipts.meta,
-                _safeAddress: feeSafeAddressForBundle,
-              },
-            });
-          }
-          if (
-            feeReceipts &&
-            !isSafeTxBuilderPayload(feeReceipts) &&
-            isEVMLike(protocol)
-          ) {
+          const { safePayloads: feeSafePayloads, rest: feeReceipts } =
+            splitSafeTxBuilderPayloads(
+              await submitChainBatch(feeSubmitter, feeTxs),
+              feeSafeAddressForBundle,
+            );
+          attempt.safePayloads.push(...feeSafePayloads);
+          if (feeReceipts && isEVMLike(protocol)) {
             const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
             writeYamlOrJson(feeReceiptPath, feeReceipts);
             logGreen(
               `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
             );
+            await selfRelayReceipts({
+              params,
+              config: feeConfig,
+              receipts: feeReceipts,
+            });
           }
         } catch (error) {
-          returnedFeeError =
+          attempt.feeError =
             error instanceof Error ? error.message : String(error);
           warnYellow(
             `Error when submitting fee transactions for ${chain}`,
@@ -2040,35 +2130,41 @@ async function submitChainTransactions(
         }
       }
 
-      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
-      // setFeeRecipient) execute before ownership is transferred to a new address.
+      // Submit ownership txs last so the main batch (including router-owner calls
+      // such as setFeeRecipient) and the fee-contract txs execute before
+      // ownership changes.
       if (ownershipTxs.length > 0) {
-        const ownershipReceipts = await submitChainBatch(
-          submitter,
-          ownershipTxs,
-        );
-        if (isSafeTxBuilderPayload(ownershipReceipts)) {
-          safePayloads.push({
-            ...ownershipReceipts,
-            meta: {
-              ...ownershipReceipts.meta,
-              _safeAddress: mainSafeAddress,
-            },
-          });
-        } else if (ownershipReceipts && isEVMLike(protocol)) {
+        const { safePayloads: ownershipSafePayloads, rest: ownershipReceipts } =
+          splitSafeTxBuilderPayloads(
+            await submitChainBatch(submitter, ownershipTxs),
+            mainSafeAddress,
+          );
+        attempt.safePayloads.push(...ownershipSafePayloads);
+        if (ownershipReceipts && isEVMLike(protocol)) {
           const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
           writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
           logGreen(
             `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
           );
+          // Relaying the ownership transfer before the main messages are
+          // delivered would leave those messages without the owner's authority.
+          if (mainRelayFailed) {
+            warnYellow(
+              `Skipping self-relay of ownership transactions for ${chain} because the self-relay of its main transactions failed`,
+            );
+          } else {
+            await selfRelayReceipts({
+              params,
+              config,
+              receipts: ownershipReceipts,
+            });
+          }
         }
       }
     },
     5, // attempts
     100, // baseRetryMs
   );
-
-  return { safePayloads, feeError: returnedFeeError };
 }
 
 /**
@@ -2292,7 +2388,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,
     }),
-    config: submissionStrategy,
+    config: strategyToUse,
   };
 }
 

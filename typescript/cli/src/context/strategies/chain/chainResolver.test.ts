@@ -61,6 +61,48 @@ describe('getSubmitterChains', () => {
     expect(result).to.deep.equal(['optimism', 'optimism']);
   });
 
+  it('should return chain and proposer submitter chains for an AccessManager submitter', () => {
+    const submitter: Submitter = {
+      type: TxSubmitterType.ACCESS_MANAGER,
+      chain: 'optimism',
+      accessManagerAddress: '0x0000000000000000000000000000000000000002',
+      proposerSubmitter: {
+        type: TxSubmitterType.GNOSIS_TX_BUILDER,
+        chain: 'optimism',
+        safeAddress: '0x0000000000000000000000000000000000000003',
+        version: '1.0',
+      },
+    };
+    expect(getSubmitterChains(submitter)).to.deep.equal([
+      'optimism',
+      'optimism',
+    ]);
+  });
+
+  it('should include the ICA origin chain for an AccessManager with an ICA proposer', () => {
+    const submitter: Submitter = {
+      type: TxSubmitterType.ACCESS_MANAGER,
+      chain: 'arbitrum',
+      accessManagerAddress: '0x0000000000000000000000000000000000000002',
+      proposerSubmitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+        chain: 'ethereum',
+        owner: '0x0000000000000000000000000000000000000001',
+        destinationChain: 'arbitrum',
+        internalSubmitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: 'ethereum',
+        },
+      },
+    };
+    expect(getSubmitterChains(submitter)).to.deep.equal([
+      'arbitrum',
+      'ethereum',
+      'arbitrum',
+      'ethereum',
+    ]);
+  });
+
   it('should handle nested ICA with Gnosis Safe internal submitter', () => {
     const submitter: Submitter = {
       type: TxSubmitterType.INTERCHAIN_ACCOUNT,

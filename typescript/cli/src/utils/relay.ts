@@ -75,6 +75,11 @@ export function canSelfRelay(
     return { relay: false };
   }
 
+  // The receipt of an AccessManager schedule dispatches no message
+  if (HyperlaneCore.getDispatchedMessages(txReceipt).length === 0) {
+    return { relay: false };
+  }
+
   return {
     relay: canRelay,
     txReceipt,
@@ -88,8 +93,18 @@ function canSelfRelayFromConfig(
   config: ExtendedSubmissionStrategy['submitter'],
 ): boolean {
   if (config.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
-    return config.internalSubmitter.type === TxSubmitterType.JSON_RPC;
-  } else if (config.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    const { internalSubmitter } = config;
+    // An authorized AccessManager executes the callRemote right away, which
+    // dispatches the message. A timelock only ever schedules it.
+    return (
+      internalSubmitter.type === TxSubmitterType.JSON_RPC ||
+      (internalSubmitter.type === TxSubmitterType.ACCESS_MANAGER &&
+        internalSubmitter.proposerSubmitter.type === TxSubmitterType.JSON_RPC)
+    );
+  } else if (
+    config.type === TxSubmitterType.TIMELOCK_CONTROLLER ||
+    config.type === TxSubmitterType.ACCESS_MANAGER
+  ) {
     return canSelfRelayFromConfig(config.proposerSubmitter);
   }
 
