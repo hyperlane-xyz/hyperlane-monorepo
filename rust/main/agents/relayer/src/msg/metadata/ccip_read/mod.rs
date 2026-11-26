@@ -63,8 +63,38 @@ const CCS_REVEAL_LOOKUP_SELECTOR: [u8; 4] = [0x2b, 0x4b, 0x00, 0xee];
 const MISSING_REVEAL_ORIGIN_TX_HASH: &str =
     "CCS reveal lookup requires the origin transaction hash";
 
+const REVEAL_NOT_FOR_MESSAGE: &str = "CCS reveal lookup does not carry the message being delivered";
+
 fn is_ccs_reveal_lookup(info: &OffchainLookup) -> bool {
     info.call_data.starts_with(&CCS_REVEAL_LOOKUP_SELECTOR)
+}
+
+/// Whether the reveal lookup's call data is `getCallsFromRevealMessage(message)`
+/// for the message being delivered, the only reveal CCS serves for it.
+fn reveal_lookup_carries_message(info: &OffchainLookup, message_id: H256) -> bool {
+    let Some(arguments) = info.call_data.get(CCS_REVEAL_LOOKUP_SELECTOR.len()..) else {
+        return false;
+    };
+    match ethers::abi::decode(&[ethers::abi::ParamType::Bytes], arguments).as_deref() {
+        Ok([ethers::abi::Token::Bytes(message)]) => {
+            H256::from(ethers::utils::keccak256(message)) == message_id
+        }
+        _ => false,
+    }
+}
+
+/// A reveal POST is signed and sent only with the origin transaction hash and
+/// only for the message being delivered: CCS refuses any other.
+fn reveal_post_origin_tx_hash<'a>(
+    info: &OffchainLookup,
+    message_id: H256,
+    origin_tx_hash: Option<&'a [u8]>,
+) -> Result<&'a [u8], &'static str> {
+    let origin_tx_hash = origin_tx_hash.ok_or(MISSING_REVEAL_ORIGIN_TX_HASH)?;
+    if !reveal_lookup_carries_message(info, message_id) {
+        return Err(REVEAL_NOT_FOR_MESSAGE);
+    }
+    Ok(origin_tx_hash)
 }
 
 /// A relayer authentication signature and the time it was issued at.
@@ -392,8 +422,9 @@ impl CcipReadIsmMetadataBuilder {
 
     /// Only CCS reveal lookups are signed: a POST whose call data is a
     /// `getCallsFromRevealMessage` call, which CCS serves only together with
-    /// the origin transaction hash. Every other lookup is sent unsigned, and
-    /// GET-style requests have no body to carry a signature.
+    /// the origin transaction hash and only for the message being delivered.
+    /// Every other lookup is sent unsigned, and GET-style requests have no body
+    /// to carry a signature.
     async fn generate_signature_for_post_request<S: HyperlaneSigner>(
         signer: Option<&S>,
         info: &OffchainLookup,
@@ -404,9 +435,8 @@ impl CcipReadIsmMetadataBuilder {
         if url.contains("{data}") || !is_ccs_reveal_lookup(info) {
             return Ok(None);
         }
-        let origin_tx_hash = origin_tx_hash.ok_or_else(|| {
-            MetadataBuildError::FailedToBuild(MISSING_REVEAL_ORIGIN_TX_HASH.to_owned())
-        })?;
+        let origin_tx_hash = reveal_post_origin_tx_hash(info, message_id, origin_tx_hash)
+            .map_err(|reason| MetadataBuildError::FailedToBuild(reason.to_owned()))?;
 
         match signer {
             Some(signer) => {
@@ -788,16 +818,16 @@ async fn fetch_offchain_data(
     url: &str,
     origin_tx_hash: Option<&[u8]>,
 ) -> Result<Metadata, FetchOutcome> {
-    // CCS refuses a reveal without the transaction that dispatched it, so a
-    // reveal POST is neither signed nor sent without one. GET-style lookups
-    // are never signed and go ahead.
-    if !url.contains("{data}") && is_ccs_reveal_lookup(info) && origin_tx_hash.is_none() {
-        return Err(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
-            MISSING_REVEAL_ORIGIN_TX_HASH.to_owned(),
-        )));
+    let message_id = activity.message.id();
+    // CCS refuses a reveal without the transaction that dispatched it or for
+    // another message, so such a reveal POST is neither signed nor sent.
+    // GET-style lookups are never signed and go ahead.
+    if !url.contains("{data}") && is_ccs_reveal_lookup(info) {
+        reveal_post_origin_tx_hash(info, message_id, origin_tx_hash).map_err(|reason| {
+            FetchOutcome::Failed(MetadataBuildError::FailedToBuild(reason.to_owned()))
+        })?;
     }
     let ism_builder = activity.builder;
-    let message_id = activity.message.id();
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
     // the full address)
@@ -1443,9 +1473,23 @@ mod test {
         assert_eq!(signer.calls(), 2);
     }
 
+    const REVEAL_MESSAGE: &[u8] = b"reveal-message";
+
+    fn reveal_message_id() -> H256 {
+        H256::from(ethers::utils::keccak256(REVEAL_MESSAGE))
+    }
+
+    fn reveal_call_data(message: &[u8]) -> Vec<u8> {
+        [
+            &CCS_REVEAL_LOOKUP_SELECTOR[..],
+            &ethers::abi::encode(&[ethers::abi::Token::Bytes(message.to_vec())]),
+        ]
+        .concat()
+    }
+
+    /// A reveal lookup for `REVEAL_MESSAGE`, whose id is `reveal_message_id()`.
     fn ccs_reveal_lookup(sender_byte: u8, url: &str) -> OffchainLookup {
-        let call_data = [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat();
-        test_offchain_lookup(&call_data, sender_byte, url)
+        test_offchain_lookup(&reveal_call_data(REVEAL_MESSAGE), sender_byte, url)
     }
 
     #[test]
@@ -1490,6 +1534,48 @@ mod test {
         assert!(cache.get(&fresh).await.is_some());
     }
 
+    #[tokio::test]
+    async fn reveal_for_another_message_is_not_signed() {
+        let signer = CountingSigner::new(0x80);
+        let url = "https://post.example/lookup";
+
+        for (name, call_data, message_id) in [
+            (
+                "another message",
+                reveal_call_data(REVEAL_MESSAGE),
+                MESSAGE_ID,
+            ),
+            (
+                "malformed arguments",
+                [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
+                reveal_message_id(),
+            ),
+            (
+                "no arguments",
+                CCS_REVEAL_LOOKUP_SELECTOR.to_vec(),
+                reveal_message_id(),
+            ),
+        ] {
+            let result = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+                Some(&signer),
+                &test_offchain_lookup(&call_data, 0x81, url),
+                url,
+                message_id,
+                Some(&ORIGIN_TX_HASH),
+            )
+            .await;
+
+            assert_eq!(
+                result,
+                Err(MetadataBuildError::FailedToBuild(
+                    REVEAL_NOT_FOR_MESSAGE.to_owned()
+                )),
+                "{name}"
+            );
+        }
+        assert_eq!(signer.calls(), 0);
+    }
+
     #[test]
     fn ccs_reveal_lookup_selector_matches_the_service_interface() {
         assert_eq!(
@@ -1526,7 +1612,7 @@ mod test {
             Some(&signer),
             &ccs_reveal_lookup(0x61, url),
             url,
-            MESSAGE_ID,
+            reveal_message_id(),
             Some(&ORIGIN_TX_HASH),
         )
         .await
