@@ -24,7 +24,7 @@ const { CallCommitmentsService, icaRoutersByDomain, mailboxesByDomain } =
   await import('../../src/services/CallCommitmentsService.ts');
 const { registerRateLimiting } = await import('../../src/utils/rateLimit.ts');
 const { createRpcServers, replyJson } = await import('../utils/rpcServer.ts');
-const { offchainLookupRequestMessageHash } =
+const { offchainLookupRequestHash, offchainLookupRequestMessageHash } =
   await import('../../../sdk/dist/ism/utils.js');
 const cert = fs.readFileSync(`${dir}/tls-cert.pem`);
 const ca = fs.readFileSync(`${dir}/ca.pem`);
@@ -160,6 +160,7 @@ new CallCommitmentsService(
   true,
   mailboxesByDomain(registryAddresses, provider),
   false,
+  30,
 ).registerRoutes(app, '/callCommitments');
 await app.listen({ host: '127.0.0.1', port: 55441 });
 const tlsServer = https.createServer(
@@ -374,6 +375,7 @@ for (const [name, data, saltByte, relayers, origin] of [
     salt,
     revealAccounts,
     lookupData,
+    messageId: utils.keccak256(message),
     expectedMetadata:
       (isEvm ? evmIca(origin) : svmAccount) + salt.slice(2) + data.slice(2),
     originTxHash: isEvm ? originTxHash : undefined,
@@ -424,18 +426,46 @@ for (const c of fixtures.cases.filter((c) => c.originTxHash)) {
       ),
     ),
   );
-  const revealed = await request('/getCallsFromRevealMessage', 'POST', {
+  const v1Revealed = await request('/getCallsFromRevealMessage', 'POST', {
     sender,
     data: c.lookupData,
     signature,
     origin_tx_hash: c.originTxHash,
   });
-  assert.equal(revealed.status, 200, JSON.stringify(revealed));
-  assert.equal(revealed.body.data, c.expectedMetadata);
+  assert.equal(v1Revealed.status, 401, JSON.stringify(v1Revealed));
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  for (const [messageId, status] of [
+    [c.messageId, 200],
+    [utils.id('ccs-e2e-other-message'), 403],
+  ]) {
+    const v2Signature = await signer.signMessage(
+      utils.arrayify(
+        offchainLookupRequestHash({
+          urlTemplate: base + '/getCallsFromRevealMessage',
+          sender,
+          callData: c.lookupData,
+          messageId,
+          originTxHash: c.originTxHash,
+          issuedAt,
+        }),
+      ),
+    );
+    const v2Revealed = await request('/getCallsFromRevealMessage', 'POST', {
+      sender,
+      data: c.lookupData,
+      signature: v2Signature,
+      origin_tx_hash: c.originTxHash,
+      message_id: messageId,
+      issued_at: issuedAt,
+    });
+    assert.equal(v2Revealed.status, status, JSON.stringify(v2Revealed));
+    if (status === 200) assert.equal(v2Revealed.body.data, c.expectedMetadata);
+  }
 }
 fs.writeFileSync(`${dir}/fixtures.json`, JSON.stringify(fixtures, null, 2));
 console.log(
-  `READY: real PostgreSQL + HTTPS CCS; ${fixtures.cases.length} uploads, unsigned/per-record checks and bound reveal lookups passed`,
+  `READY: real PostgreSQL + HTTPS CCS; ${fixtures.cases.length} uploads, unsigned/per-record checks, v1 reveal rejection and bound v2 reveal lookups passed`,
 );
 let stopping = false;
 async function stop() {

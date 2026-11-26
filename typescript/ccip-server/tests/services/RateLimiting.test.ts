@@ -50,6 +50,7 @@ function registerServiceWithNoopHandlers(app: CcipApp): void {
       true,
       new Map([[1, '0x' + '02'.repeat(20)]]),
       false,
+      30,
     );
     service.registerRoutes(app, '');
   } finally {
