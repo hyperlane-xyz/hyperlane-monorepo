@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import sinon from 'sinon';
 
 import {
+  CommitmentReadIsm__factory,
   LayerZeroV2HookIsm,
   LayerZeroV2HookIsm__factory,
   MockLayerZeroEndpointV2,
@@ -27,19 +28,13 @@ import {
   HyperlaneProxyFactoryDeployer,
   IsmType,
   MultiProvider,
-  OffchainLookupIsmConfig,
   TestChainName,
   TestCoreDeployer,
   TestRecipientDeployer,
   WormholeConsistencyLevel,
-  offchainLookupRequestMessageHash,
+  offchainLookupRequestHash,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  WithAddress,
-  addressToBytes32,
-  assert,
-} from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneRelayer } from '../core/HyperlaneRelayer.js';
 
@@ -169,60 +164,105 @@ describe('Offchain Lookup ISM Integration', () => {
       .reverted;
   });
 
-  it('sends signature and origin_tx_hash in POST request body', async () => {
+  it('sends no signature in the POST request body of a non-reveal lookup', async () => {
     const { dispatchTx, message } = await core.sendMessage(
       'test1',
       'test2',
       testRecipient.address,
       '0x1234',
     );
-
-    // Derive the on-chain ISM config for CCIP-Read
-    const derivedIsm = (await new EvmIsmReader(
+    const ism = await new EvmIsmReader(
       multiProvider,
       'test2',
-    ).deriveIsmConfig(
-      ccipReadIsm.address,
-    )) as WithAddress<OffchainLookupIsmConfig>;
+    ).deriveOffchainLookupConfig(ccipReadIsm.address);
 
-    // Build the metadata using the CCIP-Read builder
-    const context: MetadataContext<WithAddress<OffchainLookupIsmConfig>> = {
-      ism: derivedIsm,
+    await metadataBuilder.build({
+      ism,
       message,
       dispatchTx,
-      hook: {} as any,
-    };
-    await metadataBuilder.build(context);
+      hook: await new EvmHookReader(multiProvider, ORIGIN).deriveHookConfig(
+        await core.getContracts(ORIGIN).mailbox.requiredHook(),
+      ),
+    });
 
-    // Verify that fetch was called exactly once
     expect(fetchStub.calledOnce).to.be.true;
     const [url, options] = fetchStub.getCall(0).args;
-    const payload = JSON.parse(options.body as string);
-    expect(url).to.equal(
-      OFFCHAIN_LOOKUP_SERVER_URL.replace('{data}', payload.data),
-    );
+    expect(url).to.equal(OFFCHAIN_LOOKUP_SERVER_URL);
+    const payload = JSON.parse(String(options.body));
+    expect(payload).to.deep.equal({
+      sender: ccipReadIsm.address,
+      data: '0x',
+      origin_tx_hash: dispatchTx.transactionHash,
+    });
+  });
 
-    // Should include authentication and the exact origin receipt hint.
-    expect(payload).to.include.keys(
+  it('sends a v2 signature over the delivered message in the POST request body of a reveal lookup', async () => {
+    const signers = await hre.ethers.getSigners();
+    const revealIsm = await multiProvider.handleDeploy(
+      DESTINATION,
+      new CommitmentReadIsm__factory(),
+      [signers[0].address, [OFFCHAIN_LOOKUP_SERVER_URL]],
+    );
+    const { dispatchTx, message } = await core.sendMessage(
+      'test1',
+      'test2',
+      testRecipient.address,
+      '0x1234',
+    );
+    const ism = await new EvmIsmReader(
+      multiProvider,
+      'test2',
+    ).deriveOffchainLookupConfig(revealIsm.address);
+
+    const before = Math.floor(Date.now() / 1000);
+    await metadataBuilder.build({
+      ism,
+      message,
+      dispatchTx,
+      hook: await new EvmHookReader(multiProvider, ORIGIN).deriveHookConfig(
+        await core.getContracts(ORIGIN).mailbox.requiredHook(),
+      ),
+    });
+    const after = Math.floor(Date.now() / 1000);
+
+    expect(fetchStub.calledOnce).to.be.true;
+    const [url, options] = fetchStub.getCall(0).args;
+    expect(url).to.equal(OFFCHAIN_LOOKUP_SERVER_URL);
+    const payload = JSON.parse(String(options.body));
+    expect(payload).to.have.all.keys(
       'sender',
       'data',
       'signature',
       'origin_tx_hash',
+      'message_id',
+      'issued_at',
     );
-    expect(payload.sender).to.equal(ccipReadIsm.address);
+    expect(payload.sender).to.equal(revealIsm.address);
+    expect(payload.data).to.equal(
+      '0x2b4b00ee' +
+        ethers.utils.defaultAbiCoder
+          .encode(['bytes'], [message.message])
+          .slice(2),
+    );
     expect(payload.origin_tx_hash).to.equal(dispatchTx.transactionHash);
+    expect(payload.message_id).to.equal(message.id);
+    expect(payload.issued_at).to.be.a('number');
+    expect(payload.issued_at).to.be.within(before, after);
 
     const recovered = ethers.utils.verifyMessage(
       ethers.utils.arrayify(
-        offchainLookupRequestMessageHash(
-          payload.sender,
-          payload.data,
-          OFFCHAIN_LOOKUP_SERVER_URL,
-        ),
+        offchainLookupRequestHash({
+          urlTemplate: OFFCHAIN_LOOKUP_SERVER_URL,
+          sender: revealIsm.address,
+          callData: payload.data,
+          messageId: message.id,
+          originTxHash: dispatchTx.transactionHash,
+          issuedAt: payload.issued_at,
+        }),
       ),
       payload.signature,
     );
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+    expect(recovered).to.equal(signers[0].address);
   });
 
   const viaRelayer = ({ message }: RecipientIsmContext) =>

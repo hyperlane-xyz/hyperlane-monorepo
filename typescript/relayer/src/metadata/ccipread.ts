@@ -1,13 +1,16 @@
 import { utils } from 'ethers';
 
-import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
+import {
+  AbstractCcipReadIsm__factory,
+  CommitmentReadIsmService__factory,
+} from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   IsmType,
   LayerZeroV2IsmConfig,
   OffchainLookupIsmConfig,
   WormholeIsmConfig,
-  offchainLookupRequestMessageHash,
+  offchainLookupRequestHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -30,6 +33,20 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 }
 
 const MAX_BFS_ITERATIONS = 50;
+
+const CCS_REVEAL_SELECTOR =
+  CommitmentReadIsmService__factory.createInterface().getSighash(
+    'getCallsFromRevealMessage',
+  );
+
+/** Only the call commitments service reveal lookup is signed. */
+function isCcsRevealLookup(callDataHex: string): boolean {
+  return (
+    utils.hexDataLength(callDataHex) >= 4 &&
+    utils.hexDataSlice(callDataHex, 0, 4).toLowerCase() ===
+      CCS_REVEAL_SELECTOR.toLowerCase()
+  );
+}
 
 function extractRevertData(error: unknown): string | undefined {
   const seen = new Set<unknown>();
@@ -125,14 +142,18 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       try {
         if (urlTemplate.includes('{data}')) {
           res = await fetch(url);
-        } else {
+        } else if (isCcsRevealLookup(callDataHex)) {
+          const issuedAt = Math.floor(Date.now() / 1000);
           const signature = await signer.signMessage(
             utils.arrayify(
-              offchainLookupRequestMessageHash(
-                sender,
-                callDataHex,
+              offchainLookupRequestHash({
                 urlTemplate,
-              ),
+                sender,
+                callData: callDataHex,
+                messageId: message.id,
+                originTxHash: dispatchTx.transactionHash,
+                issuedAt,
+              }),
             ),
           );
           res = await fetch(url, {
@@ -144,6 +165,18 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
               signature,
               // Matches the Rust relayer: lets a service locate the origin
               // event directly instead of querying the Explorer for it.
+              origin_tx_hash: dispatchTx.transactionHash,
+              message_id: message.id,
+              issued_at: issuedAt,
+            }),
+          });
+        } else {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sender,
+              data: callDataHex,
               origin_tx_hash: dispatchTx.transactionHash,
             }),
           });
