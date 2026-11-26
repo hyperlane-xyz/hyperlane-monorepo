@@ -54,6 +54,8 @@ pub struct MockBaseMetadataBuilderResponses {
     // TODO: migrate these to be keyed by address as well
     pub build_multisig_ism: ResponseList<eyre::Result<Box<dyn MultisigIsm>>>,
     pub build_ccip_read_ism: ResponseList<eyre::Result<Box<dyn CcipReadIsm>>>,
+    /// Origin transaction hash returned for every message; none by default.
+    pub origin_tx_hash: Arc<Mutex<Option<H512>>>,
     pub build_checkpoint_syncer:
         ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
 }
@@ -213,7 +215,7 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
         &self,
         _message_id: H256,
     ) -> eyre::Result<Option<H512>> {
-        Ok(None)
+        Ok(*self.responses.origin_tx_hash.lock().unwrap())
     }
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
         self.responses

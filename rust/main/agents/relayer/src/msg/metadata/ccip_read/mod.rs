@@ -83,16 +83,32 @@ fn reveal_lookup_carries_message(info: &OffchainLookup, message_id: H256) -> boo
     }
 }
 
+/// Why a reveal POST is neither signed nor sent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RevealPostRefusal {
+    MissingOriginTxHash,
+    NotForMessage,
+}
+
+impl RevealPostRefusal {
+    fn reason(self) -> &'static str {
+        match self {
+            Self::MissingOriginTxHash => MISSING_REVEAL_ORIGIN_TX_HASH,
+            Self::NotForMessage => REVEAL_NOT_FOR_MESSAGE,
+        }
+    }
+}
+
 /// A reveal POST is signed and sent only with the origin transaction hash and
 /// only for the message being delivered: CCS refuses any other.
 fn reveal_post_origin_tx_hash<'a>(
     info: &OffchainLookup,
     message_id: H256,
     origin_tx_hash: Option<&'a [u8]>,
-) -> Result<&'a [u8], &'static str> {
-    let origin_tx_hash = origin_tx_hash.ok_or(MISSING_REVEAL_ORIGIN_TX_HASH)?;
+) -> Result<&'a [u8], RevealPostRefusal> {
+    let origin_tx_hash = origin_tx_hash.ok_or(RevealPostRefusal::MissingOriginTxHash)?;
     if !reveal_lookup_carries_message(info, message_id) {
-        return Err(REVEAL_NOT_FOR_MESSAGE);
+        return Err(RevealPostRefusal::NotForMessage);
     }
     Ok(origin_tx_hash)
 }
@@ -436,7 +452,7 @@ impl CcipReadIsmMetadataBuilder {
             return Ok(None);
         }
         let origin_tx_hash = reveal_post_origin_tx_hash(info, message_id, origin_tx_hash)
-            .map_err(|reason| MetadataBuildError::FailedToBuild(reason.to_owned()))?;
+            .map_err(|refusal| MetadataBuildError::FailedToBuild(refusal.reason().to_owned()))?;
 
         match signer {
             Some(signer) => {
@@ -823,8 +839,14 @@ async fn fetch_offchain_data(
     // another message, so such a reveal POST is neither signed nor sent.
     // GET-style lookups are never signed and go ahead.
     if !url.contains("{data}") && is_ccs_reveal_lookup(info) {
-        reveal_post_origin_tx_hash(info, message_id, origin_tx_hash).map_err(|reason| {
-            FetchOutcome::Failed(MetadataBuildError::FailedToBuild(reason.to_owned()))
+        reveal_post_origin_tx_hash(info, message_id, origin_tx_hash).map_err(|refusal| {
+            // A missing origin transaction hash is already reported for the message.
+            if refusal == RevealPostRefusal::NotForMessage {
+                activity.report(OffchainReadState::RevealNotForMessage, None);
+            }
+            FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+                refusal.reason().to_owned(),
+            ))
         })?;
     }
     let ism_builder = activity.builder;
@@ -1738,11 +1760,13 @@ mod test {
         sender: EthersH160,
         urls: Vec<String>,
         call_data: Vec<u8>,
+        origin_tx_hash: Option<hyperlane_core::H512>,
     ) -> (MetadataBuildError, Vec<String>) {
         use crate::test_utils::mock_base_builder::build_mock_base_builder;
         use ethers::abi::AbiEncode;
 
         let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
+        *base.responses.origin_tx_hash.lock().expect("lock") = origin_tx_hash;
         let lookup = OffchainLookup {
             sender,
             urls,
@@ -1784,7 +1808,7 @@ mod test {
         (error, states)
     }
 
-    /// The queried ISM, widened to 32 bytes, and the 20-byte lookup sender naming it.
+    /// An ISM address, widened to 32 bytes, and the same address as a lookup sender.
     fn queried_ism() -> (H256, EthersH160) {
         let address: EthersH160 = "4ee6ecad1c2dae9f525404de8555724e3c35d07b"
             .parse()
@@ -1805,6 +1829,7 @@ mod test {
                 sender,
                 vec!["https://127.0.0.1/lookup".to_owned()],
                 [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
+                None,
             )
             .await;
 
@@ -1812,6 +1837,46 @@ mod test {
             assert_eq!(error, MetadataBuildError::CouldNotFetch, "{name}");
             assert_eq!(states, vec!["\"origin_transaction_missing\""], "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn reveal_post_for_another_message_is_reported_and_not_signed_or_sent() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        let delivered = RawHyperlaneMessage::from(&HyperlaneMessage::default());
+        let urls = vec!["https://127.0.0.1/lookup".to_owned()];
+        let origin_tx_hash = Some(hyperlane_core::H512::repeat_byte(0x88));
+
+        // The lookups are read for `HyperlaneMessage::default()`.
+        let (error, states) = lookup_with_call_data(
+            domain.clone(),
+            format_revert,
+            ism,
+            sender,
+            urls.clone(),
+            reveal_call_data(REVEAL_MESSAGE),
+            origin_tx_hash,
+        )
+        .await;
+        assert_eq!(error, MetadataBuildError::CouldNotFetch);
+        // Refused before URL validation, signing and the request.
+        assert_eq!(states, vec!["\"reveal_not_for_message\""]);
+
+        let (_, states) = lookup_with_call_data(
+            domain,
+            format_revert,
+            ism,
+            sender,
+            urls,
+            reveal_call_data(&delivered),
+            origin_tx_hash,
+        )
+        .await;
+        // The delivered message's reveal goes on to URL validation.
+        assert_eq!(states, vec!["\"url_rejected\""]);
     }
 
     #[tokio::test]
@@ -1832,6 +1897,7 @@ mod test {
                 "https://127.0.0.1/lookup/{data}".to_owned(),
             ],
             [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
+            None,
         )
         .await;
 

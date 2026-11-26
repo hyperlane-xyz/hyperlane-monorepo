@@ -51,7 +51,7 @@ pub struct OffchainLookupRequest<'a> {
     /// Id of the message being delivered. It must come from that message,
     /// never from `call_data`, so a server can check that the lookup describes it.
     pub message_id: H256,
-    /// Hash of the transaction that dispatched the message; empty if unknown.
+    /// Hash of the transaction that dispatched the message; CCS requires it.
     pub origin_tx_hash: &'a [u8],
     /// Unix seconds at which the request was signed.
     pub issued_at: u64,
