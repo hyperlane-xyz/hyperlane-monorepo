@@ -2155,6 +2155,38 @@ describe('EvmHookModule', async () => {
         ).to.be.rejectedWith('Unsupported hook config');
       });
 
+      it('does not rewrite the members that the target gives as an address, so that it can be used again', async () => {
+        const { initialHookAddress: referenced } = await createHook(
+          pausableMember(signerAddress),
+        );
+        const { hook } = await createHook(
+          aggregationOf(referenced, rateLimitedMember(signerAddress)),
+        );
+        const target = aggregationOf(
+          referenced,
+          rateLimitedMember(randomAddress()),
+        );
+
+        const first = await hook.update(target);
+        expect(first).to.have.length(1);
+        expect(target.hooks[0]).to.equal(referenced);
+        await sendTxs(first);
+
+        // the referenced hook is changed by someone else
+        await (
+          await PausableHook__factory.connect(referenced, signer).pause()
+        ).wait();
+
+        const second = await freshModule(hook, target).update(target);
+        expect(second).to.have.length(0);
+        expect(
+          await PausableHook__factory.connect(
+            referenced,
+            multiProvider.getProvider(chain),
+          ).paused(),
+        ).to.be.true;
+      });
+
       describe('nested aggregation hooks', async () => {
         function nestedOf(...hooks: HookConfig[]): AggregationHookConfig {
           return aggregationOf(aggregationOf(...hooks), {
@@ -2283,6 +2315,80 @@ describe('EvmHookModule', async () => {
           expect(hook.serialize().deployedHook).to.not.equal(
             initialHookAddress,
           );
+        });
+
+        for (const c of boundHookCases) {
+          it(`keeps an unchanged nested aggregation with a ${c.name} member that is given as an address and bound to another mailbox`, async () => {
+            const bound = await c.deploy(otherMailbox);
+            const { initialHookAddress: nested } = await createHook(
+              aggregationOf(bound, pausableMember(signerAddress)),
+            );
+            const { hook, initialHookAddress } = await createHook(
+              aggregationOf(nested, pausableMember(signerAddress)),
+            );
+            const membersBefore = await membersOf(initialHookAddress);
+            const nestedHooks = await hooksOf(nested);
+
+            // only the owner of the sibling changes
+            const txs = await hook.update(
+              aggregationOf(
+                aggregationOf(bound, pausableMember(signerAddress)),
+                pausableMember(randomAddress()),
+              ),
+            );
+            expect(txs).to.have.length(1);
+            expect(txs[0].to).to.equal(
+              memberOfType(membersBefore, HookType.PAUSABLE),
+            );
+            await sendTxs(txs);
+
+            expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+            expect(await membersOf(initialHookAddress)).to.deep.equal(
+              membersBefore,
+            );
+            expect(await hooksOf(nested)).to.deep.equal(nestedHooks);
+          });
+        }
+
+        it('keeps an unchanged aggregation of an aggregation of a nested aggregation with a merkle tree member that is given as an address and bound to another mailbox', async () => {
+          const bound = await new MerkleTreeHook__factory(signer).deploy(
+            otherMailbox,
+          );
+          const { initialHookAddress: inner } = await createHook(
+            aggregationOf(bound.address, pausableMember(signerAddress)),
+          );
+          const { initialHookAddress: mid } = await createHook(
+            aggregationOf(inner, { type: HookType.MAILBOX_DEFAULT }),
+          );
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(mid, pausableMember(signerAddress)),
+          );
+          const membersBefore = await membersOf(initialHookAddress);
+          const midHooks = await hooksOf(mid);
+          const innerHooks = await hooksOf(inner);
+
+          // only the owner of the sibling changes
+          const txs = await hook.update(
+            aggregationOf(
+              aggregationOf(
+                aggregationOf(bound.address, pausableMember(signerAddress)),
+                { type: HookType.MAILBOX_DEFAULT },
+              ),
+              pausableMember(randomAddress()),
+            ),
+          );
+          expect(txs).to.have.length(1);
+          expect(txs[0].to).to.equal(
+            memberOfType(membersBefore, HookType.PAUSABLE),
+          );
+          await sendTxs(txs);
+
+          expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+          expect(await membersOf(initialHookAddress)).to.deep.equal(
+            membersBefore,
+          );
+          expect(await hooksOf(mid)).to.deep.equal(midHooks);
+          expect(await hooksOf(inner)).to.deep.equal(innerHooks);
         });
       });
     });

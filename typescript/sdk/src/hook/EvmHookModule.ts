@@ -165,6 +165,15 @@ function referencedHookAddress(hook: HookConfig): Address | undefined {
   }
 }
 
+// The addresses of the hooks that a target gives as an address, in its aggregations too.
+function referencedHookAddresses(hook: HookConfig): Address[] {
+  const address = referencedHookAddress(hook);
+  if (address !== undefined) return [address];
+  return typeof hook !== 'string' && hook.type === HookType.AGGREGATION
+    ? hook.hooks.flatMap(referencedHookAddresses)
+    : [];
+}
+
 type AggregationSubHook = {
   address: Address;
   targetConfig: Exclude<HookConfig, Address>;
@@ -248,13 +257,15 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    // deriveHookConfig replaces the address members of an aggregation with their
-    // derived configs in place, and the in-place aggregation update needs them as given.
+    // deriveHookConfig replaces the address members of an aggregation with their derived
+    // configs in place. It derives from a copy, so that the target of the caller keeps
+    // them, and the in-place aggregation update gets them as given.
     const givenTargetConfig: HookConfig = deepCopy(targetConfig);
 
     // We need to normalize the current and target configs to compare.
-    const derivedTargetConfig =
-      await this.reader.deriveHookConfig(targetConfig);
+    const derivedTargetConfig = await this.reader.deriveHookConfig(
+      deepCopy(targetConfig),
+    );
     let normalizedTargetConfig: HookConfig =
       typeof targetConfig === 'string' &&
       isCombinedHookIsmHookNode(derivedTargetConfig)
@@ -463,7 +474,10 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     if (hookConfigsEqual(current, target)) {
-      return this.keptHookUsesModuleMailbox(address);
+      return this.keptHookUsesModuleMailbox(
+        address,
+        referencedHookAddresses(targetConfig),
+      );
     }
 
     if (
@@ -516,9 +530,11 @@ export class EvmHookModule extends HyperlaneModule<
 
   // The mailbox is an immutable constructor arg that the reader omits, so a MAILBOX_DEFAULT
   // or MERKLE_TREE hook bound to another mailbox compares equal to one bound to this
-  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged.
+  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged,
+  // except the ones that the target gives as an address.
   protected async keptHookUsesModuleMailbox(
     address: Address,
+    referenced: Address[],
   ): Promise<boolean> {
     const provider = this.multiProvider.getProvider(this.chain);
     const { type } = await this.reader.deriveHookConfig(address);
@@ -529,7 +545,10 @@ export class EvmHookModule extends HyperlaneModule<
         provider,
       ).hooks(ethers.constants.AddressZero);
       for (const member of members) {
-        if (!(await this.keptHookUsesModuleMailbox(member))) return false;
+        if (referenced.some((kept) => eqAddress(kept, member))) continue;
+        if (!(await this.keptHookUsesModuleMailbox(member, referenced))) {
+          return false;
+        }
       }
       return true;
     }
