@@ -72,6 +72,33 @@ type query_root {
   ): [raw_message_dispatch!]!
   "fetch data from the table: \"raw_message_dispatch\" using primary key columns"
   raw_message_dispatch_by_pk(id: bigint!): raw_message_dispatch
+  "page confirmed insertions in ascending leaf order for one Merkle tree"
+  merkle_tree_insertions(
+    domain: bigint!
+    merkle_tree_hook: bytea!
+    from_index: bigint! = 0
+    limit: Int! = 1000
+  ): merkle_tree_insertion_page!
+  "fetch one confirmed insertion by tree and leaf index"
+  merkle_tree_insertion(
+    domain: bigint!
+    merkle_tree_hook: bytea!
+    leaf_index: bigint!
+  ): merkle_tree_insertion
+}
+
+type merkle_tree_insertion {
+  domain: bigint!
+  merkle_tree_hook: bytea!
+  leaf_index: bigint!
+  message_id: bytea!
+  block_number: bigint!
+}
+
+type merkle_tree_insertion_page {
+  insertions: [merkle_tree_insertion!]!
+  "pass as from_index for the next page; null at the current end of history"
+  next_index: bigint
 }
 
 "columns and relationships of \"domain\""

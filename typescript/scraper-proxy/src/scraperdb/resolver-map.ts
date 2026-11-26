@@ -12,6 +12,8 @@ import type { DiagnosticsService } from '../diagnostics/service.js';
 import { validateHistoryRequest } from './history-policy.js';
 import { scalarResolvers } from './scalars.js';
 import type {
+  MerkleTreeArgs,
+  MerkleTreePageArgs,
   MessageSelectArgs,
   ScraperDbService,
 } from './scraperdb.service.js';
@@ -70,6 +72,16 @@ export function buildResolvers(diagnostics?: DiagnosticsService) {
       ) => db.count(table, args, count),
     },
     query_root: {
+      merkle_tree_insertions: (
+        _parent: unknown,
+        args: MerkleTreePageArgs,
+        { scraperDb: db }: MercuriusContext,
+      ) => db.merkleTreeInsertions(args),
+      merkle_tree_insertion: (
+        _parent: unknown,
+        args: MerkleTreeArgs & { leaf_index: unknown },
+        { scraperDb: db }: MercuriusContext,
+      ) => db.merkleTreeInsertion(args),
       message_activity: (
         _parent: unknown,
         args: { message_id: string; before_id?: string; limit?: number },
