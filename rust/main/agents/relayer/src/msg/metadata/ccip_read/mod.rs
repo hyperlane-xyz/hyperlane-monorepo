@@ -4,7 +4,7 @@ use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{Arc, LazyLock, OnceLock},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
@@ -29,8 +29,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSigner, Metadata,
-    ModuleType, RawHyperlaneMessage, H160, H256,
+    h512_to_bytes, offchain_lookup::OffchainLookupRequest, utils::bytes_to_hex, CcipReadIsm,
+    HyperlaneMessage, HyperlaneSigner, Metadata, ModuleType, RawHyperlaneMessage, H160, H256,
 };
 use hyperlane_ethereum::OffchainLookup;
 
@@ -51,15 +51,48 @@ pub const DEFAULT_TIMEOUT: u64 = 30;
 static OFFCHAIN_LOOKUP_REGEX: LazyLock<Result<Regex, regex::Error>> =
     LazyLock::new(|| Regex::new(r"0x[[:xdigit:]]+"));
 
-/// Authentication signatures are timeless and fully determined by the signer and signing hash.
-/// Keep a bounded process-local cache so CCIP pending retries and concurrent messages do not send
-/// the same digest to KMS repeatedly.
-type CcipSignatureCache = Cache<(H160, H256), String>;
+/// How long a signed request is reused. Servers reject requests older than
+/// their own maximum age (30 s by default on CCS); reuse stays well inside it.
+const CCIP_SIGNATURE_REUSE: Duration = Duration::from_secs(5);
+
+/// Selector of `CommitmentReadIsmService.getCallsFromRevealMessage(bytes)`,
+/// the CCS reveal lookup and the only lookup the relayer signs.
+const CCS_REVEAL_LOOKUP_SELECTOR: [u8; 4] = [0x2b, 0x4b, 0x00, 0xee];
+
+const MISSING_REVEAL_ORIGIN_TX_HASH: &str =
+    "CCS reveal lookup requires the origin transaction hash";
+
+fn is_ccs_reveal_lookup(info: &OffchainLookup) -> bool {
+    info.call_data.starts_with(&CCS_REVEAL_LOOKUP_SELECTOR)
+}
+
+/// A relayer authentication signature and the time it was issued at.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RequestSignature {
+    signature: String,
+    issued_at: u64,
+}
+
+/// Keyed by signer and the request's signing hash at `issued_at = 0`. Pending
+/// retries (1 s apart) and concurrent identical lookups reuse one signature for
+/// up to `CCIP_SIGNATURE_REUSE` instead of each calling KMS.
+type CcipSignatureCache = Cache<(H160, H256), RequestSignature>;
 
 static CCIP_SIGNATURE_CACHE: OnceLock<CcipSignatureCache> = OnceLock::new();
 
 fn ccip_signature_cache() -> &'static CcipSignatureCache {
-    CCIP_SIGNATURE_CACHE.get_or_init(|| Cache::builder().max_capacity(10_000).build())
+    CCIP_SIGNATURE_CACHE.get_or_init(|| {
+        Cache::builder()
+            .max_capacity(10_000)
+            .time_to_live(CCIP_SIGNATURE_REUSE)
+            .build()
+    })
+}
+
+fn unix_now() -> Result<u64, std::time::SystemTimeError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
 }
 
 /// Process-wide client so requests to CCIP-read servers can reuse pooled connections.
@@ -247,8 +280,37 @@ const MAX_CCIP_RESPONSE_SIZE: usize = 1024 * 1024;
 struct OffchainLookupRequestBody {
     pub data: String,
     pub sender: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
     pub origin_tx_hash: Option<String>,
+    /// Signed with `signature`: the message being delivered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    /// Signed with `signature`: unix seconds at signing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_at: Option<u64>,
+}
+
+impl OffchainLookupRequestBody {
+    /// The signed fields (`message_id`, `issued_at`) are sent only with a signature.
+    fn new_post(
+        sender: String,
+        data: String,
+        signature: Option<RequestSignature>,
+        origin_tx_hash: Option<&[u8]>,
+        message_id: H256,
+    ) -> Self {
+        let signed = signature.is_some();
+        let (signature, issued_at) = signature.map(|s| (s.signature, s.issued_at)).unzip();
+        Self {
+            sender,
+            data,
+            signature,
+            origin_tx_hash: origin_tx_hash.map(bytes_to_hex),
+            message_id: signed.then(|| bytes_to_hex(message_id.as_bytes())),
+            issued_at,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -262,49 +324,68 @@ pub struct CcipReadIsmMetadataBuilder {
 }
 
 impl CcipReadIsmMetadataBuilder {
-    /// Generate a relayer authentication signature (EIP-191) over call_data and sender and the url template
+    /// Generate a relayer authentication signature (EIP-191) over the framed
+    /// request: url template, sender, call data, message id, origin tx hash and
+    /// the time of signing.
     async fn generate_signature_hex<S: HyperlaneSigner>(
         signer: &S,
         info: &OffchainLookup,
         url: &str,
-    ) -> Result<String, MetadataBuildError> {
-        let hash = hyperlane_core::offchain_lookup::offchain_lookup_request_message_hash(
-            info.sender.into(),
-            info.call_data.as_ref(),
-            url.as_bytes(),
-        );
-        let cache_key = (signer.eth_address(), hash);
+        message_id: H256,
+        origin_tx_hash: &[u8],
+    ) -> Result<RequestSignature, MetadataBuildError> {
+        let mut request = OffchainLookupRequest {
+            url: url.as_bytes(),
+            sender: info.sender.into(),
+            call_data: info.call_data.as_ref(),
+            message_id,
+            origin_tx_hash,
+            issued_at: 0,
+        };
+        let cache_key = (signer.eth_address(), request.signing_hash());
 
         ccip_signature_cache()
             .try_get_with(cache_key, async {
-                hyperlane_core::offchain_lookup::sign_offchain_lookup(
-                    signer,
-                    info.sender.into(),
-                    info.call_data.as_ref(),
-                    url.as_bytes(),
-                )
-                .await
-                .map_err(|e| e.to_string())
+                let issued_at = unix_now().map_err(|e| format!("System clock error: {e}"))?;
+                request.issued_at = issued_at;
+
+                request
+                    .sign_offchain_lookup_request(signer)
+                    .await
+                    .map(|signature| RequestSignature {
+                        signature,
+                        issued_at,
+                    })
+                    .map_err(|e| e.to_string())
             })
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))
     }
 
-    /// GET-style CCIP requests have no request body, so there is nowhere to
-    /// send the relayer authentication signature.
+    /// Only CCS reveal lookups are signed: a POST whose call data is a
+    /// `getCallsFromRevealMessage` call, which CCS serves only together with
+    /// the origin transaction hash. Every other lookup is sent unsigned, and
+    /// GET-style requests have no body to carry a signature.
     async fn generate_signature_for_post_request<S: HyperlaneSigner>(
         signer: Option<&S>,
         info: &OffchainLookup,
         url: &str,
-    ) -> Result<Option<String>, MetadataBuildError> {
-        if url.contains("{data}") {
+        message_id: H256,
+        origin_tx_hash: Option<&[u8]>,
+    ) -> Result<Option<RequestSignature>, MetadataBuildError> {
+        if url.contains("{data}") || !is_ccs_reveal_lookup(info) {
             return Ok(None);
         }
+        let origin_tx_hash = origin_tx_hash.ok_or_else(|| {
+            MetadataBuildError::FailedToBuild(MISSING_REVEAL_ORIGIN_TX_HASH.to_owned())
+        })?;
 
         match signer {
-            Some(signer) => Self::generate_signature_hex(signer, info, url)
-                .await
-                .map(Some),
+            Some(signer) => {
+                Self::generate_signature_hex(signer, info, url, message_id, origin_tx_hash)
+                    .await
+                    .map(Some)
+            }
             None => Ok(None),
         }
     }
@@ -492,10 +573,11 @@ async fn fetch_metadata(
         })
         .ok()
         .flatten()
-        .map(|h| bytes_to_hex(&h512_to_bytes(&h)));
+        .map(|h| h512_to_bytes(&h));
+    let origin_tx_hash_hex = origin_tx_hash.as_deref().map(bytes_to_hex);
     tracing::debug!(
         message_id = ?message.id(),
-        origin_tx_hash = ?origin_tx_hash,
+        origin_tx_hash = ?origin_tx_hash_hex,
         found_in_db = origin_tx_hash.is_some(),
         "Origin tx hash lookup result",
     );
@@ -519,13 +601,15 @@ async fn fetch_metadata(
                 attempt: pending_attempts.saturating_add(1),
                 ..activity
             };
-            match fetch_offchain_data(&request_activity, &info, url, origin_tx_hash.clone()).await {
+            match fetch_offchain_data(&request_activity, &info, url, origin_tx_hash.as_deref())
+                .await
+            {
                 Ok(data) => {
                     tracing::info!(
                         ?ism_address,
                         url,
                         message_id = ?message.id(),
-                        origin_tx_hash = ?origin_tx_hash,
+                        origin_tx_hash = ?origin_tx_hash_hex,
                         attempts = pending_attempts,
                         "Successfully fetched offchain lookup data"
                     );
@@ -537,7 +621,7 @@ async fn fetch_metadata(
                         ?ism_address,
                         url,
                         message_id = ?message.id(),
-                        origin_tx_hash = ?origin_tx_hash,
+                        origin_tx_hash = ?origin_tx_hash_hex,
                         attempt = pending_attempts,
                         max = MAX_PENDING_RETRIES,
                         "Attestation pending, retrying in 1s"
@@ -551,14 +635,14 @@ async fn fetch_metadata(
                         ?ism_address,
                         url,
                         message_id = ?message.id(),
-                        origin_tx_hash = ?origin_tx_hash,
+                        origin_tx_hash = ?origin_tx_hash_hex,
                         max = MAX_PENDING_RETRIES,
                         "Attestation still pending after max retries"
                     );
                     break;
                 }
                 Err(FetchOutcome::Failed(err)) => {
-                    tracing::warn!(?ism_address, url, message_id = ?message.id(), origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
+                    tracing::warn!(?ism_address, url, message_id = ?message.id(), origin_tx_hash = ?origin_tx_hash_hex, error = ?err, "Failed to fetch offchain data");
                     break;
                 }
                 Err(FetchOutcome::UrlRejected(state, err)) => {
@@ -674,8 +758,16 @@ async fn fetch_offchain_data(
     activity: &ReadActivity<'_>,
     info: &OffchainLookup,
     url: &str,
-    origin_tx_hash: Option<String>,
+    origin_tx_hash: Option<&[u8]>,
 ) -> Result<Metadata, FetchOutcome> {
+    // CCS refuses a reveal without the transaction that dispatched it, so a
+    // reveal POST is neither signed nor sent without one. GET-style lookups
+    // are never signed and go ahead.
+    if !url.contains("{data}") && is_ccs_reveal_lookup(info) && origin_tx_hash.is_none() {
+        return Err(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+            MISSING_REVEAL_ORIGIN_TX_HASH.to_owned(),
+        )));
+    }
     let ism_builder = activity.builder;
     let message_id = activity.message.id();
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
@@ -698,10 +790,14 @@ async fn fetch_offchain_data(
     })?;
 
     // Validate the destination before invoking a remote signer.
-    let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+    // The message id is the delivered message's, never taken from the lookup's
+    // call data, so a server can check that the lookup describes this message.
+    let maybe_signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
         ism_builder.base.base_builder().get_signer(),
         info,
         url,
+        message_id,
+        origin_tx_hash,
     )
     .await
     .inspect_err(|_| {
@@ -709,12 +805,13 @@ async fn fetch_offchain_data(
     })?;
 
     let request = if !url.contains("{data}") {
-        let body = OffchainLookupRequestBody {
-            sender: sender_as_bytes,
-            data: data_as_bytes,
-            signature: maybe_signature_hex,
+        let body = OffchainLookupRequestBody::new_post(
+            sender_as_bytes,
+            data_as_bytes,
+            maybe_signature,
             origin_tx_hash,
-        };
+            message_id,
+        );
         tracing::debug!(
             url = %interpolated_url,
             ?message_id,
@@ -1020,6 +1117,7 @@ mod test {
             lookup_data: String,
             expected_metadata: String,
             origin_tx_hash: Option<String>,
+            message_id: H256,
         }
         let fixtures: Fixtures =
             serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
@@ -1035,10 +1133,12 @@ mod test {
             .iter()
             .filter(|c| c.name.to_lowercase().contains("evm"))
         {
-            let origin_tx_hash = case
-                .origin_tx_hash
-                .clone()
-                .ok_or_else(|| eyre::eyre!("{} fixture has no originTxHash", case.name))?;
+            let origin_tx_hash = hex::decode(
+                case.origin_tx_hash
+                    .as_deref()
+                    .ok_or_else(|| eyre::eyre!("{} fixture has no originTxHash", case.name))?
+                    .trim_start_matches("0x"),
+            )?;
             for key_byte in [1u8, 2, 3] {
                 let signer = Signers::Local(ethers::signers::LocalWallet::from_str(&hex::encode(
                     [key_byte; 32],
@@ -1050,42 +1150,67 @@ mod test {
                     callback_function: [0; 4],
                     extra_data: vec![].into(),
                 };
-                let signature =
-                    CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
-                        .await?;
+                // The relayer refuses to sign a reveal without the origin transaction hash.
+                assert_eq!(
+                    CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+                        Some(&signer),
+                        &info,
+                        &url,
+                        case.message_id,
+                        None,
+                    )
+                    .await,
+                    Err(MetadataBuildError::FailedToBuild(
+                        MISSING_REVEAL_ORIGIN_TX_HASH.to_owned()
+                    )),
+                    "{} signer {key_byte}",
+                    case.name
+                );
+                // A body signed over an empty hash and sent without one.
+                let signature_without_hash = CcipReadIsmMetadataBuilder::generate_signature_hex(
+                    &signer,
+                    &info,
+                    &url,
+                    case.message_id,
+                    &[],
+                )
+                .await?;
+                let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+                    Some(&signer),
+                    &info,
+                    &url,
+                    case.message_id,
+                    Some(&origin_tx_hash),
+                )
+                .await?
+                .ok_or_else(|| eyre::eyre!("{} reveal lookup was not signed", case.name))?;
                 let allowed =
                     key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
 
-                // Signers are authorized before the origin transaction hash is
-                // required, so a missing hash only fails allowed signers.
-                let without_hash = OffchainLookupRequestBody {
-                    sender: fixtures.sender.clone(),
-                    data: case.lookup_data.clone(),
-                    signature: Some(signature.clone()),
-                    origin_tx_hash: None,
-                };
+                // The origin transaction hash is part of the credentials, so
+                // CCS refuses a body without one before checking the signer.
+                let without_hash = OffchainLookupRequestBody::new_post(
+                    fixtures.sender.clone(),
+                    case.lookup_data.clone(),
+                    Some(signature_without_hash),
+                    None,
+                    case.message_id,
+                );
                 let response = client.post(&url).json(&without_hash).send().await?;
                 assert_eq!(
                     response.status().as_u16(),
-                    if allowed { 400 } else { 403 },
+                    401,
                     "{} signer {key_byte} without origin_tx_hash",
                     case.name
                 );
-                if allowed {
-                    let error: serde_json::Value = response.json().await?;
-                    assert_eq!(
-                        error["error"], "Invalid origin_tx_hash",
-                        "{} signer {key_byte} without origin_tx_hash",
-                        case.name
-                    );
-                }
 
-                let body = OffchainLookupRequestBody {
-                    sender: fixtures.sender.clone(),
-                    data: case.lookup_data.clone(),
-                    signature: Some(signature),
-                    origin_tx_hash: Some(origin_tx_hash.clone()),
-                };
+                let body = OffchainLookupRequestBody::new_post(
+                    fixtures.sender.clone(),
+                    case.lookup_data.clone(),
+                    Some(signature),
+                    Some(&origin_tx_hash),
+                    case.message_id,
+                );
                 let response = client.post(&url).json(&body).send().await?;
                 assert_eq!(
                     response.status().as_u16(),
@@ -1102,6 +1227,24 @@ mod test {
             }
         }
         Ok(())
+    }
+
+    const MESSAGE_ID: H256 = H256::repeat_byte(0x77);
+    const ORIGIN_TX_HASH: [u8; 32] = [0x88; 32];
+
+    async fn sign(
+        signer: &CountingSigner,
+        info: &OffchainLookup,
+        url: &str,
+    ) -> Result<RequestSignature, MetadataBuildError> {
+        CcipReadIsmMetadataBuilder::generate_signature_hex(
+            signer,
+            info,
+            url,
+            MESSAGE_ID,
+            &ORIGIN_TX_HASH,
+        )
+        .await
     }
 
     #[tokio::test]
@@ -1124,26 +1267,76 @@ mod test {
             extra_data: vec![].into(),
         };
 
-        let signature_hex =
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url).await?;
+        let before = unix_now()?;
+        let signed = CcipReadIsmMetadataBuilder::generate_signature_hex(
+            &signer,
+            &info,
+            &url,
+            MESSAGE_ID,
+            &ORIGIN_TX_HASH,
+        )
+        .await?;
+        assert!((before..=unix_now()?).contains(&signed.issued_at));
 
         // 65 bytes = 130 hex chars + 2 for 0x
-        assert_eq!(signature_hex.len(), 132);
-        // Get the control from the hardhat test
-        assert_eq!(
-            signature_hex,
-            "0x62e58f20c0b7ec4f071835eaf7aa2716707375740774188ecc60e7d91b565f7363deeba366b2609aee6b870ac6504a6cf482f00ecc0e9cbe34422bdcf88a4bd11b"
-        );
-
-        let hash = hyperlane_core::offchain_lookup::offchain_lookup_request_message_hash(
-            info.sender.into(),
-            info.call_data.as_ref(),
-            url.as_bytes(),
-        );
-        let signature = ethers::types::Signature::from_str(&signature_hex)?;
+        assert_eq!(signed.signature.len(), 132);
+        let hash = OffchainLookupRequest {
+            url: url.as_bytes(),
+            sender: info.sender.into(),
+            call_data: info.call_data.as_ref(),
+            message_id: MESSAGE_ID,
+            origin_tx_hash: &ORIGIN_TX_HASH,
+            issued_at: signed.issued_at,
+        }
+        .signing_hash();
+        let signature = ethers::types::Signature::from_str(&signed.signature)?;
         let recovered = signature.recover(ethers::utils::hash_message(hash.as_bytes()))?;
         assert_eq!(H160::from(recovered), signer.eth_address());
         Ok(())
+    }
+
+    #[test]
+    fn post_body_carries_the_signed_fields_only_with_a_signature() {
+        let signature = RequestSignature {
+            signature: "0xsig".to_owned(),
+            issued_at: 1_700_000_000,
+        };
+        let signed = serde_json::to_value(OffchainLookupRequestBody::new_post(
+            "0xsender".to_owned(),
+            "0xdata".to_owned(),
+            Some(signature),
+            Some(&ORIGIN_TX_HASH),
+            MESSAGE_ID,
+        ))
+        .unwrap();
+        assert_eq!(
+            signed,
+            serde_json::json!({
+                "sender": "0xsender",
+                "data": "0xdata",
+                "signature": "0xsig",
+                "origin_tx_hash": bytes_to_hex(&ORIGIN_TX_HASH),
+                "message_id": bytes_to_hex(MESSAGE_ID.as_bytes()),
+                "issued_at": 1_700_000_000u64,
+            })
+        );
+
+        let unsigned = serde_json::to_value(OffchainLookupRequestBody::new_post(
+            "0xsender".to_owned(),
+            "0xdata".to_owned(),
+            None,
+            None,
+            MESSAGE_ID,
+        ))
+        .unwrap();
+        assert_eq!(
+            unsigned,
+            serde_json::json!({
+                "sender": "0xsender",
+                "data": "0xdata",
+                "origin_tx_hash": null,
+            })
+        );
     }
 
     #[tokio::test]
@@ -1152,19 +1345,16 @@ mod test {
         let url = "https://cache-reuse.example/lookup";
         let info = test_offchain_lookup(b"cache-reuse", 0x11, url);
 
-        let first = CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
-            .await
-            .unwrap();
-        let second = CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
-            .await
-            .unwrap();
+        let first = sign(&signer, &info, url).await.unwrap();
+        let second = sign(&signer, &info, url).await.unwrap();
 
+        // Including its issue time: the reused request is the one that was signed.
         assert_eq!(first, second);
         assert_eq!(signer.calls(), 1);
     }
 
     #[tokio::test]
-    async fn signature_cache_key_includes_signer_and_signing_hash() {
+    async fn signature_cache_key_includes_signer_and_every_signed_field() {
         let signer = CountingSigner::new(0x20);
         let other_signer = CountingSigner::new(0x21);
         let url = "https://cache-key.example/lookup";
@@ -1172,27 +1362,30 @@ mod test {
         let other_data = test_offchain_lookup(b"other-data", 0x22, url);
         let other_sender = test_offchain_lookup(b"cache-key", 0x23, url);
 
-        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
+        sign(&signer, &info, url).await.unwrap();
+        sign(&signer, &other_data, url).await.unwrap();
+        sign(&signer, &other_sender, url).await.unwrap();
+        sign(&signer, &info, "https://other-url.example/lookup")
             .await
             .unwrap();
-        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &other_data, url)
+        for (message_id, origin_tx_hash) in [
+            (H256::repeat_byte(0x78), &ORIGIN_TX_HASH[..]),
+            (MESSAGE_ID, &[0x89; 32][..]),
+            (MESSAGE_ID, &[0x88; 64][..]),
+        ] {
+            CcipReadIsmMetadataBuilder::generate_signature_hex(
+                &signer,
+                &info,
+                url,
+                message_id,
+                origin_tx_hash,
+            )
             .await
             .unwrap();
-        CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &other_sender, url)
-            .await
-            .unwrap();
-        CcipReadIsmMetadataBuilder::generate_signature_hex(
-            &signer,
-            &info,
-            "https://other-url.example/lookup",
-        )
-        .await
-        .unwrap();
-        CcipReadIsmMetadataBuilder::generate_signature_hex(&other_signer, &info, url)
-            .await
-            .unwrap();
+        }
+        sign(&other_signer, &info, url).await.unwrap();
 
-        assert_eq!(signer.calls(), 4);
+        assert_eq!(signer.calls(), 7);
         assert_eq!(other_signer.calls(), 1);
     }
 
@@ -1202,10 +1395,7 @@ mod test {
         let url = "https://cache-concurrent.example/lookup";
         let info = test_offchain_lookup(b"cache-concurrent", 0x31, url);
 
-        let results = join_all(
-            (0..8).map(|_| CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)),
-        )
-        .await;
+        let results = join_all((0..8).map(|_| sign(&signer, &info, url))).await;
 
         assert!(results.iter().all(Result::is_ok));
         assert_eq!(signer.calls(), 1);
@@ -1217,41 +1407,282 @@ mod test {
         let url = "https://cache-error.example/lookup";
         let info = test_offchain_lookup(b"cache-error", 0x41, url);
 
-        assert!(
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
-                .await
-                .is_err()
-        );
-        assert!(
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
-                .await
-                .is_ok()
-        );
-        assert!(
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, url)
-                .await
-                .is_ok()
-        );
+        assert!(sign(&signer, &info, url).await.is_err());
+        assert!(sign(&signer, &info, url).await.is_ok());
+        assert!(sign(&signer, &info, url).await.is_ok());
 
         assert_eq!(signer.calls(), 2);
+    }
+
+    fn ccs_reveal_lookup(sender_byte: u8, url: &str) -> OffchainLookup {
+        let call_data = [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat();
+        test_offchain_lookup(&call_data, sender_byte, url)
+    }
+
+    #[test]
+    fn ccs_reveal_lookup_selector_matches_the_service_interface() {
+        assert_eq!(
+            CCS_REVEAL_LOOKUP_SELECTOR,
+            ethers::utils::id("getCallsFromRevealMessage(bytes)")
+        );
+    }
+
+    #[tokio::test]
+    async fn only_ccs_reveal_lookups_are_signed() {
+        let signer = CountingSigner::new(0x60);
+        let url = "https://post.example/lookup";
+        let other_selector = [&[0x2b, 0x4b, 0x00, 0xef][..], &[0x99; 64]].concat();
+
+        for info in [
+            test_offchain_lookup(&other_selector, 0x61, url),
+            test_offchain_lookup(&CCS_REVEAL_LOOKUP_SELECTOR[..3], 0x61, url),
+            test_offchain_lookup(b"", 0x61, url),
+        ] {
+            let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+                Some(&signer),
+                &info,
+                url,
+                MESSAGE_ID,
+                Some(&ORIGIN_TX_HASH),
+            )
+            .await
+            .unwrap();
+            assert_eq!(signature, None);
+        }
+        assert_eq!(signer.calls(), 0);
+
+        let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+            Some(&signer),
+            &ccs_reveal_lookup(0x61, url),
+            url,
+            MESSAGE_ID,
+            Some(&ORIGIN_TX_HASH),
+        )
+        .await
+        .unwrap();
+        assert!(signature.is_some());
+        assert_eq!(signer.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn reveal_signature_requires_the_origin_tx_hash() {
+        let signer = CountingSigner::new(0x70);
+        let url = "https://post.example/lookup";
+
+        let result = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
+            Some(&signer),
+            &ccs_reveal_lookup(0x71, url),
+            url,
+            MESSAGE_ID,
+            None,
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err(MetadataBuildError::FailedToBuild(
+                MISSING_REVEAL_ORIGIN_TX_HASH.to_owned()
+            ))
+        );
+        assert_eq!(signer.calls(), 0);
     }
 
     #[tokio::test]
     async fn get_request_does_not_generate_signature() {
         let signer = CountingSigner::new(0x50);
         let url = "https://get.example/{data}";
-        let info = test_offchain_lookup(b"get", 0x51, url);
+        let info = ccs_reveal_lookup(0x51, url);
 
         let signature = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
             Some(&signer),
             &info,
             url,
+            MESSAGE_ID,
+            Some(&ORIGIN_TX_HASH),
         )
         .await
         .unwrap();
 
         assert_eq!(signature, None);
         assert_eq!(signer.calls(), 0);
+    }
+
+    /// A CCIP-read ISM whose `getOffchainVerifyInfo` fails with `revert`.
+    #[derive(Debug)]
+    struct RevertingCcipReadIsm {
+        address: H256,
+        domain: hyperlane_core::HyperlaneDomain,
+        revert: String,
+    }
+
+    impl hyperlane_core::HyperlaneChain for RevertingCcipReadIsm {
+        fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    impl hyperlane_core::HyperlaneContract for RevertingCcipReadIsm {
+        fn address(&self) -> H256 {
+            self.address
+        }
+    }
+
+    #[async_trait]
+    impl CcipReadIsm for RevertingCcipReadIsm {
+        async fn get_offchain_verify_info(
+            &self,
+            _message: Vec<u8>,
+        ) -> hyperlane_core::ChainResult<()> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                &self.revert,
+            ))
+        }
+    }
+
+    /// Builds the error text an ISM implementation produces from a revert payload.
+    type FormatRevert = fn(&str) -> String;
+
+    /// The destinations whose ISMs surface an `OffchainLookup` revert, each with
+    /// the error text its ISM implementation produces from the revert payload.
+    fn ccip_read_destinations() -> Vec<(hyperlane_core::HyperlaneDomain, FormatRevert)> {
+        use hyperlane_core::{
+            HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+            HyperlaneDomainType, KnownHyperlaneDomain,
+        };
+        vec![
+            (
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                |payload| format!("execution reverted: {payload}"),
+            ),
+            (
+                // `TronCcipReadIsm` returns the revert payload as a bare "0x{hex}" error.
+                HyperlaneDomain::Unknown {
+                    domain_id: 728126428,
+                    domain_name: "tron".to_owned(),
+                    domain_type: HyperlaneDomainType::Mainnet,
+                    domain_protocol: HyperlaneDomainProtocol::Tron,
+                    domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+                },
+                str::to_owned,
+            ),
+        ]
+    }
+
+    /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
+    /// `sender`, `urls` and `call_data`, and returns its error and read states.
+    async fn lookup_with_call_data(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+        urls: Vec<String>,
+        call_data: Vec<u8>,
+    ) -> (MetadataBuildError, Vec<String>) {
+        use crate::test_utils::mock_base_builder::build_mock_base_builder;
+        use ethers::abi::AbiEncode;
+
+        let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
+        let lookup = OffchainLookup {
+            sender,
+            urls,
+            call_data: call_data.into(),
+            callback_function: [0; 4],
+            extra_data: Default::default(),
+        };
+        base.responses
+            .build_ccip_read_ism
+            .lock()
+            .expect("lock")
+            .push_back(Ok(Box::new(RevertingCcipReadIsm {
+                address: ism,
+                domain,
+                revert: format_revert(&bytes_to_hex(&lookup.encode())),
+            })));
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: base.clone(),
+            app_context: None,
+            root_ism: ism,
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+
+        let error = fetch_metadata(&builder, ism, &HyperlaneMessage::default())
+            .await
+            .expect_err("the lookup is not served");
+
+        let activities = base.requests.activities.lock().expect("lock");
+        let states = activities
+            .iter()
+            .map(|(_, activity)| {
+                serde_json::to_value(activity).expect("serialize")["state"].to_string()
+            })
+            .collect();
+        (error, states)
+    }
+
+    /// The queried ISM, widened to 32 bytes, and the 20-byte lookup sender naming it.
+    fn queried_ism() -> (H256, EthersH160) {
+        let address: EthersH160 = "4ee6ecad1c2dae9f525404de8555724e3c35d07b"
+            .parse()
+            .expect("address");
+        (H256::from(address), address)
+    }
+
+    #[tokio::test]
+    async fn reveal_post_without_origin_tx_hash_is_not_signed_or_sent() {
+        let (ism, sender) = queried_ism();
+        for (domain, format_revert) in ccip_read_destinations() {
+            let name = domain.name().to_owned();
+            // The mock base builder has no origin transaction hash for the message.
+            let (error, states) = lookup_with_call_data(
+                domain,
+                format_revert,
+                ism,
+                sender,
+                vec!["https://127.0.0.1/lookup".to_owned()],
+                [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
+            )
+            .await;
+
+            // Refused before URL validation, signing and the request.
+            assert_eq!(error, MetadataBuildError::CouldNotFetch, "{name}");
+            assert_eq!(states, vec!["\"origin_transaction_missing\""], "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn reveal_get_without_origin_tx_hash_is_still_tried() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        // The mock base builder has no origin transaction hash for the message.
+        let (_, states) = lookup_with_call_data(
+            domain,
+            format_revert,
+            ism,
+            sender,
+            vec![
+                "https://127.0.0.1/lookup".to_owned(),
+                "https://127.0.0.1/lookup/{data}".to_owned(),
+            ],
+            [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
+        )
+        .await;
+
+        // The POST is skipped; the unsigned GET goes on to URL validation.
+        assert_eq!(
+            states,
+            vec!["\"origin_transaction_missing\"", "\"url_rejected\""]
+        );
     }
 
     #[test]
