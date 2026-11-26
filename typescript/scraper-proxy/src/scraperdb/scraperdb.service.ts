@@ -110,9 +110,8 @@ export class ScraperDbService {
            SELECT * FROM (
              (SELECT * FROM lower_half)
              UNION ALL
-             (SELECT * FROM (${range('e.leaf_index < 0')}) AS upper_half
-              LIMIT (SELECT $4 - count(*) FROM lower_half))
-           ) AS page ORDER BY page.leaf_index`
+             (${range('e.leaf_index < 0 AND (SELECT count(*) FROM lower_half) < $4')})
+           ) AS page ORDER BY page.leaf_index LIMIT $4`
         : range('e.leaf_index >= $3 AND e.leaf_index < 0');
     const rows = await this.historyQuery(sql, [
       ...scope,
