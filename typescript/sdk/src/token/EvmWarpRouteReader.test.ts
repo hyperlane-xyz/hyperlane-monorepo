@@ -1150,6 +1150,28 @@ describe('EvmWarpRouteReader', () => {
       expect(config).to.deep.equal({});
     });
 
+    // A proxy whose implementation holds no code is not a token implementing no
+    // known interface: there is nothing to say it is one, so the reader fails
+    // instead of skipping its xERC20 config.
+    it('rejects for a proxy whose implementation has no bytecode instead of skipping its xERC20 config', async () => {
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const implementation = ethers.utils.getAddress(randomAddress());
+      sandbox
+        .stub(provider, 'getCode')
+        .callsFake(async (address) =>
+          (await address) === implementation ? '0x' : '0xbeef',
+        );
+      sandbox
+        .stub(provider, 'getStorageAt')
+        .resolves(ethers.utils.hexZeroPad(implementation, 32));
+
+      await expect(
+        reader.fetchXERC20Config(XERC20_ADDRESS, WARP_ROUTER),
+      ).to.be.rejectedWith(
+        `Its EIP-1967 implementation ${implementation} has no bytecode`,
+      );
+    });
+
     // A token whose type is detectable but whose limit getter is not there has
     // answered: it holds no limits this SDK can read.
     it('reports no xERC20 config when the limit getter is missing', async () => {

@@ -561,8 +561,9 @@ export class UnknownXERC20TypeError extends Error {
  * The type whose limit interface the bytecode of the token, or of the EIP-1967
  * implementation behind it, carries, or undefined when it carries none of them.
  *
- * Only that answer is undefined: an address without bytecode and a failure to
- * read it throw, as neither says anything of the contract.
+ * Only that answer is undefined: an address without bytecode, the token's or
+ * its implementation's, and a failure to read it throw, as neither says
+ * anything of the contract.
  */
 async function detectXERC20Type(
   multiProvider: MultiProvider,
@@ -608,6 +609,11 @@ async function detectXERC20Type(
     const implementation = await proxyImplementation(provider, address);
     if (!eqAddress(implementation, ethers.constants.AddressZero)) {
       normalizedCode = (await provider.getCode(implementation)).toLowerCase();
+      if (normalizedCode === '0x') {
+        throw new Error(
+          `Unable to detect XERC20 type for ${address}. Its EIP-1967 implementation ${implementation} has no bytecode.`,
+        );
+      }
     }
   }
 

@@ -233,6 +233,18 @@ const cases: Case[] = [
     storage: {},
     expected: { errorIncludes: 'Contract has no bytecode' },
   },
+  {
+    // The slot points to an address that holds nothing, so there is no
+    // implementation to inspect, which says nothing of the type of the token.
+    name: 'throws when the implementation of the proxy has no bytecode',
+    code: { [PROXY_ADDRESS]: '0xdead', [IMPLEMENTATION_ADDRESS]: '0x' },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: {
+      errorIncludes: `Its EIP-1967 implementation ${IMPLEMENTATION_ADDRESS} has no bytecode`,
+    },
+  },
 ];
 
 // Answers the code and storage reads of the case, and throws for any other.
@@ -331,7 +343,7 @@ describe('deriveEvmXERC20Standard', () => {
   // token that cannot be read at all is no answer, and is rejected.
   function expectedStandard(c: Case): TokenStandard | undefined {
     if ('type' in c.expected) return standardOf[c.expected.type];
-    return c.expected.errorIncludes.includes('no bytecode')
+    return c.expected.errorIncludes.includes('has no bytecode')
       ? undefined
       : TokenStandard.EvmHypXERC20;
   }
@@ -348,7 +360,8 @@ describe('deriveEvmXERC20Standard', () => {
       );
 
       if (expected === undefined) {
-        await expect(derive).to.be.rejectedWith('Contract has no bytecode');
+        assert('errorIncludes' in c.expected, 'Expected an error case');
+        await expect(derive).to.be.rejectedWith(c.expected.errorIncludes);
       } else {
         expect(await derive).to.equal(expected);
       }
@@ -441,6 +454,32 @@ describe('UnknownXERC20TypeError', () => {
     }
 
     expect(thrown).to.be.instanceOf(UnknownXERC20TypeError);
+  });
+
+  it('is not thrown when the implementation of the proxy has no bytecode', async () => {
+    const provider = multiProvider.getProvider(TestChainName.test1);
+    sandbox
+      .stub(provider, 'getCode')
+      .callsFake(async (address) =>
+        (await address) === IMPLEMENTATION_ADDRESS ? '0x' : '0xdead',
+      );
+    sandbox
+      .stub(provider, 'getStorageAt')
+      .resolves(storageAddress(IMPLEMENTATION_ADDRESS));
+
+    let thrown: unknown;
+    try {
+      await deriveXERC20TokenType(
+        multiProvider,
+        TestChainName.test1,
+        PROXY_ADDRESS,
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.be.instanceOf(Error);
+    expect(thrown).to.not.be.instanceOf(UnknownXERC20TypeError);
   });
 
   it('is not thrown when the bytecode cannot be read at all', async () => {
