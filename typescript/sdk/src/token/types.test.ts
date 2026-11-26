@@ -4,6 +4,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   assert,
+  isNullish,
   stringifyObject,
   tryParseJsonOrYaml,
 } from '@hyperlane-xyz/utils';
@@ -1542,5 +1543,100 @@ describe('XERC20TokenConfigSchema Aevo limits', () => {
         ).to.deep.equal(['xERC20.extraBridges']);
       });
     }
+  });
+
+  // The limits of an Aevo token are read and set for the router of an xERC20
+  // route. A lockbox route is exported with the standard of the lockbox router,
+  // which reads limits through getters an Aevo token does not have.
+  describe('on an xERC20Lockbox token config', () => {
+    const lockboxConfig = (warpRouteLimits?: unknown) => ({
+      type: TokenType.XERC20Lockbox,
+      token: SOME_ADDRESS,
+      xERC20: isNullish(warpRouteLimits) ? undefined : { warpRouteLimits },
+    });
+    const LOCKBOX_MESSAGE =
+      "An Aevo token's limits apply to the router of an xERC20 route: an xERC20Lockbox config cannot declare them";
+
+    const aevoLimits: Array<{ name: string; limits: object }> = [
+      {
+        name: 'a minter that is not authorized',
+        limits: { type: XERC20Type.Aevo, authorized: false },
+      },
+      {
+        name: 'an authorized minter with a raw cap',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '1000' },
+        },
+      },
+      {
+        name: 'an authorized minter without a bound',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+      },
+    ];
+
+    for (const c of aevoLimits) {
+      it(`rejects ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          lockboxConfig(c.limits),
+        );
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the Aevo limits to be rejected');
+        expect(result.error.issues.map((issue) => issue.message)).to.deep.equal(
+          [LOCKBOX_MESSAGE],
+        );
+        expect(result.error.issues[0].path.join('.')).to.equal(
+          'xERC20.warpRouteLimits',
+        );
+      });
+
+      it(`rejects ${c.name} through the parse of a router config`, () => {
+        const result = HypTokenRouterConfigMailboxOptionalSchema.safeParse({
+          ...lockboxConfig(c.limits),
+          owner: SOME_ADDRESS,
+        });
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the Aevo limits to be rejected');
+        expect(result.error.issues.map((issue) => issue.message)).to.include(
+          LOCKBOX_MESSAGE,
+        );
+      });
+    }
+
+    interface AcceptedCase {
+      name: string;
+      limits?: object;
+    }
+
+    // What the refinement leaves alone: the other limits of a lockbox config,
+    // none at all, and the same Aevo limits on an xERC20 config.
+    const accepted: AcceptedCase[] = [
+      { name: 'Standard limits', limits: STANDARD_LIMITS },
+      { name: 'Velodrome limits', limits: VELO_LIMITS },
+      { name: 'no limits' },
+    ];
+
+    for (const c of accepted) {
+      it(`accepts ${c.name}`, () => {
+        expect(
+          XERC20TokenConfigSchema.safeParse(lockboxConfig(c.limits)).success,
+        ).to.equal(true);
+      });
+    }
+
+    it('accepts the Aevo limits it rejects on an xERC20Lockbox config on an xERC20 config', () => {
+      for (const { limits } of aevoLimits) {
+        expect(
+          XERC20TokenConfigSchema.safeParse(xERC20Config(limits)).success,
+        ).to.equal(true);
+      }
+    });
   });
 });

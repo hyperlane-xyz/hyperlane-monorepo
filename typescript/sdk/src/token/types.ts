@@ -320,7 +320,20 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
   .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
   })
-  .extend(xERC20TokenMetadataSchema.shape);
+  .extend(xERC20TokenMetadataSchema.shape)
+  // The limits of an Aevo token are read and set for the router of an xERC20
+  // route. A lockbox route is exported with the standard of the lockbox router,
+  // which reads limits through getters an Aevo token does not have.
+  .refine(
+    ({ type, xERC20 }) =>
+      type !== TokenType.XERC20Lockbox ||
+      xERC20?.warpRouteLimits.type !== XERC20Type.Aevo,
+    {
+      message:
+        "An Aevo token's limits apply to the router of an xERC20 route: an xERC20Lockbox config cannot declare them",
+      path: ['xERC20', 'warpRouteLimits'],
+    },
+  );
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
