@@ -171,8 +171,18 @@ jobs:
         with:
           base_sha: ${{ steps.determine-sha.outputs.base_sha }}
           head_sha: ${{ steps.determine-sha.outputs.current_sha }}
-          path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
+          path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh|zig/)'
           path_pattern_only: 'true'
+
+      # zig/ has its own workflow (zig-scraper-proxy.yml) but its .mjs/.json/.md files are still
+      # oxfmt-checked, so zig/ changes keep lint-prettier.
+      - name: Check if zig files changed
+        id: check-zig
+        uses: ./.github/actions/check-path-changes
+        with:
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
+          path_pattern: 'zig/'
 
       - name: Check if workflow files changed
         id: check-github
@@ -302,7 +312,7 @@ jobs:
 
           SKIP_TS="${{ steps.check-skip-ts.outputs.only_changes }}"
           RUN_LINT_PRETTIER=false
-          if [[ "$SKIP_TS" != "true" || "${{ steps.check-github.outputs.has_changes }}" == "true" ]]; then
+          if [[ "$SKIP_TS" != "true" || "${{ steps.check-github.outputs.has_changes }}" == "true" || "${{ steps.check-zig.outputs.has_changes }}" == "true" ]]; then
             RUN_LINT_PRETTIER=true
           fi
 
