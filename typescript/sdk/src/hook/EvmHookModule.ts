@@ -16,6 +16,7 @@ import {
   IPostDispatchHook__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  MailboxClient__factory,
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
@@ -40,6 +41,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
+  deepCopy,
   deepEquals,
   difference,
   eqAddress,
@@ -145,6 +147,29 @@ function hookConfigsEqual(a: unknown, b: unknown): boolean {
   return deepEquals(stripIgpVersion(a), stripIgpVersion(b));
 }
 
+function hasDuplicateKeys(keys: string[]): boolean {
+  return new Set(keys).size !== keys.length;
+}
+
+// The address of the deployed hook that a config only refers to, if it is one.
+function referencedHookAddress(hook: HookConfig): Address | undefined {
+  if (typeof hook === 'string') return hook;
+  switch (hook.type) {
+    case HookType.CCTP:
+    case HookType.PREDICATE:
+      return hook.address;
+    case HookType.UNKNOWN:
+      return typeof hook.address === 'string' ? hook.address : undefined;
+    default:
+      return undefined;
+  }
+}
+
+type AggregationSubHook = {
+  address: Address;
+  targetConfig: Exclude<HookConfig, Address>;
+};
+
 export class EvmHookModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HookConfig,
@@ -223,6 +248,10 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
+    // deriveHookConfig replaces the address members of an aggregation with their
+    // derived configs in place, and the in-place aggregation update needs them as given.
+    const givenTargetConfig: HookConfig = deepCopy(targetConfig);
+
     // We need to normalize the current and target configs to compare.
     const derivedTargetConfig =
       await this.reader.deriveHookConfig(targetConfig);
@@ -273,7 +302,8 @@ export class EvmHookModule extends HyperlaneModule<
     // Conditions for deploying a new hook:
     // - If updating from an address/custom config to a proper hook config.
     // - If updating a proper hook config whose types are different.
-    // - If it is not a mutable Hook.
+    // - If it is not a mutable Hook. An AGGREGATION hook is only deployed when its
+    //   members cannot be updated in place.
     // - If an immutable RATE_LIMITED field (duration) changed.
     if (
       rateLimitedDurationChanged ||
@@ -281,6 +311,18 @@ export class EvmHookModule extends HyperlaneModule<
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
     ) {
+      if (
+        typeof normalizedCurrentConfig !== 'string' &&
+        normalizedCurrentConfig.type === HookType.AGGREGATION &&
+        typeof givenTargetConfig !== 'string' &&
+        givenTargetConfig.type === HookType.AGGREGATION
+      ) {
+        const inPlaceTxs = await this.tryUpdateContainerHook(givenTargetConfig);
+        if (inPlaceTxs !== null) {
+          return inPlaceTxs;
+        }
+      }
+
       const contract = await this.deploy({
         config: normalizedTargetConfig,
       });
@@ -289,11 +331,218 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before this call
+    // Only mutable hooks reach this call, the others were updated in place or deployed above
     return this.updateMutableHook({
       current: normalizedCurrentConfig,
       target: normalizedTargetConfig,
     });
+  }
+
+  // Returns the transactions that update the members of the deployed AGGREGATION
+  // hook in place, or null when that would change the address of any member and the
+  // aggregation has to be redeployed. Nothing is sent or deployed before every member
+  // is known to be updatable in place.
+  protected async tryUpdateContainerHook(
+    target: AggregationHookConfig,
+  ): Promise<AnnotatedEV5Transaction[] | null> {
+    const subHooks = await this.containerSubHooks(
+      this.args.addresses.deployedHook,
+      target,
+    );
+    if (subHooks === null) return null;
+
+    for (const { address, targetConfig } of subHooks) {
+      if (!(await this.canUpdateSubHookInPlace(address, targetConfig))) {
+        return null;
+      }
+    }
+
+    const allUpdateTxs: AnnotatedEV5Transaction[] = [];
+    for (const { address, targetConfig } of subHooks) {
+      const subModule = new EvmHookModule(
+        this.multiProvider,
+        {
+          chain: this.chain,
+          config: targetConfig,
+          addresses: { ...this.args.addresses, deployedHook: address },
+        },
+        this.hookFactory.ccipContractCache,
+        this.contractVerifier,
+      );
+      allUpdateTxs.push(...(await subModule.update(targetConfig)));
+      if (!eqAddress(address, subModule.serialize().deployedHook)) {
+        return null;
+      }
+    }
+    return allUpdateTxs;
+  }
+
+  // Pairs the members of the deployed AGGREGATION hook with the members of the target
+  // that need an update. Members of the target that only refer to a deployed hook (an
+  // address, or a CCTP, predicate or unknown hook, which is only an address) are kept
+  // unchanged, so they have to be members of the deployed hook. The remaining members
+  // are paired by hook type.
+  protected async containerSubHooks(
+    containerAddress: Address,
+    target: AggregationHookConfig,
+  ): Promise<AggregationSubHook[] | null> {
+    const onChainAddresses = await StaticAggregationHook__factory.connect(
+      containerAddress,
+      this.multiProvider.getProvider(this.chain),
+    ).hooks(ethers.constants.AddressZero);
+    if (onChainAddresses.length !== target.hooks.length) return null;
+
+    const unmatched = await Promise.all(
+      onChainAddresses.map(async (address) => {
+        const { type } = await this.reader.deriveHookConfig(address);
+        return { address, key: type };
+      }),
+    );
+
+    const pairedTargets: Exclude<HookConfig, Address>[] = [];
+    for (const member of target.hooks) {
+      const keptAddress = referencedHookAddress(member);
+      if (keptAddress === undefined) {
+        // an unknown hook that has no address cannot be told apart from the deployed ones
+        if (typeof member === 'string' || member.type === HookType.UNKNOWN) {
+          return null;
+        }
+        pairedTargets.push(member);
+        continue;
+      }
+
+      const index = unmatched.findIndex((onChain) =>
+        eqAddress(onChain.address, keptAddress),
+      );
+      if (index === -1) return null;
+      unmatched.splice(index, 1);
+    }
+
+    const targetKeys = pairedTargets.map(({ type }) => type);
+    if (
+      hasDuplicateKeys(unmatched.map(({ key }) => key)) ||
+      hasDuplicateKeys(targetKeys)
+    ) {
+      return null;
+    }
+
+    const sortedUnmatched = [...unmatched].sort((a, b) =>
+      a.key.localeCompare(b.key),
+    );
+    const sortedTargets = [...pairedTargets].sort((a, b) =>
+      a.type.localeCompare(b.type),
+    );
+
+    const subHooks: AggregationSubHook[] = [];
+    for (const [i, { address, key }] of sortedUnmatched.entries()) {
+      const paired = sortedTargets[i];
+      if (paired === undefined || key !== paired.type) return null;
+      subHooks.push({ address, targetConfig: paired });
+    }
+    return subHooks;
+  }
+
+  // Whether updating the hook at `address` to `targetConfig` keeps its address.
+  protected async canUpdateSubHookInPlace(
+    address: Address,
+    targetConfig: Exclude<HookConfig, Address>,
+  ): Promise<boolean> {
+    const current: HookConfig = normalizeConfig(
+      await this.reader.deriveHookConfig(address),
+    );
+    const target: HookConfig = normalizeConfig(
+      await this.reader.deriveHookConfig(deepCopy(targetConfig)),
+    );
+
+    if (
+      typeof current === 'string' ||
+      typeof target === 'string' ||
+      current.type !== target.type
+    ) {
+      return false;
+    }
+
+    if (hookConfigsEqual(current, target)) {
+      return this.keptHookUsesModuleMailbox(address);
+    }
+
+    if (
+      current.type === HookType.AGGREGATION &&
+      targetConfig.type === HookType.AGGREGATION
+    ) {
+      const subHooks = await this.containerSubHooks(address, targetConfig);
+      if (subHooks === null) return false;
+
+      for (const subHook of subHooks) {
+        if (
+          !(await this.canUpdateSubHookInPlace(
+            subHook.address,
+            subHook.targetConfig,
+          ))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (!MUTABLE_HOOK_TYPE.includes(target.type)) {
+      return false;
+    }
+
+    if (
+      current.type === HookType.RATE_LIMITED &&
+      target.type === HookType.RATE_LIMITED
+    ) {
+      return current.duration === target.duration;
+    }
+
+    if (
+      current.type === HookType.PROTOCOL_FEE &&
+      target.type === HookType.PROTOCOL_FEE
+    ) {
+      return current.maxProtocolFee === target.maxProtocolFee;
+    }
+
+    if (
+      current.type === HookType.FALLBACK_ROUTING &&
+      target.type === HookType.FALLBACK_ROUTING
+    ) {
+      return hookConfigsEqual(current.fallback, target.fallback);
+    }
+
+    return true;
+  }
+
+  // The mailbox is an immutable constructor arg that the reader omits, so a MAILBOX_DEFAULT
+  // or MERKLE_TREE hook bound to another mailbox compares equal to one bound to this
+  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged.
+  protected async keptHookUsesModuleMailbox(
+    address: Address,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chain);
+    const { type } = await this.reader.deriveHookConfig(address);
+
+    if (type === HookType.AGGREGATION) {
+      const members = await StaticAggregationHook__factory.connect(
+        address,
+        provider,
+      ).hooks(ethers.constants.AddressZero);
+      for (const member of members) {
+        if (!(await this.keptHookUsesModuleMailbox(member))) return false;
+      }
+      return true;
+    }
+
+    if (type === HookType.MAILBOX_DEFAULT || type === HookType.MERKLE_TREE) {
+      const mailbox = await MailboxClient__factory.connect(
+        address,
+        provider,
+      ).mailbox();
+      return eqAddress(mailbox, this.args.addresses.mailbox);
+    }
+
+    return true;
   }
 
   // manually write static create function

@@ -1,12 +1,19 @@
-import { expect } from 'chai';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { Signer, ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  DefaultHook__factory,
   InterchainGasPaymaster__factory,
+  MailboxClient__factory,
+  MerkleTreeHook__factory,
+  Ownable__factory,
   PausableHook__factory,
+  ProtocolFee__factory,
   RateLimitedHook__factory,
+  StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -35,6 +42,7 @@ import {
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
+import { EvmHookReader } from './EvmHookReader.js';
 import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
@@ -46,18 +54,31 @@ import {
   IgpHookConfig,
   IgpVersion,
   MUTABLE_HOOK_TYPE,
+  OnchainHookType,
   PausableHookConfig,
   ProtocolFeeHookConfig,
   RateLimitedHookConfig,
 } from './types.js';
 
+chai.use(chaiAsPromised);
+const { expect } = chai;
+
 const hookTypes = Object.values(HookType);
+
+// Lets every member through the check for an in place update, to reach the check of
+// the address after the update.
+class UncheckedEvmHookModule extends EvmHookModule {
+  protected override async canUpdateSubHookInPlace(): Promise<boolean> {
+    return true;
+  }
+}
 
 describe('EvmHookModule', async () => {
   const chain = TestChainName.test4;
 
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
+  let otherMailbox: Address;
   let signer: Signer;
   let funder: Signer;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
@@ -97,9 +118,12 @@ describe('EvmHookModule', async () => {
     );
 
     // mailbox and proxy admin for the core deploy
-    const { mailbox, proxyAdmin, validatorAnnounce, quotedCalls } = (
-      await testCoreDeployer.deployApp()
-    ).getContracts(chain);
+    const coreApp = await testCoreDeployer.deployApp();
+    const { mailbox, proxyAdmin, validatorAnnounce, quotedCalls } =
+      coreApp.getContracts(chain);
+    // all the test chains share one provider, so this is a mailbox that the hooks of
+    // `chain` can be bound to as well
+    otherMailbox = coreApp.getContracts(TestChainName.test1).mailbox.address;
 
     coreAddresses = {
       mailbox: mailbox.address,
@@ -359,17 +383,29 @@ describe('EvmHookModule', async () => {
   });
 
   describe('update', async () => {
-    it('should update by deploying a new aggregation hook', async () => {
+    it('should update by deploying a new aggregation hook when a member changes type', async () => {
       const config: AggregationHookConfig = {
         type: HookType.AGGREGATION,
-        hooks: [randomHookConfig(0, 2), randomHookConfig(0, 2)],
+        hooks: [
+          { type: HookType.MERKLE_TREE },
+          { type: HookType.MAILBOX_DEFAULT },
+        ],
       };
 
       // create a new hook
       const { hook, initialHookAddress } = await createHook(config);
 
-      // change the hooks
-      config.hooks = [randomHookConfig(0, 2), randomHookConfig(0, 2)];
+      // change the type of one member
+      config.hooks = [
+        { type: HookType.MERKLE_TREE },
+        {
+          owner: randomAddress(),
+          type: HookType.PROTOCOL_FEE,
+          maxProtocolFee: '1',
+          protocolFee: '0',
+          beneficiary: randomAddress(),
+        },
+      ];
 
       // expect 0 tx to be returned, as it should deploy a new aggregation hook
       await expectTxsAndUpdate(hook, config, 0);
@@ -1290,5 +1326,965 @@ describe('EvmHookModule', async () => {
           .be.true;
       });
     }
+
+    describe('aggregation hook in-place updates', async () => {
+      const ownableInterface = Ownable__factory.createInterface();
+      let signerAddress: Address;
+
+      before(async () => {
+        // earlier tests replace the module's signer with an impersonated account
+        multiProvider = MultiProvider.createTestMultiProvider({ signer });
+        signerAddress = await multiProvider.getSignerAddress(chain);
+      });
+
+      function pausableMember(
+        owner: Address,
+        paused = false,
+      ): PausableHookConfig {
+        return { owner, paused, type: HookType.PAUSABLE };
+      }
+
+      function rateLimitedMember(
+        owner: Address,
+        maxCapacity = (86400n * 100n).toString(),
+        duration = 86400n,
+      ): RateLimitedHookConfig {
+        return { owner, maxCapacity, duration, type: HookType.RATE_LIMITED };
+      }
+
+      function aggregationOf(...hooks: HookConfig[]): AggregationHookConfig {
+        return { type: HookType.AGGREGATION, hooks };
+      }
+
+      async function hooksOf(aggregation: Address): Promise<Address[]> {
+        return StaticAggregationHook__factory.connect(
+          aggregation,
+          multiProvider.getProvider(chain),
+        ).hooks(hre.ethers.constants.AddressZero);
+      }
+
+      // the member addresses of an aggregation hook keyed by the hook type
+      async function membersOf(
+        aggregation: Address,
+      ): Promise<Record<string, Address>> {
+        const reader = new EvmHookReader(multiProvider, chain);
+        const members: Record<string, Address> = {};
+        for (const address of await hooksOf(aggregation)) {
+          members[(await reader.deriveHookConfig(address)).type] = address;
+        }
+        return members;
+      }
+
+      // an address with code that reports `type` as its hook type and is nothing else
+      async function hookTypeStub(type: OnchainHookType): Promise<Address> {
+        const address = randomAddress();
+        await hre.ethers.provider.send('hardhat_setCode', [
+          address,
+          `0x60${type.toString(16).padStart(2, '0')}60005260206000f3`,
+        ]);
+        return address;
+      }
+
+      function memberOfType(
+        members: Record<string, Address>,
+        type: HookType,
+      ): Address {
+        const address = members[type];
+        assert(address, `Missing ${type} member`);
+        return address;
+      }
+
+      async function sendTxs(
+        txs: Awaited<ReturnType<EvmHookModule['update']>>,
+      ) {
+        for (const tx of txs) {
+          await multiProvider.sendTransaction(chain, tx);
+        }
+      }
+
+      async function contractCreationsSince(
+        blockNumber: number,
+      ): Promise<number> {
+        const provider = multiProvider.getProvider(chain);
+        const latest = await provider.getBlockNumber();
+        let creations = 0;
+        for (let number = blockNumber + 1; number <= latest; number++) {
+          const block = await provider.getBlockWithTransactions(number);
+          for (const tx of block.transactions) {
+            const receipt = await provider.getTransactionReceipt(tx.hash);
+            if (receipt.contractAddress) creations++;
+          }
+        }
+        return creations;
+      }
+
+      // a module on the deployed hook that has not read it yet
+      function freshModule(hook: EvmHookModule, config: HookConfig) {
+        return new EvmHookModule(multiProvider, {
+          chain,
+          config,
+          addresses: hook.serialize(),
+        });
+      }
+
+      it('updates only the owner of a rate limited member in place', async () => {
+        const pausableOwner = randomAddress();
+        const newOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(pausableOwner),
+            rateLimitedMember(signerAddress),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+        const rateLimited = memberOfType(membersBefore, HookType.RATE_LIMITED);
+
+        const target = aggregationOf(
+          pausableMember(pausableOwner),
+          rateLimitedMember(newOwner),
+          { type: HookType.MAILBOX_DEFAULT },
+        );
+        const txs = await hook.update(target);
+
+        expect(txs).to.have.length(1);
+        expect(txs[0].to).to.equal(rateLimited);
+        expect(txs[0].data).to.equal(
+          ownableInterface.encodeFunctionData('transferOwnership(address)', [
+            newOwner,
+          ]),
+        );
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+        const provider = multiProvider.getProvider(chain);
+        expect(
+          eqAddress(
+            await RateLimitedHook__factory.connect(
+              rateLimited,
+              provider,
+            ).owner(),
+            newOwner,
+          ),
+        ).to.be.true;
+        expect(
+          eqAddress(
+            await PausableHook__factory.connect(
+              memberOfType(membersBefore, HookType.PAUSABLE),
+              provider,
+            ).owner(),
+            pausableOwner,
+          ),
+        ).to.be.true;
+
+        expect(await freshModule(hook, target).update(target)).to.have.length(
+          0,
+        );
+      });
+
+      it('updates the paused state and owner of a pausable member in place', async () => {
+        const newOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(pausableMember(signerAddress), {
+            type: HookType.MERKLE_TREE,
+          }),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(pausableMember(newOwner, true), {
+            type: HookType.MERKLE_TREE,
+          }),
+        );
+        expect(txs).to.have.length(2);
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+        const pausable = PausableHook__factory.connect(
+          memberOfType(membersBefore, HookType.PAUSABLE),
+          multiProvider.getProvider(chain),
+        );
+        expect(await pausable.paused()).to.be.true;
+        expect(eqAddress(await pausable.owner(), newOwner)).to.be.true;
+      });
+
+      it('updates the capacity of a rate limited member in place', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(rateLimitedMember(signerAddress), {
+            type: HookType.MAILBOX_DEFAULT,
+          }),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(
+            rateLimitedMember(signerAddress, (86400n * 200n).toString()),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        expect(txs).to.have.length(1);
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+        const rateLimited = RateLimitedHook__factory.connect(
+          memberOfType(membersBefore, HookType.RATE_LIMITED),
+          multiProvider.getProvider(chain),
+        );
+        expect((await rateLimited.maxCapacity()).toString()).to.equal(
+          (86400n * 200n).toString(),
+        );
+      });
+
+      it('keeps the members that cannot change when another member is updated', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            { type: HookType.MERKLE_TREE },
+            { type: HookType.MAILBOX_DEFAULT },
+            pausableMember(signerAddress),
+          ),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(
+            { type: HookType.MERKLE_TREE },
+            { type: HookType.MAILBOX_DEFAULT },
+            pausableMember(signerAddress, true),
+          ),
+        );
+        expect(txs).to.have.length(1);
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+      });
+
+      it('updates the IGP member of a merkle tree and IGP aggregation in place', async () => {
+        const igp = await createDeployerOwnedIgpHookConfig();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf({ type: HookType.MERKLE_TREE }, igp),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+        const newBeneficiary = randomAddress();
+
+        igp.beneficiary = newBeneficiary;
+        const txs = await hook.update(
+          aggregationOf({ type: HookType.MERKLE_TREE }, igp),
+        );
+        expect(txs).to.have.length(1);
+        expect(txs[0].to).to.equal(
+          memberOfType(membersBefore, HookType.INTERCHAIN_GAS_PAYMASTER),
+        );
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+        expect(
+          eqAddress(
+            await InterchainGasPaymaster__factory.connect(
+              memberOfType(membersBefore, HookType.INTERCHAIN_GAS_PAYMASTER),
+              multiProvider.getProvider(chain),
+            ).beneficiary(),
+            newBeneficiary,
+          ),
+        ).to.be.true;
+      });
+
+      it('applies no transactions when the config is unchanged', async () => {
+        const config = aggregationOf(
+          pausableMember(signerAddress),
+          rateLimitedMember(signerAddress),
+          { type: HookType.MAILBOX_DEFAULT },
+        );
+        const { hook, initialHookAddress } = await createHook(config);
+
+        await expectTxsAndUpdate(hook, config, 0);
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+      });
+
+      it('redeploys the members and the aggregation when the duration of a rate limited member changes', async () => {
+        const pausableOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(pausableOwner),
+            rateLimitedMember(signerAddress),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        const fromBlock = await multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+
+        // maxCapacity has to be a multiple of the duration
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            pausableMember(pausableOwner),
+            rateLimitedMember(signerAddress, '3600', 3600n),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        // a pausable, a rate limited and a default hook; nothing is deployed
+        // while the members are checked for an in place update
+        expect(await contractCreationsSince(fromBlock)).to.equal(3);
+        const rateLimited = RateLimitedHook__factory.connect(
+          memberOfType(
+            await membersOf(hook.serialize().deployedHook),
+            HookType.RATE_LIMITED,
+          ),
+          multiProvider.getProvider(chain),
+        );
+        expect((await rateLimited.DURATION()).toString()).to.equal('3600');
+      });
+
+      it('redeploys the aggregation when the max protocol fee and the duration of two members change', async () => {
+        const owner = signerAddress;
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            {
+              owner,
+              type: HookType.PROTOCOL_FEE,
+              maxProtocolFee: '10',
+              protocolFee: '1',
+              beneficiary: owner,
+            },
+            rateLimitedMember(owner),
+          ),
+        );
+        const fromBlock = await multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+
+        // the protocol fee hook would be redeployed by its own update, and the
+        // rate limited hook cannot be updated in place
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            {
+              owner,
+              type: HookType.PROTOCOL_FEE,
+              maxProtocolFee: '20',
+              protocolFee: '1',
+              beneficiary: owner,
+            },
+            rateLimitedMember(owner, '3600', 3600n),
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        expect(await contractCreationsSince(fromBlock)).to.equal(2);
+        const protocolFee = ProtocolFee__factory.connect(
+          memberOfType(
+            await membersOf(hook.serialize().deployedHook),
+            HookType.PROTOCOL_FEE,
+          ),
+          multiProvider.getProvider(chain),
+        );
+        expect((await protocolFee.MAX_PROTOCOL_FEE()).toString()).to.equal(
+          '20',
+        );
+      });
+
+      it('redeploys the aggregation when the max protocol fee of a member changes', async () => {
+        const owner = signerAddress;
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            {
+              owner,
+              type: HookType.PROTOCOL_FEE,
+              maxProtocolFee: '10',
+              protocolFee: '1',
+              beneficiary: owner,
+            },
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        const fromBlock = await multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            {
+              owner,
+              type: HookType.PROTOCOL_FEE,
+              maxProtocolFee: '20',
+              protocolFee: '1',
+              beneficiary: owner,
+            },
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        // a protocol fee and a default hook
+        expect(await contractCreationsSince(fromBlock)).to.equal(2);
+      });
+
+      it('redeploys the aggregation when the fallback of a fallback routing member changes', async () => {
+        function fallbackRoutingMember(
+          fallback: HookConfig,
+        ): FallbackRoutingHookConfig {
+          return {
+            owner: signerAddress,
+            type: HookType.FALLBACK_ROUTING,
+            domains: {},
+            fallback,
+          };
+        }
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            fallbackRoutingMember({ type: HookType.MERKLE_TREE }),
+            pausableMember(signerAddress),
+          ),
+        );
+        const fromBlock = await multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            fallbackRoutingMember({ type: HookType.MAILBOX_DEFAULT }),
+            pausableMember(signerAddress),
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        // a default hook as the fallback, the routing hook and a pausable hook
+        expect(await contractCreationsSince(fromBlock)).to.equal(3);
+      });
+
+      it('redeploys the aggregation when a member is added', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(pausableMember(signerAddress), {
+            type: HookType.MAILBOX_DEFAULT,
+          }),
+        );
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            pausableMember(signerAddress),
+            { type: HookType.MAILBOX_DEFAULT },
+            { type: HookType.MERKLE_TREE },
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+      });
+
+      it('redeploys the aggregation when a member changes its type', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(pausableMember(signerAddress), {
+            type: HookType.MAILBOX_DEFAULT,
+          }),
+        );
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(pausableMember(signerAddress), {
+            type: HookType.MERKLE_TREE,
+          }),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+      });
+
+      it('redeploys the aggregation when members of the same type cannot be told apart', async () => {
+        const otherOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(signerAddress),
+            pausableMember(otherOwner),
+          ),
+        );
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            pausableMember(randomAddress()),
+            pausableMember(otherOwner),
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+      });
+
+      it('keeps a member given as the address of a deployed member', async () => {
+        const newOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(randomAddress()),
+            rateLimitedMember(signerAddress),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(
+            memberOfType(membersBefore, HookType.PAUSABLE),
+            rateLimitedMember(newOwner),
+            { type: HookType.MAILBOX_DEFAULT },
+          ),
+        );
+        expect(txs).to.have.length(1);
+        expect(txs[0].to).to.equal(
+          memberOfType(membersBefore, HookType.RATE_LIMITED),
+        );
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+      });
+
+      it('redeploys the aggregation when a member is given as the address of a hook that is not a member', async () => {
+        const pausableOwner = randomAddress();
+        const { initialHookAddress: otherPausable } = await createHook(
+          pausableMember(randomAddress()),
+        );
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(pausableOwner),
+            rateLimitedMember(signerAddress),
+          ),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(otherPausable, rateLimitedMember(signerAddress)),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        expect(
+          eqAddress(
+            await PausableHook__factory.connect(
+              memberOfType(membersBefore, HookType.PAUSABLE),
+              multiProvider.getProvider(chain),
+            ).owner(),
+            pausableOwner,
+          ),
+        ).to.be.true;
+      });
+
+      it('deploys nothing for the members before it knows that all of them can be updated in place', async () => {
+        const owner = signerAddress;
+        function routingMember(
+          domainHook: HookConfig,
+        ): DomainRoutingHookConfig {
+          return {
+            owner,
+            type: HookType.ROUTING,
+            domains: { [TestChainName.test1]: domainHook },
+          };
+        }
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            routingMember({ type: HookType.MERKLE_TREE }),
+            rateLimitedMember(owner),
+          ),
+        );
+        const fromBlock = await multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+
+        // the routing hook is updated in place by deploying the hook of its domain,
+        // which has to wait for the rate limited hook, that has to be redeployed
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            routingMember({ type: HookType.MAILBOX_DEFAULT }),
+            rateLimitedMember(owner, '3600', 3600n),
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+        // a routing hook, its domain hook and a rate limited hook
+        expect(await contractCreationsSince(fromBlock)).to.equal(3);
+      });
+
+      it('redeploys the aggregation when updating a member in place changes its address', async () => {
+        const owner = signerAddress;
+        function protocolFeeMember(
+          maxProtocolFee: string,
+        ): ProtocolFeeHookConfig {
+          return {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee,
+            protocolFee: '1',
+            beneficiary: owner,
+          };
+        }
+        const config = aggregationOf(protocolFeeMember('10'), {
+          type: HookType.MAILBOX_DEFAULT,
+        });
+        const { hook, initialHookAddress } = await createHook(config);
+        const unchecked = new UncheckedEvmHookModule(multiProvider, {
+          chain,
+          config,
+          addresses: hook.serialize(),
+        });
+
+        const txs = await unchecked.update(
+          aggregationOf(protocolFeeMember('20'), {
+            type: HookType.MAILBOX_DEFAULT,
+          }),
+        );
+
+        expect(txs).to.have.length(0);
+        const deployedHook = unchecked.serialize().deployedHook;
+        expect(deployedHook).to.not.equal(initialHookAddress);
+        const protocolFee = ProtocolFee__factory.connect(
+          memberOfType(await membersOf(deployedHook), HookType.PROTOCOL_FEE),
+          multiProvider.getProvider(chain),
+        );
+        expect((await protocolFee.MAX_PROTOCOL_FEE()).toString()).to.equal(
+          '20',
+        );
+      });
+
+      interface BoundHookCase {
+        name: string;
+        type: HookType;
+        member: HookConfig;
+        deploy: (mailbox: Address) => Promise<Address>;
+      }
+      const boundHookCases: BoundHookCase[] = [
+        {
+          name: 'merkle tree',
+          type: HookType.MERKLE_TREE,
+          member: { type: HookType.MERKLE_TREE },
+          deploy: async (mailbox) =>
+            (await new MerkleTreeHook__factory(signer).deploy(mailbox)).address,
+        },
+        {
+          name: 'default',
+          type: HookType.MAILBOX_DEFAULT,
+          member: { type: HookType.MAILBOX_DEFAULT },
+          deploy: async (mailbox) =>
+            (await new DefaultHook__factory(signer).deploy(mailbox)).address,
+        },
+      ];
+      for (const c of boundHookCases) {
+        it(`redeploys the aggregation when its ${c.name} member is bound to another mailbox`, async () => {
+          const bound = await c.deploy(otherMailbox);
+          const provider = multiProvider.getProvider(chain);
+          expect(
+            eqAddress(
+              await MailboxClient__factory.connect(bound, provider).mailbox(),
+              coreAddresses.mailbox,
+            ),
+          ).to.be.false;
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(bound, pausableMember(signerAddress)),
+          );
+
+          // the member is the same as far as its config goes
+          await expectTxsAndUpdate(
+            hook,
+            aggregationOf(c.member, pausableMember(signerAddress, true)),
+            0,
+          );
+
+          const deployedHook = hook.serialize().deployedHook;
+          expect(deployedHook).to.not.equal(initialHookAddress);
+          const member = memberOfType(await membersOf(deployedHook), c.type);
+          expect(member).to.not.equal(bound);
+          expect(
+            eqAddress(
+              await MailboxClient__factory.connect(member, provider).mailbox(),
+              coreAddresses.mailbox,
+            ),
+          ).to.be.true;
+        });
+      }
+
+      interface ReferencedHookCase {
+        name: string;
+        type: OnchainHookType;
+        asMember: (address: Address) => HookConfig;
+      }
+      const referencedHookCases: ReferencedHookCase[] = [
+        {
+          name: 'a CCTP hook given as an address',
+          type: OnchainHookType.CCTP,
+          asMember: (address) => address,
+        },
+        {
+          name: 'a CCTP hook given as a config',
+          type: OnchainHookType.CCTP,
+          asMember: (address) => ({ type: HookType.CCTP, address }),
+        },
+        {
+          name: 'a predicate hook given as an address',
+          type: OnchainHookType.PREDICATE_ROUTER_WRAPPER,
+          asMember: (address) => address,
+        },
+        {
+          name: 'a predicate hook given as a config',
+          type: OnchainHookType.PREDICATE_ROUTER_WRAPPER,
+          asMember: (address) => ({ type: HookType.PREDICATE, address }),
+        },
+      ];
+      for (const c of referencedHookCases) {
+        it(`keeps ${c.name} that is a member`, async () => {
+          const referenced = await hookTypeStub(c.type);
+          const newOwner = randomAddress();
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(referenced, pausableMember(signerAddress)),
+          );
+          const hooksBefore = await hooksOf(initialHookAddress);
+          const pausable = memberOfType(
+            await membersOf(initialHookAddress),
+            HookType.PAUSABLE,
+          );
+
+          const txs = await hook.update(
+            aggregationOf(c.asMember(referenced), pausableMember(newOwner)),
+          );
+          expect(txs).to.have.length(1);
+          expect(txs[0].to).to.equal(pausable);
+          await sendTxs(txs);
+
+          expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+          expect(await hooksOf(initialHookAddress)).to.deep.equal(hooksBefore);
+        });
+
+        it(`redeploys the aggregation when ${c.name} is not a member`, async () => {
+          const member = await hookTypeStub(c.type);
+          const other = await hookTypeStub(c.type);
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(member, pausableMember(signerAddress)),
+          );
+
+          await expectTxsAndUpdate(
+            hook,
+            aggregationOf(c.asMember(other), pausableMember(signerAddress)),
+            0,
+          );
+
+          const deployedHook = hook.serialize().deployedHook;
+          expect(deployedHook).to.not.equal(initialHookAddress);
+          const hooks = await hooksOf(deployedHook);
+          expect(hooks.some((address) => eqAddress(address, other))).to.be.true;
+          expect(hooks.some((address) => eqAddress(address, member))).to.be
+            .false;
+        });
+      }
+
+      it('keeps an unknown hook given with the address of a member', async () => {
+        const custom = randomAddress();
+        const newOwner = randomAddress();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(custom, pausableMember(signerAddress)),
+        );
+        const hooksBefore = await hooksOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(
+            { type: HookType.UNKNOWN, address: custom },
+            pausableMember(newOwner),
+          ),
+        );
+        expect(txs).to.have.length(1);
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await hooksOf(initialHookAddress)).to.deep.equal(hooksBefore);
+      });
+
+      it('does not keep an unknown hook given with the address of a hook that is not a member', async () => {
+        const { hook } = await createHook(
+          aggregationOf(randomAddress(), pausableMember(signerAddress)),
+        );
+
+        // an unknown hook cannot be deployed
+        await expect(
+          hook.update(
+            aggregationOf(
+              { type: HookType.UNKNOWN, address: randomAddress() },
+              pausableMember(randomAddress()),
+            ),
+          ),
+        ).to.be.rejectedWith('Unsupported hook config');
+      });
+
+      it('does not keep an unknown hook given without an address', async () => {
+        const { hook } = await createHook(
+          aggregationOf(randomAddress(), pausableMember(signerAddress)),
+        );
+
+        // an unknown hook that has no address cannot be told apart from the deployed one
+        await expect(
+          hook.update(
+            aggregationOf(
+              { type: HookType.UNKNOWN },
+              pausableMember(randomAddress()),
+            ),
+          ),
+        ).to.be.rejectedWith('Unsupported hook config');
+      });
+
+      describe('nested aggregation hooks', async () => {
+        function nestedOf(...hooks: HookConfig[]): AggregationHookConfig {
+          return aggregationOf(aggregationOf(...hooks), {
+            type: HookType.MAILBOX_DEFAULT,
+          });
+        }
+
+        it('updates a member of a nested aggregation in place', async () => {
+          const pausableOwner = randomAddress();
+          const newOwner = randomAddress();
+          const { hook, initialHookAddress } = await createHook(
+            nestedOf(
+              pausableMember(pausableOwner),
+              rateLimitedMember(signerAddress),
+            ),
+          );
+          const outerMembers = await membersOf(initialHookAddress);
+          const nested = memberOfType(outerMembers, HookType.AGGREGATION);
+          const nestedMembers = await membersOf(nested);
+
+          const txs = await hook.update(
+            nestedOf(
+              pausableMember(pausableOwner),
+              rateLimitedMember(newOwner),
+            ),
+          );
+          expect(txs).to.have.length(1);
+          expect(txs[0].to).to.equal(
+            memberOfType(nestedMembers, HookType.RATE_LIMITED),
+          );
+          await sendTxs(txs);
+
+          expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+          expect(await membersOf(initialHookAddress)).to.deep.equal(
+            outerMembers,
+          );
+          expect(await membersOf(nested)).to.deep.equal(nestedMembers);
+        });
+
+        it('redeploys the outer aggregation when a member of the nested one changes its type', async () => {
+          const pausableOwner = randomAddress();
+          const { hook, initialHookAddress } = await createHook(
+            nestedOf(
+              pausableMember(pausableOwner),
+              rateLimitedMember(signerAddress),
+            ),
+          );
+          const fromBlock = await multiProvider
+            .getProvider(chain)
+            .getBlockNumber();
+
+          await expectTxsAndUpdate(
+            hook,
+            nestedOf(pausableMember(pausableOwner), {
+              type: HookType.MERKLE_TREE,
+            }),
+            0,
+          );
+
+          expect(hook.serialize().deployedHook).to.not.equal(
+            initialHookAddress,
+          );
+          // a pausable, a merkle tree and a default hook
+          expect(await contractCreationsSince(fromBlock)).to.equal(3);
+        });
+
+        it('keeps a nested aggregation that does not change when another member is updated', async () => {
+          const newOwner = randomAddress();
+          const nestedConfig = aggregationOf(
+            pausableMember(randomAddress()),
+            pausableMember(randomAddress()),
+          );
+          // members of the same type cannot be told apart, so the nested
+          // aggregation can only be kept as a whole
+          const config = aggregationOf(
+            nestedConfig,
+            rateLimitedMember(signerAddress),
+          );
+          const { hook, initialHookAddress } = await createHook(config);
+          const outerHooks = await hooksOf(initialHookAddress);
+          const nested = memberOfType(
+            await membersOf(initialHookAddress),
+            HookType.AGGREGATION,
+          );
+          const nestedHooks = await hooksOf(nested);
+          // members of the same type are compared in the order of their addresses
+          const deployedNested = await new EvmHookReader(
+            multiProvider,
+            chain,
+          ).deriveHookConfig(nested);
+
+          const txs = await hook.update(
+            aggregationOf(deployedNested, rateLimitedMember(newOwner)),
+          );
+          expect(txs).to.have.length(1);
+          await sendTxs(txs);
+
+          expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+          expect(await hooksOf(initialHookAddress)).to.deep.equal(outerHooks);
+          expect(await hooksOf(nested)).to.deep.equal(nestedHooks);
+        });
+
+        it('redeploys the outer aggregation when a member of a nested aggregation that does not change is bound to another mailbox', async () => {
+          const bound = await new MerkleTreeHook__factory(signer).deploy(
+            otherMailbox,
+          );
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(
+              aggregationOf(bound.address, pausableMember(signerAddress)),
+              rateLimitedMember(signerAddress),
+            ),
+          );
+
+          await expectTxsAndUpdate(
+            hook,
+            aggregationOf(
+              aggregationOf(
+                { type: HookType.MERKLE_TREE },
+                pausableMember(signerAddress),
+              ),
+              rateLimitedMember(randomAddress()),
+            ),
+            0,
+          );
+
+          expect(hook.serialize().deployedHook).to.not.equal(
+            initialHookAddress,
+          );
+        });
+      });
+    });
   });
 });
