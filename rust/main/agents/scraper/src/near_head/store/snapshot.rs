@@ -52,8 +52,7 @@ impl Store {
             .await?
             .ok_or_else(|| eyre::eyre!("Missing Merkle snapshot head"))?;
         if head.try_get::<bool>("", "halted")? {
-            self.lock_recovery_head(&tx).await?;
-            self.discard_snapshot(&tx).await?;
+            self.discard_snapshot_on_recovery(&tx).await?;
         } else {
             let through = head.try_get::<i64>("", "confirmed_height")?;
             let hook = head.try_get::<Vec<u8>>("", "merkle_tree_hook")?;
@@ -72,6 +71,22 @@ impl Store {
         ))
         .await?
         .ok_or_else(|| eyre::eyre!("Missing Merkle snapshot head"))?;
+        Ok(())
+    }
+
+    async fn discard_snapshot_on_recovery(&self, tx: &DatabaseTransaction) -> Result<()> {
+        // An empty lookup needs no head lock. A concurrent writer can proceed
+        // without forcing a serialization retry for a no-op recovery.
+        let snapshot = tx
+            .query_one(sql(
+                "SELECT 1 FROM merkle_tree_snapshot WHERE domain=$1",
+                vec![self.domain()],
+            ))
+            .await?;
+        if snapshot.is_some() {
+            self.lock_recovery_head(tx).await?;
+            self.discard_snapshot(tx).await?;
+        }
         Ok(())
     }
 
@@ -111,12 +126,11 @@ impl Store {
             .await?
             .ok_or_else(|| eyre::eyre!("Missing confirmed Merkle checkpoint"))?;
         if !row.try_get::<bool>("", "has_confirmed_leaf_zero")? {
-            self.lock_recovery_head(tx).await?;
             tracing::debug!(
                 domain = self.domain,
                 "Skipping Merkle snapshot until leaf zero is confirmed"
             );
-            return self.discard_snapshot(tx).await;
+            return self.discard_snapshot_on_recovery(tx).await;
         }
         if row.try_get::<Option<i32>>("", "domain")?.is_some() && restore(&row)?.is_some() {
             return Ok(());

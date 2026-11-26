@@ -13,6 +13,25 @@ const pageQuery = `query Page($domain: bigint!, $hook: bytea!, $from: bigint, $l
   }
 }`;
 
+type PlanNode = {
+  'Index Name'?: string;
+  'Actual Loops': number;
+  Plans?: PlanNode[];
+};
+
+function insertionIndexLoops(plan: PlanNode): number {
+  const loops = plan['Index Name']?.startsWith('merkle_tree_insertion_')
+    ? plan['Actual Loops']
+    : 0;
+  return (
+    loops +
+    (plan.Plans ?? []).reduce(
+      (sum, child) => sum + insertionIndexLoops(child),
+      0,
+    )
+  );
+}
+
 void it('rejects invalid insertion scopes, cursors and page sizes before database reads', async () => {
   const { createScraperProxyApp } = await import('../module.js');
   let databaseCalls = 0;
@@ -73,10 +92,19 @@ void it(
     await client.connect();
     t.after(() => client.end());
     const plans: string[] = [];
+    let lastPage: { sql: string; values: unknown[] | undefined } | undefined;
+    const executedIndexScans = async () => {
+      assert(lastPage);
+      const { rows } = await client.query<{
+        'QUERY PLAN': { Plan: PlanNode }[];
+      }>(`EXPLAIN (ANALYZE, FORMAT JSON) ${lastPage.sql}`, lastPage.values);
+      return insertionIndexLoops(rows[0]['QUERY PLAN'][0].Plan);
+    };
     const app = await createScraperProxyApp({
       async query(sql, values) {
         const { rows } = await client.query(sql, values);
         if (sql.startsWith('EXPLAIN')) plans.push(JSON.stringify(rows));
+        else if (sql.includes('UNION ALL')) lastPage = { sql, values };
         return rows;
       },
     });
@@ -124,6 +152,7 @@ void it(
       assert.equal(first.insertions[0].leaf_index, '0');
       assert.equal(first.insertions[999].leaf_index, '999');
       assert.equal(first.next_index, '1000');
+      assert.equal(await executedIndexScans(), 1);
       const firstPlan = plans[0];
       assert(firstPlan);
       // Both ranges use the leaf index. Only their bounded merge needs a sort.
@@ -201,6 +230,7 @@ void it(
       );
       assert.equal(plans.length - plansBeforeBoundary, 1);
       assert.equal(boundary.next_index, '4294967295');
+      assert.equal(await executedIndexScans(), 2);
       const last = (
         await request(pageQuery, {
           domain: '4294967295',

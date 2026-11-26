@@ -97,17 +97,21 @@ export class ScraperDbService {
       Number.isInteger(args.limit) && args.limit >= 1 && args.limit <= 1000,
       'limit must be between 1 and 1000',
     );
-    // Each signed range uses the existing index. Both see the same confirmed
-    // height, and the final unsigned sort covers at most two bounded pages.
+    // Fill the page from the lower unsigned half first. Both ranges use the
+    // signed index and share a single PostgreSQL snapshot. Keep a fixed cap
+    // on both range scans so the plan estimate stays bounded too.
     const range = (predicate: string) =>
       `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion e
        WHERE domain=$1 AND merkle_tree_hook=$2 AND ${predicate}
        ORDER BY e.leaf_index LIMIT $4`;
     const sql =
       from <= MAX_INT32
-        ? `SELECT * FROM ((${range('e.leaf_index >= $3')})
-             UNION ALL (${range('e.leaf_index < 0')})) AS page
-           ORDER BY page.leaf_index LIMIT $4`
+        ? `WITH lower_half AS MATERIALIZED (${range('e.leaf_index >= $3')})
+           SELECT * FROM (
+             (SELECT * FROM lower_half)
+             UNION ALL
+             (${range('e.leaf_index < 0 AND (SELECT count(*) FROM lower_half) < $4')})
+           ) AS page ORDER BY page.leaf_index LIMIT $4`
         : range('e.leaf_index >= $3 AND e.leaf_index < 0');
     const rows = await this.historyQuery(sql, [
       ...scope,
@@ -132,10 +136,14 @@ export class ScraperDbService {
 
   async merkleTreeSnapshot(args: MerkleTreeArgs) {
     const [row] = await this.historyQuery(
-      `SELECT (domain::bigint & 4294967295) AS domain, merkle_tree_hook,
-              confirmed_height, block_hash, root, leaf_count, leaf_index,
+      `SELECT (s.domain::bigint & 4294967295) AS domain, s.merkle_tree_hook,
+              s.confirmed_height, s.block_hash, s.root, s.leaf_count, s.leaf_index,
               ARRAY[${BRANCH_COLUMNS}]::text[] AS branch
-       FROM merkle_tree_snapshot WHERE domain=$1 AND merkle_tree_hook=$2`,
+       FROM merkle_tree_snapshot s
+       JOIN scraper_head h ON h.domain=s.domain
+         AND h.merkle_tree_hook=s.merkle_tree_hook AND h.confirmed_height=s.confirmed_height
+       WHERE s.domain=$1 AND s.merkle_tree_hook=$2 AND NOT h.halted
+         AND (h.indexed_height<>h.confirmed_height OR h.indexed_hash=s.block_hash)`,
       merkleTreeScope(args),
     );
     return row ?? null;

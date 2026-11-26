@@ -195,8 +195,9 @@ query Snapshot($domain: bigint!, $hook: bytea!) {
 }
 ```
 
-The result is `null` until the scraper has a confirmed snapshot for that domain
-and hook. Restore the tree from `leaf_count` and the 32 hashes in `branch`
+The result is `null` until the stored snapshot matches the scraper's current
+confirmed height for that domain and hook. A halted scraper also returns
+`null`. Restore the tree from `leaf_count` and the 32 hashes in `branch`
 (level zero first). Verify the root and count against the hook at the returned
 block, then use `leaf_count` as `from_index` for `merkle_tree_insertions`.
 

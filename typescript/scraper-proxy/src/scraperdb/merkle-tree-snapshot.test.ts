@@ -38,7 +38,7 @@ void it('rejects invalid snapshot lookups before reading the database', async (t
 });
 
 void it(
-  'returns the ordered frontier for the exact domain and hook',
+  'serves a snapshot only for the current confirmed checkpoint and hook',
   { skip: !process.env.SCRAPER_TEST_DATABASE_URL },
   async (t) => {
     const { createScraperProxyApp } = await import('../module.js');
@@ -47,13 +47,26 @@ void it(
     await client.connect();
     t.after(() => client.end());
     const levels = Array.from({ length: 32 }, (_, i) => i);
-    await client.query(`CREATE TEMP TABLE merkle_tree_snapshot (
-    domain int PRIMARY KEY, merkle_tree_hook bytea, confirmed_height bigint, block_hash bytea,
-    root bytea, leaf_count bigint, leaf_index bigint, ${levels.map((i) => `branch_${i} bytea`).join(',')}
-  )`);
+    await client.query(`
+      CREATE TEMP TABLE scraper_head (
+        domain int PRIMARY KEY, merkle_tree_hook bytea NOT NULL,
+        confirmed_height bigint NOT NULL, indexed_height bigint NOT NULL,
+        indexed_hash bytea NOT NULL, halted boolean NOT NULL DEFAULT false
+      );
+      CREATE TEMP TABLE merkle_tree_snapshot (
+        domain int PRIMARY KEY REFERENCES scraper_head(domain) ON DELETE CASCADE,
+        merkle_tree_hook bytea NOT NULL, confirmed_height bigint NOT NULL,
+        block_hash bytea NOT NULL, root bytea NOT NULL, leaf_count bigint NOT NULL,
+        leaf_index bigint, ${levels.map((i) => `branch_${i} bytea NOT NULL`).join(',')}
+      );
+    `);
     const hash = (n: number) =>
       `\\x${n.toString(16).padStart(2, '0').repeat(32)}`;
     const branch = levels.map(hash);
+    await client.query(
+      'INSERT INTO scraper_head VALUES (-1,$1,123,123,$2,false)',
+      [hash(17), hash(42)],
+    );
     await client.query(
       `INSERT INTO merkle_tree_snapshot VALUES (-1,$1,123,$2,$3,42,41,${levels.map((i) => `$${i + 4}`).join(',')})`,
       [hash(17), hash(42), hash(43), ...branch],
@@ -86,5 +99,29 @@ void it(
     });
     assert.equal(await read('1', hook), null);
     assert.equal(await read('4294967295', `0x${'22'.repeat(20)}`), null);
+
+    const readCurrent = () => read('4294967295', hook);
+    await client.query('UPDATE scraper_head SET confirmed_height=124');
+    assert.equal(await readCurrent(), null, 'stale confirmed height');
+    await client.query('UPDATE scraper_head SET confirmed_height=123');
+    await client.query('UPDATE scraper_head SET merkle_tree_hook=$1', [
+      hash(18),
+    ]);
+    assert.equal(await readCurrent(), null, 'rotated hook');
+    await client.query('UPDATE scraper_head SET merkle_tree_hook=$1', [
+      hash(17),
+    ]);
+    await client.query('UPDATE scraper_head SET indexed_hash=$1', [hash(44)]);
+    assert.equal(await readCurrent(), null, 'stale hash at the indexed head');
+    await client.query('UPDATE scraper_head SET indexed_height=124');
+    assert.equal(
+      (await readCurrent()).leaf_count,
+      '42',
+      'indexing ahead is normal',
+    );
+    await client.query('UPDATE scraper_head SET halted=true');
+    assert.equal(await readCurrent(), null, 'halted frontier');
+    await client.query('UPDATE scraper_head SET halted=false');
+    assert.equal((await readCurrent()).leaf_count, '42');
   },
 );
