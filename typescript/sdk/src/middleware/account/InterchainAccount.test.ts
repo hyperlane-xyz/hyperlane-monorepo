@@ -1151,6 +1151,19 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
 
+  it('simulates handle() on a provider-connected router without a router override', async () => {
+    mockDestRouter.estimateGas.handle.resolves(BigNumber.from(100_000));
+
+    await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: baseCalls,
+      config: baseConfig,
+    });
+
+    sinon.assert.calledWith(mockDestRouter.connect, mockProvider);
+  });
+
   it('normalizes a bytes32 destination router override for handle estimation', async () => {
     const router = app.getContracts(destination).interchainAccountRouter;
     const connect = sandbox

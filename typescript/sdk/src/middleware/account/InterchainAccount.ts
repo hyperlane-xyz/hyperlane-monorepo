@@ -404,7 +404,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     try {
       const mailbox = await destinationRouter.mailbox();
       const gasEstimate = await estimateHandleGasForRecipient({
-        recipient: destinationRouter,
+        // A signer-connected contract rejects the `from: mailbox` override.
+        recipient: destinationRouter.connect(
+          this.multiProvider.getProvider(destination),
+        ),
         origin: originDomain,
         sender: addressToBytes32(localRouterAddress),
         body: messageBody,

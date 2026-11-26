@@ -143,6 +143,53 @@ describe('InterchainAccounts', async () => {
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });
 
+  it('estimates handle gas directly with signer-connected routers', async () => {
+    const recipient = await new TestRecipient__factory(signer).deploy();
+    const calls: CallData[] = [
+      {
+        to: recipient.address,
+        data: recipient.interface.encodeFunctionData('fooBar', [1, 'Direct']),
+        value: '0',
+      },
+    ];
+    const warn = sinon.spy(app.logger, 'warn');
+
+    const gasLimit = await app.estimateIcaHandleGas({
+      origin: localChain,
+      destination: remoteChain,
+      innerCalls: calls,
+      config: {
+        origin: localChain,
+        owner: signer.address,
+        localRouter: local.address,
+      },
+    });
+
+    sinon.assert.notCalled(warn);
+    const originDomain = multiProvider.getDomainId(localChain);
+    const providerRouter = remote.connect(
+      multiProvider.getProvider(remoteChain),
+    );
+    const body = app.encodeIcaMessageBody(
+      addressToBytes32(signer.address),
+      addressToBytes32(await providerRouter.isms(originDomain)),
+      calls.map((call) => ({
+        to: addressToBytes32(call.to),
+        value: ethers.BigNumber.from(0),
+        data: call.data,
+      })),
+    );
+    const directEstimate = await providerRouter.estimateGas.handle(
+      originDomain,
+      addressToBytes32(local.address),
+      body,
+      { from: await providerRouter.mailbox() },
+    );
+    expect(gasLimit.toString()).to.equal(
+      directEstimate.mul(110).div(100).toString(),
+    );
+  });
+
   describe('MinimalInterchainAccountRouter', async () => {
     it('deploys minimal router when routerType is MINIMAL', async () => {
       const minimalConfig = objMap(
