@@ -48,6 +48,40 @@ const IGP_DEFAULT_GAS = BigNumber.from(50_000);
 const ICA_OVERHEAD = BigNumber.from(50_000);
 const PER_CALL_OVERHEAD = BigNumber.from(5_000);
 const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
+// Conservative headroom over measured ICA deployments: ~92k on V1 mainnet
+// routers (139.5k undeployed vs 47.6k deployed handle) and ~86k on the
+// legacy hardhat fixture.
+const ICA_DEPLOYMENT_GAS_FALLBACK = BigNumber.from(150_000);
+
+/**
+ * ICA message body format: `Legacy` for routers predating
+ * @hyperlane-xyz/core@8.0.0, `Salted` for the packed format with a user salt.
+ */
+const IcaMessageFormat = {
+  Legacy: 'legacy',
+  Salted: 'salted',
+} as const;
+
+type IcaMessageFormatVariant =
+  | { kind: typeof IcaMessageFormat.Legacy }
+  | { kind: typeof IcaMessageFormat.Salted; userSalt: string };
+
+type IcaCall = { to: string; value: BigNumber; data: string };
+
+/**
+ * Encode the pre-@hyperlane-xyz/core@8.0.0 ICA message body.
+ * Mirrors InterchainAccountMessage.encode(bytes32,bytes32,CallLib.Call[]) at core 7.1.10.
+ */
+function encodeLegacyIcaMessageBody(
+  owner: string,
+  ism: string,
+  calls: IcaCall[],
+): string {
+  return ethers.utils.defaultAbiCoder.encode(
+    ['bytes32', 'bytes32', 'tuple(bytes32 to, uint256 value, bytes data)[]'],
+    [owner, ism, calls],
+  );
+}
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -319,37 +353,50 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       value: BigNumber.from(call.value ?? '0'),
       data: call.data,
     }));
+    const owner = addressToBytes32(config.owner);
+    const userSalt = config.userSalt ?? InterchainAccount.EMPTY_SALT;
     let destinationAccount: Address;
+    let messageFormat: IcaMessageFormatVariant = {
+      kind: IcaMessageFormat.Salted,
+      userSalt,
+    };
     try {
       destinationAccount = await destinationRouter[
         'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
       ](
         originDomain,
-        addressToBytes32(config.owner),
+        owner,
         addressToBytes32(localRouterAddress),
         bytes32ToAddress(remoteIsm),
-        config.userSalt ?? InterchainAccount.EMPTY_SALT,
+        userSalt,
       );
     } catch (error: unknown) {
       if (
         !isMissingSelectorCallException(error) ||
-        (config.userSalt ?? InterchainAccount.EMPTY_SALT) !==
-          InterchainAccount.EMPTY_SALT
+        userSalt !== InterchainAccount.EMPTY_SALT
       ) {
         throw error;
       }
-      destinationAccount = await destinationRouter[
-        'getLocalInterchainAccount(uint32,address,address,address)'
-      ](
-        originDomain,
-        config.owner,
-        localRouterAddress,
-        bytes32ToAddress(remoteIsm),
-      );
+      // MinimalInterchainAccountRouter also lacks the salted overload but
+      // uses the packed body, so probe the router capability instead.
+      const [routerMessageFormat, account] = await Promise.all([
+        this.probeIcaMessageFormat(destinationRouter, userSalt),
+        destinationRouter[
+          'getLocalInterchainAccount(uint32,address,address,address)'
+        ](
+          originDomain,
+          config.owner,
+          localRouterAddress,
+          bytes32ToAddress(remoteIsm),
+        ),
+      ]);
+      messageFormat = routerMessageFormat;
+      destinationAccount = account;
     }
 
-    const messageBody = this.encodeIcaMessageBody(
-      addressToBytes32(config.owner),
+    const messageBody = this.encodeIcaMessageBodyForFormat(
+      messageFormat,
+      owner,
       remoteIsm,
       formattedCalls,
     );
@@ -376,8 +423,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       'Failed to estimate ICA handle gas, trying individual call estimation',
     );
 
+    let provider: ethers.providers.Provider;
+    let callsGas: BigNumber;
     try {
-      const provider = this.multiProvider.getProvider(destination);
+      provider = this.multiProvider.getProvider(destination);
       const individualEstimates = await Promise.all(
         formattedCalls.map((call) =>
           estimateCallGas({
@@ -389,20 +438,123 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           }),
         ),
       );
-      const totalGas = individualEstimates.reduce(
-        (sum, gas) => sum.add(gas),
-        BigNumber.from(0),
-      );
-      const overhead = ICA_OVERHEAD.add(
-        PER_CALL_OVERHEAD.mul(formattedCalls.length),
-      );
-      return addBufferToGasLimit(totalGas.add(overhead));
-    } catch {
+      callsGas = individualEstimates
+        .reduce((sum, gas) => sum.add(gas), BigNumber.from(0))
+        .add(ICA_OVERHEAD)
+        .add(PER_CALL_OVERHEAD.mul(formattedCalls.length));
+    } catch (error: unknown) {
       this.logger.warn(
-        { destination },
+        { destination, err: error },
         'Individual call estimation also failed, using static fallback',
       );
       return ICA_HANDLE_GAS_FALLBACK;
+    }
+
+    const deploymentGas = await this.estimateIcaDeploymentGas({
+      destination,
+      provider,
+      destinationRouter,
+      destinationAccount,
+      messageFormat,
+      originDomain,
+      owner,
+      localRouterAddress,
+      ism: bytes32ToAddress(remoteIsm),
+    });
+    return addBufferToGasLimit(callsGas.add(deploymentGas));
+  }
+
+  /**
+   * The public bytecodeHash() getter and the packed message body both first
+   * shipped in @hyperlane-xyz/core@8.0.0, so a missing getter means the legacy body.
+   */
+  private async probeIcaMessageFormat(
+    router: InterchainAccountRouter,
+    userSalt: string,
+  ): Promise<IcaMessageFormatVariant> {
+    try {
+      await router.bytecodeHash();
+    } catch (error: unknown) {
+      if (isMissingSelectorCallException(error)) {
+        return { kind: IcaMessageFormat.Legacy };
+      }
+      throw error;
+    }
+    return { kind: IcaMessageFormat.Salted, userSalt };
+  }
+
+  private encodeIcaMessageBodyForFormat(
+    messageFormat: IcaMessageFormatVariant,
+    owner: string,
+    ism: string,
+    calls: IcaCall[],
+  ): string {
+    return messageFormat.kind === IcaMessageFormat.Legacy
+      ? encodeLegacyIcaMessageBody(owner, ism, calls)
+      : this.encodeIcaMessageBody(owner, ism, calls, messageFormat.userSalt);
+  }
+
+  /**
+   * Gas to deploy the destination ICA, or zero if it already has code.
+   * Falls back to ICA_DEPLOYMENT_GAS_FALLBACK when the deployment status or
+   * cost cannot be determined.
+   */
+  private async estimateIcaDeploymentGas({
+    destination,
+    provider,
+    destinationRouter,
+    destinationAccount,
+    messageFormat,
+    originDomain,
+    owner,
+    localRouterAddress,
+    ism,
+  }: {
+    destination: ChainName;
+    provider: ethers.providers.Provider;
+    destinationRouter: InterchainAccountRouter;
+    destinationAccount: Address;
+    messageFormat: IcaMessageFormatVariant;
+    originDomain: number;
+    owner: string;
+    localRouterAddress: Address;
+    ism: Address;
+  }): Promise<BigNumber> {
+    let code: string;
+    try {
+      code = await provider.getCode(destinationAccount);
+    } catch (error: unknown) {
+      this.logger.warn(
+        { destination, destinationAccount, err: error },
+        'Failed to check ICA deployment, assuming it is undeployed and using the deployment gas fallback',
+      );
+      return ICA_DEPLOYMENT_GAS_FALLBACK;
+    }
+    if (code !== '0x') {
+      return BigNumber.from(0);
+    }
+    try {
+      // The standalone estimate includes intrinsic and calldata gas that the
+      // in-handle() deployment does not pay; kept as headroom.
+      return await (messageFormat.kind === IcaMessageFormat.Legacy
+        ? destinationRouter.estimateGas[
+            'getDeployedInterchainAccount(uint32,address,address,address)'
+          ](originDomain, bytes32ToAddress(owner), localRouterAddress, ism)
+        : destinationRouter.estimateGas[
+            'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+          ](
+            originDomain,
+            owner,
+            addressToBytes32(localRouterAddress),
+            ism,
+            messageFormat.userSalt,
+          ));
+    } catch (error: unknown) {
+      this.logger.warn(
+        { destination, destinationAccount, err: error },
+        'Failed to estimate ICA deployment gas, using the deployment gas fallback',
+      );
+      return ICA_DEPLOYMENT_GAS_FALLBACK;
     }
   }
 
@@ -467,6 +619,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       value: BigNumber.from(call.value ?? '0'),
       data: call.data,
     }));
+    const userSalt = config.userSalt ?? InterchainAccount.EMPTY_SALT;
 
     let quote: BigNumber;
     try {
@@ -477,6 +630,17 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     } catch {
       // Legacy ICA routers have broken quoteGasPayment that doesn't use hookMetadata.
       // Query the mailbox directly to get accurate quote with our metadata.
+      // The origin router builds the dispatched body. Its format is probed
+      // rather than inferred from the quote error, which a hook can also raise.
+      const messageFormat = await this.probeIcaMessageFormat(
+        localRouter,
+        userSalt,
+      );
+      assert(
+        messageFormat.kind !== IcaMessageFormat.Legacy ||
+          userSalt === InterchainAccount.EMPTY_SALT,
+        `User salts are not supported by the pre-8.0.0 ICA router on ${chain}`,
+      );
       const mailboxAddress = await localRouter.mailbox();
       const mailbox = new ethers.Contract(
         mailboxAddress,
@@ -487,7 +651,8 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         this.multiProvider.getProvider(chain),
       );
       const defaultHook = await mailbox.defaultHook();
-      const messageBody = this.encodeIcaMessageBody(
+      const messageBody = this.encodeIcaMessageBodyForFormat(
+        messageFormat,
         addressToBytes32(config.owner),
         remoteIsm,
         formattedCalls,
@@ -503,17 +668,31 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
 
-    const callEncoded = await localRouter.populateTransaction[
-      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+    // An empty salt keeps the 5-arg overload so selector-scoped permissions
+    // granted to existing callers (e.g. AccessManager roles) stay valid.
+    if (userSalt === InterchainAccount.EMPTY_SALT) {
+      return localRouter.populateTransaction[
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+      ](
+        remoteDomain,
+        remoteRouter,
+        remoteIsm,
+        formattedCalls,
+        resolvedHookMetadata,
+        { value: quote },
+      );
+    }
+    return localRouter.populateTransaction[
+      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes,bytes32)'
     ](
       remoteDomain,
       remoteRouter,
       remoteIsm,
       formattedCalls,
       resolvedHookMetadata,
+      userSalt,
       { value: quote },
     );
-    return callEncoded;
   }
 
   private extractGasLimitFromMetadata(metadata: string): BigNumber | null {

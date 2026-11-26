@@ -1,0 +1,8 @@
+---
+'@hyperlane-xyz/core': minor
+'@hyperlane-xyz/sdk': patch
+---
+
+ICA message bodies for routers predating `@hyperlane-xyz/core@8.0.0` are now encoded as `abi.encode(owner, ism, calls)` in `InterchainAccount.estimateIcaHandleGas` and in the `getCallRemote` mailbox quote fallback, so handle gas estimation no longer reverts on those routers. The router format is determined by probing the `bytecodeHash()` getter, which first shipped alongside the packed body in 8.0.0, rather than from quote failures, which downstream hooks can also cause. The configured `userSalt` is now encoded into the estimated and quoted message bodies, and `getCallRemote` now dispatches a non-empty `userSalt` through the salted `callRemoteWithOverrides` overload; an empty or unset salt still uses the 5-argument overload, and a user salt on a pre-8.0.0 origin router is rejected. When the destination interchain account is not yet deployed, the per-call gas fallback now adds the simulated `getDeployedInterchainAccount` cost; when that simulation fails, or the deployment status cannot be read, a conservative 150,000 deployment gas allowance is added instead.
+
+`TestLegacyInterchainAccountRouter` and `TestLegacyInterchainAccountMessage` were added as test fixtures reproducing the core 7.1.10 router and message library; only the names and relative import paths differ from the released source.
