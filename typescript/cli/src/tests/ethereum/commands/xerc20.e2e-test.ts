@@ -18,6 +18,7 @@ import {
   type WarpRouteDeployConfig,
   XERC20AevoCapType,
   XERC20Type,
+  XERC20_AEVO_ABI,
   isXERC20TokenConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
@@ -26,6 +27,7 @@ import {
   assert,
   eqAddress,
   isNullish,
+  mapAllSettled,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -474,20 +476,16 @@ describe('xerc20 e2e tests', function () {
   });
 });
 
-const AEVO_TOKEN_INTERFACE = new utils.Interface([
-  'function authorities(address minter) view returns (bool)',
-  'function caps(address minter) view returns (uint256)',
-  'function updateAuthority(address minter, bool authorized)',
-  'function setCap(address minter, uint256 cap)',
-  'function owner() view returns (address)',
-  'function setOwner(address newOwner)',
-]);
+const AEVO_TOKEN_INTERFACE = new utils.Interface(XERC20_AEVO_ABI);
 
 // The selectors as they appear in the bytecode of the token, written out here
-// so a wrong signature above cannot agree with itself.
+// so a wrong signature in the ABI of the SDK cannot agree with itself.
 const AEVO_SELECTORS = {
+  authorities: '0x91223d69',
+  caps: '0x66d97b21',
   updateAuthority: '0x6cd22eaf',
   setCap: '0x80ad2cf3',
+  owner: '0x8da5cb5b',
   setOwner: '0x13af4035',
 };
 
@@ -546,8 +544,52 @@ describe('xerc20 Aevo e2e tests', function () {
   let deployer: Wallet;
   let collateral: ERC20Test;
   let aevoToken: Contract;
-  let snapshot2: string | undefined;
-  let snapshot3: string | undefined;
+
+  // The snapshots of a chain. The suite one is taken before the fixtures are
+  // deployed and is reverted once, in `after`, which puts the chain as it was
+  // found. The test one is taken after them, and again before each test, right
+  // after the revert that consumed the last. Each is undefined where there is
+  // none to revert to, and the ID of one a revert was tried with is not tried
+  // again, so that a chain whose revert failed is not sent one that may be
+  // consumed.
+  interface ChainSnapshots {
+    rpcUrl: string;
+    suite?: string;
+    test?: string;
+  }
+  let chainSnapshots: ChainSnapshots[] = [];
+
+  // Runs the task for every chain, each to its end, and fails with every chain
+  // that failed and why, so that one that fails neither leaves the others
+  // unfinished nor hides what went wrong.
+  async function forEveryChain(task: (chain: ChainSnapshots) => Promise<void>) {
+    const { rejected } = await mapAllSettled(
+      chainSnapshots,
+      task,
+      (chain) => chain.rpcUrl,
+    );
+    if (rejected.size > 0) {
+      const failures = [...rejected].map(
+        ([rpcUrl, error]) => `${rpcUrl}: ${error.message}`,
+      );
+      throw new Error(`Failed on ${failures.join('; ')}`);
+    }
+  }
+
+  async function revertToTestSnapshot(chain: ChainSnapshots) {
+    const id = chain.test;
+    assert(!isNullish(id), `Missing the test snapshot of ${chain.rpcUrl}`);
+    chain.test = undefined;
+    await restoreSnapshot(chain.rpcUrl, id);
+    chain.test = await createSnapshot(chain.rpcUrl);
+  }
+
+  async function revertToSuiteSnapshot(chain: ChainSnapshots) {
+    const id = chain.suite;
+    if (isNullish(id)) return;
+    chain.suite = undefined;
+    await restoreSnapshot(chain.rpcUrl, id);
+  }
 
   before(async function () {
     if (IS_TRON_TEST) this.skip();
@@ -572,6 +614,13 @@ describe('xerc20 Aevo e2e tests', function () {
     provider2 = new providers.JsonRpcProvider(rpcUrl2);
     deployer = new Wallet(ANVIL_KEY, provider2);
 
+    // anvil keeps its state between runs, so the chains are left as they are
+    // before the fixtures below.
+    chainSnapshots = [{ rpcUrl: rpcUrl2 }, { rpcUrl: rpcUrl3 }];
+    await forEveryChain(async (chain) => {
+      chain.suite = await createSnapshot(chain.rpcUrl);
+    });
+
     collateral = await deployToken(ANVIL_KEY, CHAIN_NAME_3, 6, 'USDC');
     const deployedToken = await deployAevoXERC20TokenOnChain(
       ANVIL_KEY,
@@ -583,38 +632,22 @@ describe('xerc20 Aevo e2e tests', function () {
       provider2,
     );
 
-    [snapshot2, snapshot3] = await Promise.all([
-      createSnapshot(rpcUrl2),
-      createSnapshot(rpcUrl3),
-    ]);
+    await forEveryChain(async (chain) => {
+      chain.test = await createSnapshot(chain.rpcUrl);
+    });
   });
 
-  // A revert consumes its snapshot, so each test takes a new one. The token
-  // owner, its caps and every route a test deploys go back to what they were
-  // after the setup above.
+  // The token owner, its caps and every route a test deploys go back to what
+  // they were after the setup above. The route files of the registry are reset
+  // before each test by the root `beforeEach` of e2e-test.setup.ts.
   beforeEach(async function () {
-    assert(
-      !isNullish(snapshot2) && !isNullish(snapshot3),
-      'Missing chain snapshots',
-    );
-    await Promise.all([
-      restoreSnapshot(rpcUrl2, snapshot2),
-      restoreSnapshot(rpcUrl3, snapshot3),
-    ]);
-    [snapshot2, snapshot3] = await Promise.all([
-      createSnapshot(rpcUrl2),
-      createSnapshot(rpcUrl3),
-    ]);
+    await forEveryChain(revertToTestSnapshot);
   });
 
-  // anvil keeps its state between runs, so the chains are left as they were
-  // found.
+  // The suite snapshots are older than the test ones, so reverting them takes
+  // the chains back past the fixtures as well.
   after(async function () {
-    if (isNullish(snapshot2) || isNullish(snapshot3)) return;
-    await Promise.all([
-      restoreSnapshot(rpcUrl2, snapshot2),
-      restoreSnapshot(rpcUrl3, snapshot3),
-    ]);
+    await forEveryChain(revertToSuiteSnapshot);
   });
 
   function expectSameAddress(actual: Address, expected: Address) {
