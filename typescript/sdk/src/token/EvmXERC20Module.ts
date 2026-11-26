@@ -25,6 +25,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, DeployedOwnableConfig, OwnableConfig } from '../types.js';
 
 import {
+  AevoXERC20Limits,
   EvmXERC20Reader,
   VeloXERC20Limits,
   XERC20Limits,
@@ -39,6 +40,7 @@ import {
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
 import {
+  XERC20AevoCapType,
   XERC20LimitsTokenConfig,
   XERC20TokenMetadata,
   XERC20Type,
@@ -73,11 +75,42 @@ function limitsFromConfig(
           }
         : undefined;
     case XERC20Type.Aevo:
-      return config;
+      return aevoLimitsFromConfig(config);
     default: {
       const exhaustiveCheck: never = config;
       throw new Error(
         `Unknown xERC20 limits config: ${stringifyObject(exhaustiveCheck, 'json')}`,
+      );
+    }
+  }
+}
+
+/**
+ * An Aevo entry as the module expects it, with a raw cap written as the decimal
+ * string of its value, which is how the reader reports the cap of a minter. The
+ * schema writes it that way, but a config it did not parse may spell the same
+ * cap otherwise, with leading zeros, and would then differ from what the token
+ * holds however often it is applied.
+ */
+function aevoLimitsFromConfig(config: AevoXERC20Limits): AevoXERC20Limits {
+  if (!config.authorized) return config;
+
+  switch (config.cap.type) {
+    case XERC20AevoCapType.Unlimited:
+      return config;
+    case XERC20AevoCapType.Raw:
+      return {
+        type: XERC20Type.Aevo,
+        authorized: true,
+        cap: {
+          type: XERC20AevoCapType.Raw,
+          value: aevoCapToUint256(config.cap).toString(),
+        },
+      };
+    default: {
+      const exhaustiveCheck: never = config.cap;
+      throw new Error(
+        `Unknown Aevo cap: ${stringifyObject(exhaustiveCheck, 'json')}`,
       );
     }
   }
@@ -284,6 +317,15 @@ export class EvmXERC20Module extends HyperlaneModule<
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
     const xERC20Address = this.args.addresses.xERC20;
     const transactions: AnnotatedEV5Transaction[] = [];
+
+    // An Aevo token has an owner(), so an owner that reads as none cannot be
+    // handed over from, where another type may be a token without one.
+    if (expectedConfig.owner && expectedConfig.type === XERC20Type.Aevo) {
+      assert(
+        actualConfig.owner,
+        `Cannot hand over the Aevo token ${xERC20Address} on ${this.chainName} to ${expectedConfig.owner}: it exposes no owner()`,
+      );
+    }
 
     if (expectedConfig.owner && actualConfig.owner) {
       const transferTokenOwnership =

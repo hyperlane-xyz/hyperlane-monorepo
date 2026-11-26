@@ -9,6 +9,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneJsonRpcProvider } from '../providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 import { ProviderMethod } from '../providers/SmartProvider/ProviderMethods.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import {
+  errorStringRevertError,
+  ethersCallExceptionWithNestedError,
+  missingSelectorError,
+  networkError,
+} from '../test/errors.js';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 
@@ -535,5 +541,89 @@ describe('EvmXERC20Reader', () => {
         expect(peak).to.equal(testCase.expectedPeak);
       });
     }
+  });
+
+  describe('readOwner', () => {
+    const OWNER: Address = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa';
+    const transportFailure = () =>
+      ethersCallExceptionWithNestedError(
+        Object.assign(new Error('Too Many Requests'), {
+          code: 'SERVER_ERROR',
+          status: 429,
+          data: '0x',
+        }),
+      );
+
+    interface MissingGetterCase {
+      name: string;
+      answer: () => Promise<string>;
+    }
+
+    // What a node answers when the token has no owner() to call.
+    const missingGetterCases: MissingGetterCase[] = [
+      {
+        name: 'a revert without data',
+        answer: () => Promise.reject(missingSelectorError()),
+      },
+      {
+        name: 'an empty return',
+        answer: () => Promise.resolve('0x'),
+      },
+      {
+        name: 'an empty response from the provider',
+        answer: () =>
+          Promise.reject(new Error('Invalid response from provider')),
+      },
+    ];
+
+    for (const c of missingGetterCases) {
+      it(`reads no owner for a token that answers owner() with ${c.name}`, async () => {
+        const reader = createLimitsReader();
+        sinon.stub(reader.provider, 'call').callsFake(c.answer);
+
+        expect(await reader.readOwner(XERC20_ADDRESS)).to.equal(undefined);
+      });
+    }
+
+    interface FailureCase {
+      name: string;
+      error: () => Error;
+    }
+
+    // A failure to reach the token says nothing of whether it has an owner, and
+    // an owner read as absent is an ownership change that is silently dropped.
+    const failureCases: FailureCase[] = [
+      { name: 'a transport failure', error: transportFailure },
+      { name: 'a network error', error: networkError },
+      { name: 'a revert with a reason', error: errorStringRevertError },
+    ];
+
+    for (const c of failureCases) {
+      it(`rejects with ${c.name} instead of reading no owner`, async () => {
+        const reader = createLimitsReader();
+        const error = c.error();
+        sinon.stub(reader.provider, 'call').rejects(error);
+
+        let thrown: unknown;
+        try {
+          await reader.readOwner(XERC20_ADDRESS);
+        } catch (e) {
+          thrown = e;
+        }
+
+        expect(thrown).to.equal(error);
+      });
+    }
+
+    it('reads the owner of the token as a checksummed address', async () => {
+      const reader = createLimitsReader();
+      sinon
+        .stub(reader.provider, 'call')
+        .resolves(utils.defaultAbiCoder.encode(['address'], [OWNER]));
+
+      expect(await reader.readOwner(XERC20_ADDRESS)).to.equal(
+        utils.getAddress(OWNER),
+      );
+    });
   });
 });

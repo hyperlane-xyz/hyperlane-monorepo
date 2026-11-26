@@ -211,15 +211,16 @@ describe('EvmXERC20Module', () => {
     limits: { [WARP_ROUTE_ADDRESS]: limits },
   });
 
-  // What the token reports: the limits it holds and the owner it has.
+  // What the token reports: the limits it holds and the owner it has, or none
+  // when it has no owner() to read.
   const stubChain = (
     module: EvmXERC20Module,
     limits: XERC20ModuleConfig['limits'],
     type: XERC20Type = XERC20Type.Aevo,
-    owner: Address = OWNER_ADDRESS,
+    owner: Address | null = OWNER_ADDRESS,
   ) => {
     sandbox.stub(module.reader, 'deriveXERC20TokenType').resolves(type);
-    sandbox.stub(module.reader, 'readOwner').resolves(owner);
+    sandbox.stub(module.reader, 'readOwner').resolves(owner ?? undefined);
     sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
     sandbox.stub(module.reader, 'readOnChainBridges').resolves([]);
     sandbox.stub(module.reader, 'readLimits').resolves(limits);
@@ -760,7 +761,7 @@ describe('EvmXERC20Module', () => {
     for (const t of tokenCases) {
       const update = async (
         owner: Address | undefined,
-        actualOwner: Address,
+        actualOwner: Address | null,
         options?: { includeOwnership?: boolean },
       ) => {
         const config: XERC20ModuleConfig = {
@@ -812,7 +813,48 @@ describe('EvmXERC20Module', () => {
           await update(undefined, OWNER_ADDRESS, { includeOwnership: true }),
         ).to.deep.equal([]);
       });
+
+      // An Aevo token has an owner(), so one that reads as none is refused
+      // below. The other types may be tokens without it, which a deploy config
+      // names an owner for all the same.
+      if (t.type !== XERC20Type.Aevo) {
+        it(`leaves ${t.name} alone when it has no owner() to read`, async () => {
+          expect(
+            await update(NEW_OWNER_ADDRESS, null, { includeOwnership: true }),
+          ).to.deep.equal([]);
+        });
+      }
+
+      // The warp apply path asks for no ownership at all.
+      it(`leaves ${t.name} alone, whether or not it has an owner() to read, without includeOwnership`, async () => {
+        expect(await update(NEW_OWNER_ADDRESS, null)).to.deep.equal([]);
+      });
     }
+
+    it('refuses to hand over an Aevo token whose owner cannot be read', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createAevoConfig(aevoRaw('1000')),
+        owner: NEW_OWNER_ADDRESS,
+      };
+      const module = createModule(config);
+      stubChain(module, config.limits, XERC20Type.Aevo, null);
+
+      await expect(
+        module.update(config, { includeOwnership: true }),
+      ).to.be.rejectedWith(
+        `Cannot hand over the Aevo token ${XERC20_ADDRESS} on ${TestChainName.test1}`,
+      );
+    });
+
+    it('leaves an Aevo token whose owner cannot be read alone when none is expected', async () => {
+      const config = createAevoConfig(aevoRaw('1000'));
+      const module = createModule(config);
+      stubChain(module, config.limits, XERC20Type.Aevo, null);
+
+      expect(
+        await module.update(config, { includeOwnership: true }),
+      ).to.deep.equal([]);
+    });
 
     it('hands an Aevo token over after its limits are set', async () => {
       const config: XERC20ModuleConfig = {
@@ -1162,6 +1204,85 @@ describe('EvmXERC20Module', () => {
       expect(config.limits).to.deep.equal({
         [WARP_ROUTE_ADDRESS]: aevoRaw('1000'),
       });
+    });
+
+    interface RawCapCase {
+      name: string;
+      declared: string;
+      expected: string;
+    }
+
+    // The config a caller hands in is not always one the schema parsed, which
+    // writes a raw cap as the decimal string of its value.
+    const rawCapCases: RawCapCase[] = [
+      {
+        name: 'one that is already written out',
+        declared: '100',
+        expected: '100',
+      },
+      { name: 'one with leading zeros', declared: '00100', expected: '100' },
+      {
+        name: 'one above 2^53 with leading zeros',
+        declared: '000123456789012345678901',
+        expected: '123456789012345678901',
+      },
+    ];
+
+    for (const c of rawCapCases) {
+      it(`expects the value of a raw Aevo cap written out, for ${c.name}`, async () => {
+        const warpRouteConfig: XERC20LimitsTokenConfig = {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          xERC20: { warpRouteLimits: aevoRaw(c.declared) },
+        };
+
+        const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+          multiProvider,
+          TestChainName.test1,
+          warpRouteConfig,
+          WARP_ROUTE_ADDRESS,
+        );
+
+        expect(config.limits).to.deep.equal({
+          [WARP_ROUTE_ADDRESS]: aevoRaw(c.expected),
+        });
+      });
+    }
+
+    it('emits nothing for a raw Aevo cap with leading zeros that the token already holds', async () => {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+        xERC20: { warpRouteLimits: aevoRaw('00100') },
+      };
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+      stubChain(module, { [WARP_ROUTE_ADDRESS]: aevoRaw('100') });
+
+      expect(await module.update(config)).to.have.lengthOf(0);
+    });
+
+    it('leaves a cap that is not raw, and a minter that is not authorized, as declared', async () => {
+      for (const limits of [aevoUnlimited(), aevoUnauthorized()]) {
+        const warpRouteConfig: XERC20LimitsTokenConfig = {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          xERC20: { warpRouteLimits: limits },
+        };
+
+        const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+          multiProvider,
+          TestChainName.test1,
+          warpRouteConfig,
+          WARP_ROUTE_ADDRESS,
+        );
+
+        expect(config.limits).to.deep.equal({ [WARP_ROUTE_ADDRESS]: limits });
+      }
     });
 
     it('expects the owner of an Aevo token as it does of any other', async () => {

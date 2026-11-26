@@ -15,6 +15,7 @@ import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
 import {
   AevoMintAuthority,
@@ -160,9 +161,11 @@ export class EvmXERC20Reader extends HyperlaneReader {
   /**
    * Read the owner of the XERC20 token contract.
    * This owner controls limit/bridge management (setBufferCap, addBridge, etc.).
-   * Returns undefined if the XERC20 does not expose `owner()` (e.g. a
-   * third-party token using AccessControl instead of Ownable) so callers on the
-   * warp read/apply path don't break on non-Ownable tokens.
+   * Returns undefined only if the XERC20 does not expose `owner()` (e.g. a
+   * third-party token using AccessControl instead of Ownable), so callers on the
+   * warp apply path don't break on non-Ownable tokens. Any other failure, an
+   * unreachable RPC above all, is thrown: it says nothing of whether the token
+   * has an owner, and reading it as none drops an ownership change silently.
    */
   async readOwner(xERC20Address: Address): Promise<Address | undefined> {
     try {
@@ -172,6 +175,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
       ).owner();
       return normalizeAddress(owner);
     } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         { xERC20Address, error },
         'XERC20 does not expose owner(); treating owner as undefined',
