@@ -322,7 +322,10 @@ export class EvmHookModule extends HyperlaneModule<
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
       !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
     ) {
+      // The addresses of the hybrid hook and ISM resolve nodes of the target that the
+      // in-place update, which goes by the target as it was given, does not see.
       if (
+        opaqueCombinedHookIsmAddresses.length === 0 &&
         typeof normalizedCurrentConfig !== 'string' &&
         normalizedCurrentConfig.type === HookType.AGGREGATION &&
         typeof givenTargetConfig !== 'string' &&
@@ -473,11 +476,13 @@ export class EvmHookModule extends HyperlaneModule<
       return false;
     }
 
-    if (hookConfigsEqual(current, target)) {
-      return this.keptHookUsesModuleMailbox(
-        address,
-        referencedHookAddresses(targetConfig),
-      );
+    // The members that an aggregation is given as an address have to be members of it,
+    // which the equality of the configs, that omits the address, does not tell.
+    const hasReferencedMembers =
+      current.type === HookType.AGGREGATION &&
+      referencedHookAddresses(targetConfig).length > 0;
+    if (hookConfigsEqual(current, target) && !hasReferencedMembers) {
+      return this.keptHookUsesModuleMailbox(address);
     }
 
     if (
@@ -518,6 +523,17 @@ export class EvmHookModule extends HyperlaneModule<
       return current.maxProtocolFee === target.maxProtocolFee;
     }
 
+    // An update in place sets the destinations of the target and keeps the other ones
+    if (
+      (current.type === HookType.ROUTING ||
+        current.type === HookType.FALLBACK_ROUTING) &&
+      (target.type === HookType.ROUTING ||
+        target.type === HookType.FALLBACK_ROUTING) &&
+      Object.keys(current.domains).some((domain) => !(domain in target.domains))
+    ) {
+      return false;
+    }
+
     if (
       current.type === HookType.FALLBACK_ROUTING &&
       target.type === HookType.FALLBACK_ROUTING
@@ -525,16 +541,23 @@ export class EvmHookModule extends HyperlaneModule<
       return hookConfigsEqual(current.fallback, target.fallback);
     }
 
+    // An update in place reuses the gas oracle, and does not transfer its ownership
+    if (
+      current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      target.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      !eqAddress(current.oracleKey, target.oracleKey)
+    ) {
+      return false;
+    }
+
     return true;
   }
 
   // The mailbox is an immutable constructor arg that the reader omits, so a MAILBOX_DEFAULT
   // or MERKLE_TREE hook bound to another mailbox compares equal to one bound to this
-  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged,
-  // except the ones that the target gives as an address.
+  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged.
   protected async keptHookUsesModuleMailbox(
     address: Address,
-    referenced: Address[],
   ): Promise<boolean> {
     const provider = this.multiProvider.getProvider(this.chain);
     const { type } = await this.reader.deriveHookConfig(address);
@@ -545,10 +568,7 @@ export class EvmHookModule extends HyperlaneModule<
         provider,
       ).hooks(ethers.constants.AddressZero);
       for (const member of members) {
-        if (referenced.some((kept) => eqAddress(kept, member))) continue;
-        if (!(await this.keptHookUsesModuleMailbox(member, referenced))) {
-          return false;
-        }
+        if (!(await this.keptHookUsesModuleMailbox(member))) return false;
       }
       return true;
     }

@@ -6,6 +6,7 @@ import hre from 'hardhat';
 import {
   CONTRACTS_PACKAGE_VERSION,
   DefaultHook__factory,
+  DomainRoutingHook__factory,
   InterchainGasPaymaster__factory,
   MailboxClient__factory,
   MerkleTreeHook__factory,
@@ -14,6 +15,7 @@ import {
   ProtocolFee__factory,
   RateLimitedHook__factory,
   StaticAggregationHook__factory,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -2185,6 +2187,227 @@ describe('EvmHookModule', async () => {
             multiProvider.getProvider(chain),
           ).paused(),
         ).to.be.true;
+      });
+
+      function routingOf(
+        domains: Record<string, HookConfig>,
+      ): DomainRoutingHookConfig {
+        return { owner: signerAddress, type: HookType.ROUTING, domains };
+      }
+
+      async function routedHook(
+        routing: Address,
+        domain: string,
+      ): Promise<Address> {
+        return DomainRoutingHook__factory.connect(
+          routing,
+          multiProvider.getProvider(chain),
+        ).hooks(multiProvider.getDomainId(domain));
+      }
+
+      it('redeploys the aggregation when a routing member loses a destination', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            routingOf({
+              [TestChainName.test1]: { type: HookType.MERKLE_TREE },
+              [TestChainName.test2]: { type: HookType.MAILBOX_DEFAULT },
+            }),
+            pausableMember(signerAddress),
+          ),
+        );
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            routingOf({
+              [TestChainName.test1]: { type: HookType.MERKLE_TREE },
+            }),
+            pausableMember(randomAddress()),
+          ),
+          0,
+        );
+
+        const deployedHook = hook.serialize().deployedHook;
+        expect(deployedHook).to.not.equal(initialHookAddress);
+        const routing = memberOfType(
+          await membersOf(deployedHook),
+          HookType.ROUTING,
+        );
+        expect(await routedHook(routing, TestChainName.test2)).to.equal(
+          hre.ethers.constants.AddressZero,
+        );
+      });
+
+      it('updates a routing member in place when a destination is added or replaced', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            routingOf({
+              [TestChainName.test1]: { type: HookType.MERKLE_TREE },
+            }),
+            pausableMember(signerAddress),
+          ),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+        const routing = memberOfType(membersBefore, HookType.ROUTING);
+        const replacedBefore = await routedHook(routing, TestChainName.test1);
+
+        // the hooks of the routing member, and the owner of the pausable member
+        const txs = await hook.update(
+          aggregationOf(
+            routingOf({
+              [TestChainName.test1]: { type: HookType.MAILBOX_DEFAULT },
+              [TestChainName.test2]: { type: HookType.MERKLE_TREE },
+            }),
+            pausableMember(randomAddress()),
+          ),
+        );
+        expect(txs).to.have.length(2);
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await membersOf(initialHookAddress)).to.deep.equal(
+          membersBefore,
+        );
+        expect(await routedHook(routing, TestChainName.test1)).to.not.equal(
+          replacedBefore,
+        );
+        expect(await routedHook(routing, TestChainName.test2)).to.not.equal(
+          hre.ethers.constants.AddressZero,
+        );
+      });
+
+      it('redeploys the aggregation when the oracle key of an IGP member changes', async () => {
+        const config = await createDeployerOwnedIgpHookConfig();
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf({ type: HookType.MERKLE_TREE }, deepCopy(config)),
+        );
+        const oracleKey = randomAddress();
+        const changed = deepCopy(config);
+        changed.oracleKey = oracleKey;
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf({ type: HookType.MERKLE_TREE }, changed),
+          0,
+        );
+
+        const deployedHook = hook.serialize().deployedHook;
+        expect(deployedHook).to.not.equal(initialHookAddress);
+        const igp = InterchainGasPaymaster__factory.connect(
+          memberOfType(
+            await membersOf(deployedHook),
+            HookType.INTERCHAIN_GAS_PAYMASTER,
+          ),
+          multiProvider.getProvider(chain),
+        );
+        const { gasOracle } = await igp.destinationGasConfigs(
+          multiProvider.getDomainId(TestChainName.test1),
+        );
+        const oracle = StorageGasOracle__factory.connect(
+          gasOracle,
+          multiProvider.getProvider(chain),
+        );
+        expect(eqAddress(await oracle.owner(), oracleKey)).to.be.true;
+      });
+
+      it('redeploys the aggregation when a nested aggregation is given the address of a hook that is not one of its members', async () => {
+        const { initialHookAddress: member } = await createHook(
+          pausableMember(signerAddress),
+        );
+        // the same settings as the member
+        const { initialHookAddress: other } = await createHook(
+          pausableMember(signerAddress),
+        );
+        const { initialHookAddress: nested } = await createHook(
+          aggregationOf(member, { type: HookType.MAILBOX_DEFAULT }),
+        );
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(nested, pausableMember(signerAddress)),
+        );
+
+        await expectTxsAndUpdate(
+          hook,
+          aggregationOf(
+            aggregationOf(other, { type: HookType.MAILBOX_DEFAULT }),
+            pausableMember(randomAddress()),
+          ),
+          0,
+        );
+
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+      });
+
+      it('keeps a nested aggregation that is given the address of one of its members', async () => {
+        const { initialHookAddress: member } = await createHook(
+          pausableMember(signerAddress),
+        );
+        const { initialHookAddress: nested } = await createHook(
+          aggregationOf(member, { type: HookType.MAILBOX_DEFAULT }),
+        );
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(nested, pausableMember(signerAddress)),
+        );
+        const membersBefore = await membersOf(initialHookAddress);
+
+        const txs = await hook.update(
+          aggregationOf(
+            aggregationOf(member, { type: HookType.MAILBOX_DEFAULT }),
+            pausableMember(randomAddress()),
+          ),
+        );
+        expect(txs).to.have.length(1);
+        expect(txs[0].to).to.equal(
+          memberOfType(membersBefore, HookType.PAUSABLE),
+        );
+        await sendTxs(txs);
+
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+        expect(await hooksOf(nested)).to.deep.equal(
+          await hooksOf(
+            memberOfType(
+              await membersOf(initialHookAddress),
+              HookType.AGGREGATION,
+            ),
+          ),
+        );
+      });
+
+      it('redeploys the aggregation when the update resolves the address of a hybrid hook and ISM', async () => {
+        const target = aggregationOf(
+          pausableMember(signerAddress),
+          rateLimitedMember(randomAddress()),
+        );
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(signerAddress),
+            rateLimitedMember(signerAddress),
+          ),
+        );
+
+        const txs = await hook.update(target, [randomAddress()]);
+
+        expect(txs).to.have.length(0);
+        expect(hook.serialize().deployedHook).to.not.equal(initialHookAddress);
+      });
+
+      it('updates the members in place when there is no address of a hybrid hook and ISM', async () => {
+        const { hook, initialHookAddress } = await createHook(
+          aggregationOf(
+            pausableMember(signerAddress),
+            rateLimitedMember(signerAddress),
+          ),
+        );
+
+        const txs = await hook.update(
+          aggregationOf(
+            pausableMember(signerAddress),
+            rateLimitedMember(randomAddress()),
+          ),
+          [],
+        );
+
+        expect(txs).to.have.length(1);
+        expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
       });
 
       describe('nested aggregation hooks', async () => {
