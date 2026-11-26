@@ -11,6 +11,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, Transac
 use super::source::{Contracts, Event, Header};
 
 mod batch;
+mod snapshot;
 use batch::{event_row, header_row, insert_batch, Table};
 
 #[derive(Debug, Clone)]
@@ -177,7 +178,7 @@ impl Store {
             )).await?;
         }
         tx.commit().await?;
-        Ok(())
+        self.prepare_snapshot().await
     }
 
     pub async fn validate_contracts(&self, contracts: &Contracts) -> Result<()> {
@@ -261,9 +262,8 @@ impl Store {
     }
 
     pub async fn pause(&self, halt: bool) -> Result<()> {
-        let result = self
-            .db
-            .execute(sql(
+        let tx = self.db.begin().await?;
+        let result = tx.execute(sql(
                 "UPDATE scraper_head SET healthy=false,halted=halted OR $2 WHERE domain=$1 AND (writer_id IS NULL OR writer_id=$3)",
                 vec![self.domain(), halt.into(), writer_id().into()],
             ))
@@ -272,6 +272,10 @@ impl Store {
             result.rows_affected() == 1,
             "Another near-head writer owns this domain"
         );
+        if halt {
+            self.discard_snapshot(&tx).await?;
+        }
+        tx.commit().await?;
         Ok(())
     }
 
@@ -474,41 +478,12 @@ impl Store {
             })
             .collect::<Vec<_>>()
             .join(",");
-        let count_row = self
-            .db
-            .query_one(sql(
-                format!("SELECT {count_projection}"),
-                vec![self.domain(), after.into(), number(through)?],
-            ))
-            .await?
-            .ok_or_else(|| eyre::eyre!("Missing confirmation counts"))?;
-        let mut counts = [0; 4];
-        for (index, (table, _, _)) in EVENTS.iter().enumerate() {
-            counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
-        }
-
         let tx = self.db.begin().await?;
-        // Prepare bounded publication work before taking the chain's progress
-        // lock. Any stale observation rolls the whole transaction back.
-        insert_checkpoint(&tx, signed(self.domain), boundary).await?;
-        tx.execute(sql(
-            "SELECT assign_confirmed_gas_payment_cursors($1,$2,$3)",
-            vec![self.domain(), after.into(), number(through)?],
-        ))
-        .await?;
-        tx.execute(sql(
-            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<(
-                SELECT max(height) FROM scraper_checkpoint WHERE domain=$1 AND height<=$2
-            )",
-            vec![
-                self.domain(),
-                number(through.saturating_sub(CHECKPOINT_HISTORY_BLOCKS))?,
-            ],
-        ))
-        .await?;
+        // Match append and rollback lock order: authorize the writer before
+        // touching checkpoints, event cursors or the published snapshot.
         let row = tx.query_one(sql(
-            "SELECT indexed_hash,head_height,confirmed_height,writer_id,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
-            vec![self.domain(), lease.as_secs_f64().into()],
+            "SELECT indexed_hash,head_height,confirmed_height,writer_id,healthy AND NOT halted AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
+            vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
         ensure!(
             row.try_get::<bool>("", "ready")?
@@ -519,13 +494,59 @@ impl Store {
                 && row.try_get::<i64>("", "head_height")? >= i64::try_from(expected.head)?
                 && row.try_get::<i64>("", "confirmed_height")? == after
                 && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
-            "Confirmation observation changed or expired"
+            "Confirmation observation changed"
         );
+        insert_checkpoint(&tx, signed(self.domain), boundary).await?;
         tx.execute(sql(
-            "UPDATE scraper_head SET confirmed_height=$2 WHERE domain=$1",
-            vec![self.domain(), number(through)?],
+            "SELECT assign_confirmed_gas_payment_cursors($1,$2,$3)",
+            vec![self.domain(), after.into(), number(through)?],
         ))
         .await?;
+        let count_row = tx
+            .query_one(sql(
+                format!("SELECT {count_projection}, EXISTS(SELECT 1 FROM merkle_tree_snapshot WHERE domain=$1) AS has_snapshot"),
+                vec![self.domain(), after.into(), number(through)?],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmation counts"))?;
+        let mut counts = [0; 4];
+        for (index, (table, _, _)) in EVENTS.iter().enumerate() {
+            counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
+        }
+
+        let has_snapshot = count_row.try_get::<bool>("", "has_snapshot")?;
+        let has_insertions = counts[3] > 0;
+        if has_snapshot || has_insertions {
+            self.advance_snapshot(&tx, after, boundary, has_insertions, has_snapshot)
+                .await?;
+        }
+        tx.execute(sql(
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<(
+                SELECT max(height) FROM scraper_checkpoint WHERE domain=$1 AND height<=$2
+            )",
+            vec![
+                self.domain(),
+                number(through.saturating_sub(CHECKPOINT_HISTORY_BLOCKS))?,
+            ],
+        ))
+        .await?;
+        let result = tx
+            .execute(sql(
+                "UPDATE scraper_head h SET confirmed_height=$2 FROM scraper_checkpoint c
+             WHERE h.domain=$1 AND (c.domain,c.height,c.hash)=(h.domain,$2,$3)
+               AND h.updated_at>clock_timestamp()-make_interval(secs=>$4)",
+                vec![
+                    self.domain(),
+                    number(through)?,
+                    bytes(boundary.hash),
+                    lease.as_secs_f64().into(),
+                ],
+            ))
+            .await?;
+        ensure!(
+            result.rows_affected() == 1,
+            "Confirmation observation expired or checkpoint hash changed"
+        );
         tx.commit().await?;
         Ok(counts)
     }

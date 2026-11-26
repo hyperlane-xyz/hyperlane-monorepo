@@ -553,6 +553,14 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert!(permission.try_get::<bool>("", "head")?);
     assert!(permission.try_get::<bool>("", "events")?);
+    let acl = db.query_one(Statement::from_string(DbBackend::Postgres,
+        "SELECT has_table_privilege('scraper_notification_reader','merkle_tree_snapshot','SELECT') AS reader,
+                has_table_privilege('scraper_notification_reader','merkle_tree_snapshot','INSERT, UPDATE, DELETE') AS reader_write,
+                has_table_privilege('scraper_writer','merkle_tree_snapshot','DELETE') AS writer_delete"
+    )).await?.unwrap();
+    assert!(acl.try_get::<bool>("", "reader")?);
+    assert!(!acl.try_get::<bool>("", "reader_write")?);
+    assert!(acl.try_get::<bool>("", "writer_delete")?);
     let writer_permission = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
@@ -990,6 +998,63 @@ async fn idle_sequence_ingestion_advances_with_only_an_end_checkpoint() -> Resul
     assert_eq!(count(&store, "scraper_checkpoint").await?, 2);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
     assert_eq!(store.state().await?.unwrap().confirmed, 10);
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_leaf_zero_skips_only_snapshots_until_next_startup() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(4);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
+    ingest_head(&chain, &store).await?;
+    store
+        .db
+        .execute_unprepared("UPDATE merkle_tree_insertion SET leaf_index=17")
+        .await?;
+
+    let event_block = chain.header(2u64.into()).await?;
+    let counts = store
+        .confirm(
+            &store.state().await?.unwrap(),
+            &event_block,
+            MIN_CONFIRMATION_LEASE,
+        )
+        .await?;
+    assert_eq!(counts, [1; 4]);
+    assert_eq!(store.state().await?.unwrap().confirmed, event_block.height);
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
+    store.prepare_snapshot().await?;
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
+
+    // Repair the fixture's prefix while running. Only startup should rebuild it.
+    store
+        .db
+        .execute_unprepared("UPDATE merkle_tree_insertion SET leaf_index=0")
+        .await?;
+    confirm(&chain, &store, &ReorgPeriod::None).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 4);
+    assert_eq!(count(&store, "merkle_tree_snapshot").await?, 0);
+    store.prepare_snapshot().await?;
+    let mut tree = hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
+    tree.ingest(event_block.hash.into());
+    let snapshot = store.db.query_one(Statement::from_string(DbBackend::Postgres,
+        "SELECT root,leaf_count FROM merkle_tree_snapshot WHERE domain=1 AND confirmed_height=4"
+    )).await?.unwrap();
+    assert_eq!(snapshot.try_get::<i64>("", "leaf_count")?, 1);
+    assert_eq!(
+        snapshot.try_get::<Vec<u8>>("", "root")?,
+        tree.root().as_bytes()
+    );
     Ok(())
 }
 
