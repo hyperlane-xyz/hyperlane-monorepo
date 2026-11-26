@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { AevoMintAuthority } from '../token/adapters/ITokenAdapter.js';
+import { AEVO_OUTSTANDING_SELECTOR } from '../token/xerc20-abi.js';
 
 import { AEVO_SELECTORS, abiWord } from './aevoTokenFixture.js';
 
@@ -27,10 +28,18 @@ export function blockAt(number: number): providers.Block {
 
 export interface AevoChainCall {
   selector: string;
+  // The call data, whose arguments follow the selector.
+  data: string;
   // The block the call was made at, as the provider was asked for it.
   blockTag: unknown;
   // The height it was answered at.
   height: number;
+}
+
+// What the token holds for a minter at a height: its authority and cap, and
+// what it has minted and not burned, which is read only for a router.
+export interface AevoTokenState extends AevoMintAuthority {
+  outstanding?: bigint;
 }
 
 /**
@@ -42,18 +51,21 @@ export interface AevoChainCall {
  * pins its block is answered at it. One that leaves its block to the node is
  * answered at the height `unpinnedHeights` gives for its place among the calls,
  * the last one for the places after. A call at a height `stateAt` does not hold,
- * or at a named block tag other than the latest, is not answered.
+ * or at a named block tag other than the latest, is not answered. A call whose
+ * selector is in `failing` is rejected, after it is recorded.
  */
 export function stubAevoChainThatMoves({
   sandbox,
   provider,
   stateAt,
   unpinnedHeights,
+  failing = [],
 }: {
   sandbox: sinon.SinonSandbox;
   provider: providers.Provider;
-  stateAt: Record<number, AevoMintAuthority>;
+  stateAt: Record<number, AevoTokenState>;
   unpinnedHeights: number[];
+  failing?: string[];
 }): { calls: AevoChainCall[] } {
   const calls: AevoChainCall[] = [];
 
@@ -73,13 +85,23 @@ export function stubAevoChainThatMoves({
     assert(state, `Unexpected call at height ${height}`);
 
     const selector = data.slice(0, 10);
-    calls.push({ selector, blockTag, height });
+    calls.push({ selector, data, blockTag, height });
+    if (failing.includes(selector)) {
+      throw new Error(`injected ${selector} failure`);
+    }
 
     if (selector === AEVO_SELECTORS.authorities) {
       return ensure0x(abiWord(state.authorized ? 1 : 0));
     }
     if (selector === AEVO_SELECTORS.caps) {
       return ensure0x(abiWord(state.cap));
+    }
+    if (selector === AEVO_OUTSTANDING_SELECTOR) {
+      assert(
+        state.outstanding !== undefined,
+        `Missing what is outstanding at height ${height}`,
+      );
+      return ensure0x(abiWord(state.outstanding));
     }
     throw new Error(`Unexpected call ${data}`);
   });

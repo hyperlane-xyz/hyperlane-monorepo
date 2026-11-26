@@ -3,14 +3,22 @@ import sinon from 'sinon';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
+import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
 import { test1 } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { blockAt, stubAevoChainThatMoves } from '../../test/aevoChainStubs.js';
+import {
+  AevoTokenState,
+  blockAt,
+  stubAevoChainThatMoves,
+} from '../../test/aevoChainStubs.js';
 import { AEVO_SELECTORS, abiWord } from '../../test/aevoTokenFixture.js';
 import { isMissingSelectorRevert } from '../../utils/contract.js';
 import { AEVO_OUTSTANDING_SELECTOR } from '../xerc20-abi.js';
 
-import { EvmXERC20AevoAdapter } from './EvmTokenAdapter.js';
+import {
+  EvmHypAevoXERC20Adapter,
+  EvmXERC20AevoAdapter,
+} from './EvmTokenAdapter.js';
 import { AevoMintAuthority } from './ITokenAdapter.js';
 
 const TOKEN = '0x1111111111111111111111111111111111111111';
@@ -413,4 +421,253 @@ describe('EvmXERC20AevoAdapter', () => {
       data: `${SET_CAP}${word(MINTER)}${word(5_000_000n)}`,
     });
   });
+});
+
+// The limits of a router over an Aevo token are what the token holds for it:
+// its authority and cap, and what it has minted and not burned.
+describe('EvmHypAevoXERC20Adapter', () => {
+  const ROUTER = '0x5555555555555555555555555555555555555555';
+
+  let sandbox: sinon.SinonSandbox;
+  let adapter: EvmHypAevoXERC20Adapter;
+  let getBlock: sinon.SinonStub;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    adapter = new EvmHypAevoXERC20Adapter(
+      test1.name,
+      MultiProtocolProvider.createTestMultiProtocolProvider(),
+      { token: ROUTER },
+    );
+    sandbox.stub(adapter, 'getWrappedTokenAddress').resolves(TOKEN);
+    getBlock = sandbox
+      .stub(adapter.getProvider(), 'getBlock')
+      .resolves(blockAt(HEAD));
+  });
+
+  afterEach(() => sandbox.restore());
+
+  type Limits = Awaited<ReturnType<EvmHypAevoXERC20Adapter['getLimits']>>;
+
+  interface LimitsCase {
+    name: string;
+    state: AevoTokenState;
+    expected: Limits;
+  }
+
+  const limitsCases: LimitsCase[] = [
+    {
+      name: 'has none for a router that is not authorized, whatever it keeps',
+      state: { authorized: false, cap: 105n, outstanding: 30n },
+      expected: { mint: 0n, mintMax: 0n, burn: 0n, burnMax: 0n },
+    },
+    {
+      name: 'has no cap to mint under, and nothing to burn, without a cap and without having minted',
+      state: { authorized: true, cap: 0n, outstanding: 0n },
+      expected: {
+        mint: UIN256_MAX_VALUE,
+        mintMax: UIN256_MAX_VALUE,
+        burn: 0n,
+        burnMax: UIN256_MAX_VALUE,
+      },
+    },
+    {
+      name: 'can burn what it has minted without a cap',
+      state: { authorized: true, cap: 0n, outstanding: 30n },
+      expected: {
+        mint: UIN256_MAX_VALUE,
+        mintMax: UIN256_MAX_VALUE,
+        burn: 30n,
+        burnMax: UIN256_MAX_VALUE,
+      },
+    },
+    {
+      name: 'can mint what is left of its cap, and burn what it has minted',
+      state: { authorized: true, cap: 105n, outstanding: 30n },
+      expected: { mint: 75n, mintMax: 105n, burn: 30n, burnMax: 105n },
+    },
+    {
+      name: 'can mint nothing once its cap is lowered below what it has minted',
+      state: { authorized: true, cap: 20n, outstanding: 30n },
+      expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 20n },
+    },
+  ];
+
+  for (const c of limitsCases) {
+    it(`${c.name}, through each getter and through getLimits`, async () => {
+      stubAevoChainThatMoves({
+        sandbox,
+        provider: adapter.getProvider(),
+        stateAt: { [HEAD]: c.state },
+        unpinnedHeights: [HEAD],
+      });
+
+      expect(await adapter.getLimits()).to.deep.equal(c.expected);
+      expect(await adapter.getMintLimit()).to.equal(c.expected.mint);
+      expect(await adapter.getMintMaxLimit()).to.equal(c.expected.mintMax);
+      expect(await adapter.getBurnLimit()).to.equal(c.expected.burn);
+      expect(await adapter.getBurnMaxLimit()).to.equal(c.expected.burnMax);
+    });
+  }
+
+  // A block that raises the cap of the router and what it has minted lands
+  // while it is read. Its cap before the block with what it has minted after
+  // it leaves nothing to mint, which neither block had.
+  it('reads the authority, the cap and what is outstanding at one block, as the chain moves on', async () => {
+    const chain = stubAevoChainThatMoves({
+      sandbox,
+      provider: adapter.getProvider(),
+      stateAt: {
+        [HEAD]: { authorized: true, cap: 100n, outstanding: 10n },
+        [HEAD + 1]: { authorized: true, cap: 200n, outstanding: 190n },
+      },
+      unpinnedHeights: [HEAD + 1],
+    });
+
+    expect(await adapter.getLimits()).to.deep.equal({
+      mint: 90n,
+      mintMax: 100n,
+      burn: 10n,
+      burnMax: 100n,
+    });
+
+    expect(getBlock.calledOnceWithExactly('latest')).to.equal(true);
+    expect(chain.calls.map(({ selector }) => selector)).to.have.members([
+      AUTHORITIES,
+      CAPS,
+      OUTSTANDING,
+    ]);
+    expect(chain.calls.map(({ blockTag }) => blockTag)).to.deep.equal([
+      HEAD,
+      HEAD,
+      HEAD,
+    ]);
+    for (const { data } of chain.calls) {
+      expect(data.endsWith(word(ROUTER))).to.equal(true);
+    }
+  });
+
+  for (const getter of [
+    'getMintLimit',
+    'getMintMaxLimit',
+    'getBurnLimit',
+    'getBurnMaxLimit',
+  ] as const) {
+    it(`reads at the block it found when it is asked for ${getter}`, async () => {
+      const chain = stubAevoChainThatMoves({
+        sandbox,
+        provider: adapter.getProvider(),
+        stateAt: {
+          [HEAD]: { authorized: true, cap: 100n, outstanding: 10n },
+          [HEAD + 1]: { authorized: true, cap: 200n, outstanding: 190n },
+        },
+        unpinnedHeights: [HEAD + 1],
+      });
+
+      await adapter[getter]();
+
+      expect(getBlock.calledOnceWithExactly('latest')).to.equal(true);
+      expect(chain.calls.map(({ height }) => height)).to.satisfy(
+        (heights: number[]) => heights.every((height) => height === HEAD),
+      );
+    });
+  }
+
+  interface ReadsCase {
+    name: string;
+    state: AevoTokenState;
+    // Whether each way of asking reads what is outstanding, which is only
+    // where the answer is not decided by the authority and the cap.
+    reads: Record<
+      | 'getLimits'
+      | 'getMintLimit'
+      | 'getMintMaxLimit'
+      | 'getBurnLimit'
+      | 'getBurnMaxLimit',
+      boolean
+    >;
+  }
+
+  const readsCases: ReadsCase[] = [
+    {
+      name: 'a router that is not authorized',
+      state: { authorized: false, cap: 105n, outstanding: 30n },
+      reads: {
+        getLimits: false,
+        getMintLimit: false,
+        getMintMaxLimit: false,
+        getBurnLimit: false,
+        getBurnMaxLimit: false,
+      },
+    },
+    {
+      name: 'a router without a cap',
+      state: { authorized: true, cap: 0n, outstanding: 30n },
+      reads: {
+        getLimits: true,
+        getMintLimit: false,
+        getMintMaxLimit: false,
+        getBurnLimit: true,
+        getBurnMaxLimit: false,
+      },
+    },
+    {
+      name: 'a router with a cap',
+      state: { authorized: true, cap: 105n, outstanding: 30n },
+      reads: {
+        getLimits: true,
+        getMintLimit: true,
+        getMintMaxLimit: false,
+        getBurnLimit: true,
+        getBurnMaxLimit: false,
+      },
+    },
+  ];
+
+  // A read of what is outstanding that fails fails only what needs it: the
+  // maximums are the authority and the cap.
+  for (const c of readsCases) {
+    for (const [getter, needsOutstanding] of Object.entries(c.reads)) {
+      assert(
+        getter === 'getLimits' ||
+          getter === 'getMintLimit' ||
+          getter === 'getMintMaxLimit' ||
+          getter === 'getBurnLimit' ||
+          getter === 'getBurnMaxLimit',
+        `Unexpected getter ${getter}`,
+      );
+
+      it(`${
+        needsOutstanding ? 'fails' : 'does not fail'
+      } in ${getter} when what is outstanding cannot be read, for ${c.name}`, async () => {
+        const chain = stubAevoChainThatMoves({
+          sandbox,
+          provider: adapter.getProvider(),
+          stateAt: { [HEAD]: c.state },
+          unpinnedHeights: [HEAD],
+          failing: [OUTSTANDING],
+        });
+
+        let thrown: unknown;
+        try {
+          await adapter[getter]();
+        } catch (error) {
+          thrown = error;
+        }
+
+        const read = chain.calls.some(
+          ({ selector }) => selector === OUTSTANDING,
+        );
+        expect(read).to.equal(needsOutstanding);
+        if (needsOutstanding) {
+          expect(thrown).to.have.property(
+            'message',
+            `injected ${OUTSTANDING} failure`,
+          );
+        } else {
+          expect(thrown).to.equal(undefined);
+        }
+      });
+    }
+  }
 });

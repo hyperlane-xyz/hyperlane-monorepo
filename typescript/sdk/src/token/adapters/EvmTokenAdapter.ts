@@ -69,7 +69,12 @@ import {
   isValidContractVersion,
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
-import { TokenMetadata, XERC20AevoCapType } from '../types.js';
+import {
+  TokenMetadata,
+  XERC20AevoCapConfig,
+  XERC20AevoCapType,
+  XERC20AevoLimitConfig,
+} from '../types.js';
 import { AEVO_OUTSTANDING_SELECTOR, XERC20_AEVO_ABI } from '../xerc20-abi.js';
 
 import {
@@ -1347,6 +1352,63 @@ export class EvmHypVSXERC20Adapter
   }
 }
 
+// The number of the latest block, which the reads of what an Aevo token holds
+// are pinned to. Not getBlockNumber, which a provider never reports below the
+// highest block it has seen, so that a node that reverted to an earlier block is
+// not asked for one it no longer has.
+async function getLatestBlockNumber(adapter: BaseEvmAdapter): Promise<number> {
+  const block = await adapter.getProvider().getBlock('latest');
+  assert(block, `Missing the latest block of ${adapter.chainName}`);
+  return block.number;
+}
+
+// What a cap bounds the count of a router to, undefined where it bounds none.
+function aevoCapBound(cap: XERC20AevoCapConfig): bigint | undefined {
+  switch (cap.type) {
+    case XERC20AevoCapType.Unlimited:
+      return undefined;
+    case XERC20AevoCapType.Raw:
+      return BigInt(cap.value);
+    default: {
+      const exhaustiveCheck: never = cap;
+      throw new Error(
+        `Unknown Aevo cap: ${stringifyObject(exhaustiveCheck, 'json')}`,
+      );
+    }
+  }
+}
+
+// The most a router may mint or burn at once, which its authority and its cap
+// alone decide.
+function aevoMaxLimit(limits: XERC20AevoLimitConfig): bigint {
+  if (!limits.authorized) return 0n;
+
+  return aevoCapBound(limits.cap) ?? UIN256_MAX_VALUE;
+}
+
+// What is left of its cap for a router to mint, which needs the count of what it
+// has minted only where it has a cap.
+async function aevoMintLimit(
+  limits: XERC20AevoLimitConfig,
+  outstanding: () => Promise<bigint>,
+): Promise<bigint> {
+  if (!limits.authorized) return 0n;
+
+  const cap = aevoCapBound(limits.cap);
+  if (cap === undefined) return UIN256_MAX_VALUE;
+
+  const minted = await outstanding();
+  return cap > minted ? cap - minted : 0n;
+}
+
+// What a router may burn is what it has minted and not burned, if it may.
+async function aevoBurnLimit(
+  limits: XERC20AevoLimitConfig,
+  outstanding: () => Promise<bigint>,
+): Promise<bigint> {
+  return limits.authorized ? outstanding() : 0n;
+}
+
 /**
  * Adapter for a HypXERC20 router over an Aevo token, which keeps for each minter
  * an authority, a cap and a count of what the minter has minted and not burned.
@@ -1358,6 +1420,11 @@ export class EvmHypVSXERC20Adapter
  *   both maximums, and the count for the burn limit.
  * - Authorized with a cap: the cap for both maximums, what is left of it, 0 once
  *   the count is beyond it, for the mint limit, and the count for the burn limit.
+ *
+ * What the authority, the cap and the count hold at one block is what a limit is
+ * read from, so that a block that changes them while they are read is not seen
+ * in part. The count is read only where the limit needs it: the maximums never
+ * need it, and neither does the mint limit without a cap.
  *
  * What the router has bridged is its count, not the supply of the token: the
  * minters other than the router have minted the rest of it. The count is read
@@ -1401,19 +1468,42 @@ export class EvmHypAevoXERC20Adapter
   }
 
   async getMintLimit(): Promise<bigint> {
-    return (await this.getLimits()).mint;
+    const { limits, outstanding } = await this.pinned();
+
+    return aevoMintLimit(limits, outstanding);
   }
 
   async getMintMaxLimit(): Promise<bigint> {
-    return (await this.getLimits()).mintMax;
+    return aevoMaxLimit((await this.pinned()).limits);
   }
 
   async getBurnLimit(): Promise<bigint> {
-    return (await this.getLimits()).burn;
+    const { limits, outstanding } = await this.pinned();
+
+    return aevoBurnLimit(limits, outstanding);
   }
 
   async getBurnMaxLimit(): Promise<bigint> {
-    return (await this.getLimits()).burnMax;
+    return aevoMaxLimit((await this.pinned()).limits);
+  }
+
+  /**
+   * The four limits of the router, read at one block.
+   */
+  async getLimits(): Promise<{
+    mint: bigint;
+    mintMax: bigint;
+    burn: bigint;
+    burnMax: bigint;
+  }> {
+    const { limits, outstanding } = await this.pinned();
+    const [mint, burn] = await Promise.all([
+      aevoMintLimit(limits, outstanding),
+      aevoBurnLimit(limits, outstanding),
+    ]);
+    const max = aevoMaxLimit(limits);
+
+    return { mint, mintMax: max, burn, burnMax: max };
   }
 
   override async getBridgedSupply(options?: {
@@ -1437,47 +1527,25 @@ export class EvmHypAevoXERC20Adapter
     });
   }
 
-  private async getLimits(): Promise<{
-    mint: bigint;
-    mintMax: bigint;
-    burn: bigint;
-    burnMax: bigint;
+  // What the token holds for the router at the latest block, as one block: its
+  // authority and cap are read, and what it has minted is read, at most once,
+  // by whoever needs it.
+  private async pinned(): Promise<{
+    limits: XERC20AevoLimitConfig;
+    outstanding: () => Promise<bigint>;
   }> {
     const token = await this.getAevoToken();
-    const [authority, outstanding] = await Promise.all([
-      token.getMintAuthority(this.addresses.token),
-      token.getOutstanding(this.addresses.token),
-    ]);
-    const limits = toAevoLimits(authority);
+    const block = await getLatestBlockNumber(this);
+    const limits = toAevoLimits(
+      await token.getMintAuthority(this.addresses.token, block),
+    );
+    let outstanding: Promise<bigint> | undefined;
 
-    if (!limits.authorized) {
-      return { mint: 0n, mintMax: 0n, burn: 0n, burnMax: 0n };
-    }
-
-    switch (limits.cap.type) {
-      case XERC20AevoCapType.Unlimited:
-        return {
-          mint: UIN256_MAX_VALUE,
-          mintMax: UIN256_MAX_VALUE,
-          burn: outstanding,
-          burnMax: UIN256_MAX_VALUE,
-        };
-      case XERC20AevoCapType.Raw: {
-        const cap = BigInt(limits.cap.value);
-        return {
-          mint: cap > outstanding ? cap - outstanding : 0n,
-          mintMax: cap,
-          burn: outstanding,
-          burnMax: cap,
-        };
-      }
-      default: {
-        const exhaustiveCheck: never = limits.cap;
-        throw new Error(
-          `Unknown Aevo cap: ${stringifyObject(exhaustiveCheck, 'json')}`,
-        );
-      }
-    }
+    return {
+      limits,
+      outstanding: () =>
+        (outstanding ??= token.getOutstanding(this.addresses.token, block)),
+    };
   }
 }
 
@@ -1718,7 +1786,7 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
     minter: Address,
     blockTag?: number | EthJsonRpcBlockParameterTag,
   ): Promise<AevoMintAuthority> {
-    const block = blockTag ?? (await this.getLatestBlockNumber());
+    const block = blockTag ?? (await getLatestBlockNumber(this));
     const [authorized, cap] = await Promise.all([
       this.readAuthority(toEvmAddress(minter), block),
       this.readCap(toEvmAddress(minter), block),
@@ -1776,15 +1844,6 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
       `Expected a uint256 outstanding of ${minter} from ${this.addresses.token} on chain ${this.chainName}`,
     );
     return outstanding.toBigInt();
-  }
-
-  // Not getBlockNumber, which a provider never reports below the highest block
-  // it has seen, so that a node that reverted to an earlier block is not asked
-  // for one it no longer has.
-  private async getLatestBlockNumber(): Promise<number> {
-    const block = await this.getProvider().getBlock('latest');
-    assert(block, `Missing the latest block of ${this.chainName}`);
-    return block.number;
   }
 
   private async readAuthority(

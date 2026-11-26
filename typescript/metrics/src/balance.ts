@@ -162,15 +162,21 @@ export async function getXERC20Info(
   }
 
   // An Aevo token has no limit getters to read: its limits are what its adapter
-  // maps what the token holds to.
+  // maps what the token holds to, which it reads at one block for all four.
   if (token.standard === TokenStandard.EvmHypAevoXERC20) {
     const adapter = new EvmHypAevoXERC20Adapter(
       token.chainName,
       warpCore.multiProvider,
       { token: token.addressOrDenom },
     );
+    const { mint, mintMax, burn, burnMax } = await adapter.getLimits();
     return {
-      limits: await getXERC20Limit(token, adapter),
+      limits: {
+        mint: formatBigInt(token, mint),
+        mintMax: formatBigInt(token, mintMax),
+        burn: formatBigInt(token, burn),
+        burnMax: formatBigInt(token, burnMax),
+      },
       xERC20Address: await adapter.getWrappedTokenAddress(),
     };
   }

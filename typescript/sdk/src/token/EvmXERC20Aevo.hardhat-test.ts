@@ -1413,9 +1413,7 @@ describe('Aevo xERC20 token', async () => {
           await (await impersonate(other)).mint(randomAddress(), 1000)
         ).wait();
 
-        expect((await aevoToken.totalSupply()).toBigInt() > 1000n).to.equal(
-          true,
-        );
+        expect((await aevoToken.totalSupply()).toBigInt()).to.equal(1000n);
         expect(await adapter.getBurnLimit()).to.equal(0n);
         expect(await adapter.getBridgedSupply()).to.equal(0n);
       });
