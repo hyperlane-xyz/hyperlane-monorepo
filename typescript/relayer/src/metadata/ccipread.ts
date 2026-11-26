@@ -12,7 +12,7 @@ import {
   WormholeIsmConfig,
   offchainLookupRequestHash,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
+import { WithAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
 import type {
   CcipReadMetadataBuildResult,
@@ -34,10 +34,12 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 
 const MAX_BFS_ITERATIONS = 50;
 
-const CCS_REVEAL_SELECTOR =
-  CommitmentReadIsmService__factory.createInterface().getSighash(
-    'getCallsFromRevealMessage',
-  );
+const COMMITMENT_READ_ISM_SERVICE =
+  CommitmentReadIsmService__factory.createInterface();
+
+const CCS_REVEAL_SELECTOR = COMMITMENT_READ_ISM_SERVICE.getSighash(
+  'getCallsFromRevealMessage',
+);
 
 /** Only the call commitments service reveal lookup is signed. */
 function isCcsRevealLookup(callDataHex: string): boolean {
@@ -45,6 +47,30 @@ function isCcsRevealLookup(callDataHex: string): boolean {
     utils.hexDataLength(callDataHex) >= 4 &&
     utils.hexDataSlice(callDataHex, 0, 4).toLowerCase() ===
       CCS_REVEAL_SELECTOR.toLowerCase()
+  );
+}
+
+/**
+ * Whether a reveal lookup asks for the calls of the message being delivered,
+ * the only reveal the call commitments service serves for it.
+ */
+function revealLookupCarriesMessage(
+  callDataHex: string,
+  deliveredMessageId: string,
+): boolean {
+  let revealMessage: unknown;
+  try {
+    [revealMessage] = COMMITMENT_READ_ISM_SERVICE.decodeFunctionData(
+      'getCallsFromRevealMessage',
+      callDataHex,
+    );
+  } catch {
+    // Malformed call data does not carry any message.
+    return false;
+  }
+  return (
+    typeof revealMessage === 'string' &&
+    messageId(revealMessage).toLowerCase() === deliveredMessageId.toLowerCase()
   );
 }
 
@@ -128,6 +154,11 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     };
 
     const callDataHex = utils.hexlify(callData);
+    // The service refuses a reveal for another message, so such a reveal POST
+    // is neither signed nor sent. GET-style lookups are never signed.
+    const refuseRevealPost =
+      isCcsRevealLookup(callDataHex) &&
+      !revealLookupCarriesMessage(callDataHex, message.id);
 
     const signer = this.core.multiProvider.getSigner(
       message.parsed.destination,
@@ -137,6 +168,13 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       const url = urlTemplate
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
+
+      if (!urlTemplate.includes('{data}') && refuseRevealPost) {
+        this.core.logger.warn(
+          `Skipping CCS reveal lookup ${url}: it does not carry message ${message.id}`,
+        );
+        continue;
+      }
 
       let res: Response;
       try {

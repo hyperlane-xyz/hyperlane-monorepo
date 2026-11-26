@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { Wallet, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
-import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
+import {
+  AbstractCcipReadIsm__factory,
+  CommitmentReadIsmService__factory,
+} from '@hyperlane-xyz/core';
 import {
   DispatchedMessage,
   HookType,
@@ -28,10 +31,26 @@ const HOOK_ADDRESS = '0x' + '22'.repeat(20);
 const SENDER = '0x' + '44'.repeat(20);
 const RECIPIENT = '0x' + '55'.repeat(20);
 const POST_URL = 'https://ccip.example.com/lookup';
-const REVEAL_CALL_DATA =
-  '0x2b4b00ee' + '00'.repeat(31) + '20' + '00'.repeat(32);
+const GET_URL = 'https://ccip.example.com/lookup/{sender}/{data}.json';
 const OTHER_CALL_DATA = '0x12345678';
+const OTHER_MESSAGE = '0x' + '66'.repeat(77);
 const METADATA = '0x01';
+
+function revealCallData(revealMessage: string): string {
+  return CommitmentReadIsmService__factory.createInterface().encodeFunctionData(
+    'getCallsFromRevealMessage',
+    [revealMessage],
+  );
+}
+
+/** The request the builder is expected to send. */
+const ExpectedRequest = {
+  SignedPost: 'signed-post',
+  UnsignedPost: 'unsigned-post',
+  Get: 'get',
+  None: 'none',
+} as const;
+type ExpectedRequest = (typeof ExpectedRequest)[keyof typeof ExpectedRequest];
 
 describe('OffchainLookupMetadataBuilder', () => {
   let sandbox: sinon.SinonSandbox;
@@ -46,31 +65,68 @@ describe('OffchainLookupMetadataBuilder', () => {
 
   interface Case {
     name: string;
-    callData: string;
-    /** Whether the POST body carries a v2 signature. */
-    signed: boolean;
+    /** The lookup's call data, given the message being delivered. */
+    callData: (deliveredMessage: string) => string;
+    urls: string[];
+    request: ExpectedRequest;
   }
 
   const cases: Case[] = [
     {
-      name: 'signs and fetches a reveal lookup',
-      callData: REVEAL_CALL_DATA,
-      signed: true,
+      name: 'signs and fetches a reveal lookup for the delivered message',
+      callData: revealCallData,
+      urls: [POST_URL],
+      request: ExpectedRequest.SignedPost,
+    },
+    {
+      name: 'neither signs nor fetches a reveal lookup for another message',
+      callData: () => revealCallData(OTHER_MESSAGE),
+      urls: [POST_URL],
+      request: ExpectedRequest.None,
+    },
+    {
+      name: 'neither signs nor fetches a reveal lookup with malformed arguments',
+      callData: (deliveredMessage) =>
+        utils.hexDataSlice(revealCallData(deliveredMessage), 0, 40),
+      urls: [POST_URL],
+      request: ExpectedRequest.None,
+    },
+    {
+      name: 'neither signs nor fetches a reveal lookup without arguments',
+      callData: (deliveredMessage) =>
+        utils.hexDataSlice(revealCallData(deliveredMessage), 0, 4),
+      urls: [POST_URL],
+      request: ExpectedRequest.None,
+    },
+    {
+      name: 'fetches a GET-style reveal lookup for another message without signing',
+      callData: () => revealCallData(OTHER_MESSAGE),
+      urls: [GET_URL],
+      request: ExpectedRequest.Get,
+    },
+    {
+      name: 'skips the POST of a reveal lookup for another message and tries the next URL',
+      callData: () => revealCallData(OTHER_MESSAGE),
+      urls: [POST_URL, GET_URL],
+      request: ExpectedRequest.Get,
     },
     {
       name: 'fetches a lookup with another selector without signing',
-      callData: OTHER_CALL_DATA,
-      signed: false,
+      callData: () => OTHER_CALL_DATA,
+      urls: [POST_URL],
+      request: ExpectedRequest.UnsignedPost,
     },
     {
       name: 'fetches a lookup with call data shorter than a selector without signing',
-      callData: '0x2b4b00',
-      signed: false,
+      callData: () => '0x2b4b00',
+      urls: [POST_URL],
+      request: ExpectedRequest.UnsignedPost,
     },
     {
       name: 'fetches a lookup with empty call data without signing',
-      callData: '0x',
-      signed: false,
+      callData: () => '0x',
+      urls: [POST_URL],
+      request: ExpectedRequest.UnsignedPost,
     },
   ];
 
@@ -81,24 +137,6 @@ describe('OffchainLookupMetadataBuilder', () => {
       const signer = new Wallet('0x' + '01'.repeat(32), provider);
       sandbox.stub(multiProvider, 'getProvider').returns(provider);
       sandbox.stub(multiProvider, 'getSigner').returns(signer);
-      const revertData =
-        AbstractCcipReadIsm__factory.createInterface().encodeErrorResult(
-          'OffchainLookup',
-          [ISM_ADDRESS, [POST_URL], c.callData, '0x00000000', '0x'],
-        );
-      sandbox
-        .stub(provider, 'call')
-        .rejects(
-          Object.assign(new Error('execution reverted'), { data: revertData }),
-        );
-      const signMessage = sandbox.spy(signer, 'signMessage');
-      const fetchStub = sandbox
-        .stub(globalThis, 'fetch')
-        .callsFake(
-          async () =>
-            new Response(JSON.stringify({ data: METADATA }), { status: 200 }),
-        );
-
       const rawMessage = formatMessage(
         3,
         0,
@@ -113,10 +151,29 @@ describe('OffchainLookupMetadataBuilder', () => {
         message: rawMessage,
         parsed: parseMessage(rawMessage),
       };
+      const callData = c.callData(rawMessage);
+      const revertData =
+        AbstractCcipReadIsm__factory.createInterface().encodeErrorResult(
+          'OffchainLookup',
+          [ISM_ADDRESS, c.urls, callData, '0x00000000', '0x'],
+        );
+      sandbox
+        .stub(provider, 'call')
+        .rejects(
+          Object.assign(new Error('execution reverted'), { data: revertData }),
+        );
+      const signMessage = sandbox.spy(signer, 'signMessage');
+      const fetchStub = sandbox
+        .stub(globalThis, 'fetch')
+        .callsFake(
+          async () =>
+            new Response(JSON.stringify({ data: METADATA }), { status: 200 }),
+        );
+
       const ism: WithAddress<OffchainLookupIsmConfig> = {
         type: IsmType.OFFCHAIN_LOOKUP,
         owner: OWNER,
-        urls: [POST_URL],
+        urls: c.urls,
         address: ISM_ADDRESS,
       };
       const builder = new OffchainLookupMetadataBuilder(
@@ -129,19 +186,43 @@ describe('OffchainLookupMetadataBuilder', () => {
         hook: { type: HookType.MERKLE_TREE, address: HOOK_ADDRESS },
       });
 
+      if (c.request === ExpectedRequest.None) {
+        expect(await build).to.deep.equal({
+          type: IsmType.OFFCHAIN_LOOKUP,
+          ismAddress: ISM_ADDRESS,
+          urls: c.urls,
+        });
+        sinon.assert.notCalled(signMessage);
+        sinon.assert.notCalled(fetchStub);
+        return;
+      }
+
       expect(await build).to.deep.equal({
         type: IsmType.OFFCHAIN_LOOKUP,
         ismAddress: ISM_ADDRESS,
-        urls: [POST_URL],
+        urls: c.urls,
         metadata: METADATA,
       });
-      sinon.assert.callCount(signMessage, c.signed ? 1 : 0);
+      const signed = c.request === ExpectedRequest.SignedPost;
+      sinon.assert.callCount(signMessage, signed ? 1 : 0);
       sinon.assert.calledOnce(fetchStub);
-      const [, init] = fetchStub.firstCall.args;
+      const [url, init] = fetchStub.firstCall.args;
+      if (c.request === ExpectedRequest.Get) {
+        expect(url).to.equal(
+          GET_URL.replace('{sender}', utils.getAddress(ISM_ADDRESS)).replace(
+            '{data}',
+            callData,
+          ),
+        );
+        expect(init).to.equal(undefined);
+        return;
+      }
+
+      expect(url).to.equal(POST_URL);
       expect(init?.method).to.equal('POST');
       const body = JSON.parse(String(init?.body));
       expect(body).to.have.all.keys(
-        c.signed
+        signed
           ? [
               'sender',
               'data',
@@ -154,10 +235,10 @@ describe('OffchainLookupMetadataBuilder', () => {
       );
       expect(body).to.include({
         sender: utils.getAddress(ISM_ADDRESS),
-        data: c.callData,
+        data: callData,
         origin_tx_hash: testTransactionReceipt().transactionHash,
       });
-      if (c.signed) expect(body.message_id).to.equal(message.id);
+      if (signed) expect(body.message_id).to.equal(message.id);
     });
   }
 });
