@@ -4,8 +4,8 @@ use std::{sync::Arc, time::Duration};
 
 use futures_util::{stream::BoxStream, StreamExt};
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, MerkleTreeHook,
-    ReorgPeriod,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, IncrementalMerkleAtBlock,
+    MerkleTreeHook, ReorgPeriod,
 };
 use prometheus::IntCounter;
 use tokio::time::timeout;
@@ -127,12 +127,25 @@ impl CheckpointReader {
         ))
     }
 
+    /// Read one candidate frontier. Independent checkpoint votes authenticate it.
+    pub(crate) async fn frontier(&self, period: &ReorgPeriod) -> Option<IncrementalMerkleAtBlock> {
+        for (slot, hook) in self.hooks.iter().enumerate() {
+            if let Ok(Ok(tree)) = timeout(RPC_TIMEOUT, hook.tree(period)).await {
+                if u32::try_from(tree.count()).is_ok() {
+                    return Some(tree);
+                }
+            }
+            tracing::warn!(endpoint_index = slot, "Could not read Merkle frontier");
+        }
+        None
+    }
+
     /// Try a historical read only when that endpoint places the requested
     /// height inside its own finalized prefix. Some VMs always return the tip.
-    pub(crate) async fn snapshot_checkpoints(
+    pub(crate) async fn frontier_checkpoints(
         &self,
         period: &ReorgPeriod,
-        height: u64,
+        height: Option<u64>,
         expected: Checkpoint,
         reads: &IntCounter,
     ) -> Vec<CheckpointAtBlock> {
@@ -141,7 +154,9 @@ impl CheckpointReader {
             .checkpoint_stream(period, reads)
             .map(|(slot, latest)| async move {
                 let latest = latest?;
-                if latest.index > index && latest.block_height.is_some_and(|tip| height <= tip) {
+                if let Some(height) = height.filter(|h| {
+                    latest.index > index && latest.block_height.is_some_and(|tip| *h <= tip)
+                }) {
                     reads.inc();
                     if let Ok(Ok(at_height)) = timeout(
                         RPC_TIMEOUT,
@@ -247,7 +262,7 @@ mod tests {
         let reader = CheckpointReader::single(Arc::new(hook));
         let calls = IntCounter::new("reads", "test reads").expect("counter");
         let votes = reader
-            .snapshot_checkpoints(&ReorgPeriod::None, 10, expected, &calls)
+            .frontier_checkpoints(&ReorgPeriod::None, Some(10), expected, &calls)
             .await;
         assert_eq!(votes.len(), 1);
         assert_eq!(votes[0].checkpoint, checkpoint(2).checkpoint);

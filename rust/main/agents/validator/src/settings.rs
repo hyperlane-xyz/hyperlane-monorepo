@@ -67,7 +67,7 @@ pub struct ValidatorSettings {
     /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
     /// Explorer or the configured fallback supplies missing history.
     pub websocket_url: Option<Secret<url::Url>>,
-    /// Confirmed Merkle frontier and insertion pages.
+    /// Explorer endpoint for confirmed Merkle insertions.
     pub explorer_api_url: Option<Secret<url::Url>>,
     /// Permit insertion log scans through configured RPCs when Explorer cannot supply them.
     pub allow_rpc_fallback: bool,
@@ -77,7 +77,7 @@ pub struct ValidatorSettings {
     pub rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
-    /// Skip on-chain announcement and pre-start publication when an Explorer snapshot is verified.
+    /// Skip on-chain announcement and pre-start publication when the on-chain frontier is verified.
     pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,

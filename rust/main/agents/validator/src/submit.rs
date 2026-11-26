@@ -1,3 +1,4 @@
+use eyre::{ensure, ContextCompat};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,7 +18,7 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot},
     Checkpoint, CheckpointAtBlock, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSignerExt, IncrementalMerkleAtBlock, H256,
+    HyperlaneDomain, HyperlaneSignerExt, IncrementalMerkleAtBlock, MerkleTreeInsertion, H256,
 };
 use hyperlane_core::{
     ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
@@ -28,6 +29,26 @@ use crate::checkpoint_consensus::{CheckpointConsensus, CheckpointReader};
 use crate::merkle_tree_hook_sync::{MerkleTreeRecovery, RecoveryProgress};
 use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
+
+pub(crate) struct VerifiedStart {
+    previous_tree: IncrementalMerkle,
+    last_insertion: (MerkleTreeInsertion, u64),
+}
+
+impl VerifiedStart {
+    /// The signing worker reads this leaf from RocksDB even if the socket is offline.
+    pub(crate) fn resume(
+        self,
+        db: &hyperlane_base::db::HyperlaneRocksDB,
+    ) -> eyre::Result<IncrementalMerkle> {
+        let (leaf, height) = self.last_insertion;
+        let existing = db.store_tree_insertion_if_absent(&leaf, height)?;
+        if existing.is_some_and(|row| row != leaf) {
+            db.store_tree_insertion(&leaf, height)?;
+        }
+        Ok(self.previous_tree)
+    }
+}
 
 const IDLE_CHECKPOINT_AUDIT_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -334,8 +355,8 @@ impl ValidatorSubmitter {
         self.metrics.backfill_complete.set(1);
     }
 
-    /// Restore the authenticated consensus starting tree and its publication status.
-    pub(crate) async fn restore_consensus_tree(&self) -> IncrementalMerkle {
+    /// Restore the last authenticated, fully published prefix.
+    pub(crate) async fn restore_published_tree(&self) -> IncrementalMerkle {
         let restored = self.restored_snapshot_tree(u32::MAX).await;
         if restored.is_some() {
             self.readiness.mark_operation_ready("checkpoint_snapshot");
@@ -344,21 +365,26 @@ impl ValidatorSubmitter {
         restored.unwrap_or_default()
     }
 
-    pub(crate) async fn explorer_start(
+    pub(crate) async fn chain_start<F, Fut>(
         &self,
-        explorer: &crate::explorer::Explorer,
         reader: &CheckpointReader,
         live_only: bool,
-    ) -> eyre::Result<Option<crate::explorer::VerifiedStart>> {
+        page: F,
+    ) -> eyre::Result<Option<VerifiedStart>>
+    where
+        F: Fn(u32, u32, Option<u64>) -> Fut,
+        Fut: std::future::Future<Output = eyre::Result<Vec<(MerkleTreeInsertion, u64)>>>,
+    {
         let previous = self.checkpoint_syncer.latest_index().await?;
         // Announced validators must account for their complete publication history.
         if previous.is_some() && !live_only {
             return Ok(None);
         }
-        let Some((tree, height)) = explorer.snapshot().await? else {
+        let Some(candidate) = reader.frontier(&self.reorg_period).await else {
             return Ok(None);
         };
-        if tree.count() == 0 || (!live_only && tree.count() == 1) {
+        let tree = candidate.tree;
+        if tree.count() == 0 {
             return Ok(None);
         }
         let expected = self.checkpoint(tree.root(), tree.index());
@@ -377,7 +403,7 @@ impl ValidatorSubmitter {
             if index == expected.index {
                 eyre::ensure!(
                     prior == expected,
-                    "Snapshot conflicts with previously signed tip"
+                    "On-chain frontier conflicts with previously signed tip"
                 );
             } else {
                 // A fresh snapshot may advance past this signer's last checkpoint only
@@ -389,9 +415,9 @@ impl ValidatorSubmitter {
                     return Ok(None);
                 };
                 let votes = reader
-                    .snapshot_checkpoints(
+                    .frontier_checkpoints(
                         &self.reorg_period,
-                        block,
+                        Some(block),
                         prior,
                         &self.metrics.checkpoint_reads,
                     )
@@ -402,14 +428,79 @@ impl ValidatorSubmitter {
             }
         }
         let votes = reader
-            .snapshot_checkpoints(
+            .frontier_checkpoints(
                 &self.reorg_period,
-                height,
+                candidate.block_height,
                 expected,
                 &self.metrics.checkpoint_reads,
             )
             .await;
-        Ok(Some(explorer.verified_start(tree, &votes, required).await?))
+        let mut tree = tree;
+        let index = expected.index;
+        tree.count = index as usize;
+        let start = tree.clone();
+        let votes: Vec<_> = votes
+            .iter()
+            .filter(|v| {
+                v.mailbox_domain == expected.mailbox_domain
+                    && v.merkle_tree_hook_address == expected.merkle_tree_hook_address
+                    && (index..u32::MAX).contains(&v.index)
+            })
+            .collect();
+        ensure!(
+            votes.len() >= required,
+            "Insufficient finalized checkpoints for frontier"
+        );
+        // Stop at the nearest set of votes that matches the candidate history.
+        let end = votes
+            .iter()
+            .map(|v| v.index)
+            .max()
+            .and_then(|index| index.checked_add(1))
+            .context("Invalid frontier vote index")?;
+        let height = votes
+            .iter()
+            .filter_map(|v| v.block_height)
+            .max()
+            .or(candidate.block_height);
+        let mut next = index;
+        let mut matching = 0usize;
+        let mut last_insertion = None;
+        while next < end {
+            let leaves = page(next, end, height).await?;
+            ensure!(!leaves.is_empty(), "Missing frontier insertion");
+            for (leaf, block) in leaves {
+                ensure!(
+                    leaf.index() == next && next < end,
+                    "Non-contiguous frontier insertions"
+                );
+                tree.ingest(leaf.message_id());
+                next = u32::try_from(tree.count())?;
+                if leaf.index() == index {
+                    ensure!(
+                        tree.root() == expected.root,
+                        "Frontier does not authenticate its last leaf"
+                    );
+                    last_insertion = Some((leaf, block));
+                }
+                if votes.iter().any(|v| v.index == leaf.index()) {
+                    let root = tree.root();
+                    matching = matching.saturating_add(
+                        votes
+                            .iter()
+                            .filter(|v| v.index == leaf.index() && v.root == root)
+                            .count(),
+                    );
+                    if matching >= required {
+                        return Ok(Some(VerifiedStart {
+                            previous_tree: start,
+                            last_insertion: last_insertion.context("Missing frontier tip")?,
+                        }));
+                    }
+                }
+            }
+        }
+        eyre::bail!("On-chain frontier disagrees with configured RPC checkpoints")
     }
 
     /// Authenticate indexed insertions against the configured endpoint threshold. Historical
@@ -615,7 +706,7 @@ impl ValidatorSubmitter {
             self.start_historical_publication(tree);
         }
         let started = Instant::now();
-        // Explorer authenticates this frontier by re-ingesting its last leaf.
+        // Startup authenticates this frontier by re-ingesting its last leaf.
         let pre_start_target = restored
             .as_ref()
             .is_some_and(|tree| tree.count() < live.count())
@@ -1022,6 +1113,11 @@ impl ValidatorSubmitter {
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await;
+            if self.historical_publication {
+                self.persist_consensus_snapshot(&tree).await;
+                self.metrics.backfill_complete.set(1);
+                self.historical_publication = false;
+            }
             if let Some(recovery) = &mut self.insertion_recovery {
                 if let Some(height) = latest_checkpoint.block_height {
                     recovery.from_block = Some(height);
@@ -1232,7 +1328,7 @@ impl ValidatorSubmitter {
         checkpoint_queue
     }
 
-    fn start_historical_publication(&mut self, tree: &IncrementalMerkle) {
+    pub(crate) fn start_historical_publication(&mut self, tree: &IncrementalMerkle) {
         self.historical_publication = true;
         // Restored snapshots cover checkpoints already published by this worker.
         self.metrics
@@ -1478,7 +1574,7 @@ impl ValidatorSubmitter {
                 && existing.value.merkle_tree_hook_address == checkpoint.merkle_tree_hook_address
             {
                 // A restart can replay a different finalized history without a restored
-                // frontier (GCS has no snapshots). Never sign a second value for an
+                // frontier. Never sign a second value for an
                 // index we already signed, even if current RPCs agree with that value.
                 self.reorg_halt.send_replace(true);
                 self.readiness.mark_operation_blocked("checkpoint_reorg");

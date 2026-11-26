@@ -88,6 +88,79 @@ impl RecoveryProgress {
 }
 
 impl MerkleTreeRecovery {
+    /// The bootstrap needs the tip message ID and sometimes a short suffix to reach
+    /// a later RPC vote. On block-indexed chains, search back from the voted tip.
+    pub(crate) async fn frontier_page(
+        &self,
+        api: Option<&Explorer>,
+        first: u32,
+        end: u32,
+        height: Option<u64>,
+    ) -> Result<Vec<(MerkleTreeInsertion, u64)>> {
+        let sync = match &self.source {
+            RecoverySource::Explorer(api) => return api.page(first, end).await,
+            RecoverySource::Rpc(sync) => sync,
+        };
+        if let Some(api) = api {
+            match api.page(first, end).await {
+                Ok(rows) => return Ok(rows),
+                Err(err) => warn!(?err, first, "Reading frontier insertions from RPC"),
+            }
+        }
+        let last = end
+            .saturating_sub(1)
+            .min(first.saturating_add(self.index_settings.chunk_size.saturating_sub(1)));
+        let mut cursor = match self.index_settings.mode {
+            IndexMode::Sequence => last,
+            IndexMode::Block => match height {
+                Some(block) => u32::try_from(block)?,
+                None => sync
+                    .latest_indexed_position(IndexMode::Block)
+                    .await?
+                    .context("Missing finalized RPC height")?,
+            },
+        };
+        // Providers can cap log queries at a few blocks. When historical counts
+        // are available, locate the insertion and request only its block.
+        let exact_block = if matches!(self.index_settings.mode, IndexMode::Block) {
+            insertion_block(sync, first, cursor).await
+        } else {
+            None
+        };
+        if let Some(block) = exact_block {
+            cursor = block;
+        }
+        let mut leaves = BTreeMap::new();
+        loop {
+            let start = match self.index_settings.mode {
+                IndexMode::Sequence => first,
+                IndexMode::Block if exact_block.is_some() => cursor,
+                IndexMode::Block => {
+                    cursor.saturating_sub(self.index_settings.chunk_size.saturating_sub(1))
+                }
+            };
+            for (row, meta) in fetch_rpc_logs(sync, start..=cursor).await? {
+                let leaf = *row.inner();
+                if (first..=last).contains(&leaf.index()) {
+                    leaves.insert(leaf.index(), (leaf, meta.block_number));
+                }
+            }
+            if leaves.contains_key(&first)
+                || exact_block.is_some()
+                || start == 0
+                || matches!(self.index_settings.mode, IndexMode::Sequence)
+            {
+                break;
+            }
+            cursor = start.saturating_sub(1);
+        }
+        ensure!(
+            leaves.contains_key(&first),
+            "RPC did not return frontier insertion {first}"
+        );
+        Ok(leaves.into_values().collect())
+    }
+
     pub(crate) async fn fetch_insertions(
         &self,
         first_sequence: u32,
@@ -247,6 +320,39 @@ impl MerkleTreeRecovery {
         }
         Ok(())
     }
+}
+
+async fn insertion_block(
+    sync: &SequencedDataContractSync<MerkleTreeInsertion>,
+    index: u32,
+    mut high: u32,
+) -> Option<u32> {
+    let mut step = 1;
+    let mut low = loop {
+        let before = high.saturating_sub(step);
+        let count = sync
+            .indexer()
+            .sequence_count_at_block(before)
+            .await
+            .ok()??;
+        if count <= index {
+            break before.saturating_add(1);
+        }
+        if before == 0 {
+            return Some(0);
+        }
+        high = before;
+        step = step.saturating_mul(2);
+    };
+    while low < high {
+        let mid = low.midpoint(high);
+        if sync.indexer().sequence_count_at_block(mid).await.ok()?? > index {
+            high = mid;
+        } else {
+            low = mid.saturating_add(1);
+        }
+    }
+    Some(high)
 }
 
 async fn fetch_rpc_logs(
@@ -467,7 +573,6 @@ impl MerkleTreeHookWebSocketSync {
             .index
             .checked_add(1)
             .expect("verified frontier count");
-        let api = self.explorer.as_ref().expect("Explorer bootstrap");
         let mut next = 0;
         let mut block_range = None;
         while next < end {
@@ -476,12 +581,15 @@ impl MerkleTreeHookWebSocketSync {
                 if next >= end {
                     return Ok(());
                 }
-                let err = match api.page(next, end).await {
-                    Ok(page) => return self.store_page(page, &mut next),
-                    Err(err) => err,
-                };
+                if let Some(api) = &self.explorer {
+                    match api.page(next, end).await {
+                        Ok(page) => return self.store_page(page, &mut next),
+                        Err(err) if !self.allow_rpc_fallback => return Err(err),
+                        Err(err) => warn!(?err, next, "Historical insertion page unavailable"),
+                    }
+                }
                 let RecoverySource::Rpc(sync) = &recovery.source else {
-                    return Err(err);
+                    bail!("Missing historical insertion source");
                 };
                 let (start, last) = match block_range {
                     Some(bounds) => bounds,
@@ -490,8 +598,8 @@ impl MerkleTreeHookWebSocketSync {
                 ensure!(start <= last, "Empty historical RPC scan range");
                 let batch_end = recovery.batch_end(start, last);
                 warn!(
-                    ?err,
-                    start, batch_end, "Fetching historical insertion range from RPC"
+                    start,
+                    batch_end, "Fetching historical insertion range from RPC"
                 );
                 let mut logs = fetch_rpc_logs(sync, start..=batch_end).await?;
                 logs.sort_unstable_by_key(|(row, _)| row.inner().index());
@@ -1521,13 +1629,6 @@ mod tests {
                 let release = release.clone();
                 let rpc_active = rpc_active.clone();
                 async move {
-                    if request["query"]
-                        .as_str()
-                        .expect("query")
-                        .contains("merkle_tree_snapshot")
-                    {
-                        return serde_json::json!({"data": {"merkle_tree_snapshot": null}});
-                    }
                     let attempt = calls.fetch_add(1, Ordering::SeqCst);
                     assert_eq!(
                         rpc_active.get(),
@@ -1536,7 +1637,7 @@ mod tests {
                     if attempt > first_available {
                         release.notified().await;
                     }
-                    fixture(request, 0, u32::from(attempt >= first_available))
+                    fixture(request, u32::from(attempt >= first_available))
                 }
             },
             sync.domain,
@@ -1577,7 +1678,6 @@ mod tests {
             socket
         };
         let _first = connect().await;
-        assert!(api.snapshot().await.expect("snapshot query").is_none());
         assert_eq!(queries.load(Ordering::SeqCst), 0);
         floor.send(0).expect("use leaf zero");
         let mut second = timeout(Duration::from_secs(5), connect())

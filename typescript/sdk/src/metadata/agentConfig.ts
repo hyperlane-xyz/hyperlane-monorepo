@@ -940,7 +940,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe(
-      'Test only. Skip on-chain announcement. With a verified Explorer snapshot, publish from its tip and skip pre-start history. Otherwise use normal sync.',
+      'Test only. Skip on-chain announcement. With a verified on-chain frontier, publish from its tip and skip pre-start history. Otherwise use normal sync.',
     ),
   allowRpcFallback: z
     .boolean()
@@ -951,9 +951,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   explorerApiUrl: z
     .url({ protocol: /^https?$/ })
     .optional()
-    .describe(
-      'Explorer GraphQL endpoint for confirmed Merkle snapshots and insertions.',
-    ),
+    .describe('Explorer GraphQL endpoint for confirmed Merkle insertions.'),
   websocketUrl: z
     .url()
     .refine((url) => WEBSOCKET_URL_PREFIX_REGEX.test(url), {

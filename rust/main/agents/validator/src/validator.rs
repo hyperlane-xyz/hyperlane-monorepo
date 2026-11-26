@@ -281,36 +281,6 @@ impl HyperlaneContract for ReadinessMerkleTreeHook {
 }
 
 async fn wait_for_first_message(
-    merkle_tree_hook: Arc<dyn MerkleTreeHook>,
-    reorg_period: &ReorgPeriod,
-    interval: Duration,
-    readiness: &ValidatorReadiness,
-) -> IncrementalMerkleAtBlock {
-    loop {
-        match merkle_tree_hook.count(reorg_period).await {
-            Err(_) => {
-                error!("Error getting merkle tree count");
-            }
-            Ok(0) => {
-                readiness.mark_waiting_for_first_message();
-                info!("Waiting for first message in merkle tree hook");
-            }
-            Ok(_) => match merkle_tree_hook.tree(reorg_period).await {
-                Err(_) => {
-                    error!("Error getting merkle tree");
-                }
-                Ok(tree) if tree.count() == 0 => {
-                    readiness.mark_waiting_for_first_message();
-                    info!("Waiting for first message in merkle tree hook");
-                }
-                Ok(tree) => return tree,
-            },
-        }
-        sleep(interval).await;
-    }
-}
-
-async fn wait_for_consensus_first_message(
     reader: &CheckpointReader,
     reorg_period: &ReorgPeriod,
     interval: Duration,
@@ -687,77 +657,57 @@ impl BaseAgent for Validator {
             }));
             send
         });
-        let restored = if self.checkpoint_reader.is_some() {
-            submitter.restore_consensus_tree().await
-        } else {
-            IncrementalMerkle::default()
-        };
-        let explorer_start = if self.skip_announce || restored.count() == 0 {
-            self.explorer_start(&submitter).await
+        // All signing modes use the same frontier and first-message checks. In
+        // single/fallback mode the configured state provider supplies one vote.
+        let reader = self
+            .checkpoint_reader
+            .clone()
+            .unwrap_or_else(|| Arc::new(CheckpointReader::single(self.merkle_tree_hook.clone())));
+        let restored = submitter.restore_published_tree().await;
+        let startup = if restored.count() == 0 || self.skip_announce {
+            self.chain_start(&submitter, &reader).await
         } else {
             None
         };
-        let (tip_tree, backfill_tree, verified_count) = if let Some((sync, tree)) = explorer_start {
-            let count = u32::try_from(tree.count()).expect("verified snapshot count");
-            let tip = IncrementalMerkleAtBlock {
-                tree,
-                block_height: None,
-            };
-            let history = if self.skip_announce {
+        let (tree, history) = match startup {
+            Some(tree) => {
                 info!(
-                    count,
-                    "Skipping pre-start checkpoint history for unannounced validator"
+                    count = tree.count(),
+                    "Starting live verification from verified on-chain Merkle frontier"
                 );
-                None
-            } else {
-                let target = submitter.checkpoint_at_block(&tip);
+                (tree, (!self.skip_announce).then_some(restored))
+            }
+            None => {
+                if restored.count() == 0 {
+                    self.readiness.mark_waiting_for_first_message();
+                    wait_for_first_message(
+                        &reader,
+                        &self.reorg_period,
+                        self.interval,
+                        &self.readiness,
+                    )
+                    .await;
+                }
+                (restored.clone(), Some(restored))
+            }
+        };
+        let tip_tree = IncrementalMerkleAtBlock {
+            tree,
+            block_height: None,
+        };
+        let mut verified_count = u32::try_from(tip_tree.count()).expect("verified frontier count");
+        if let Some(history) = history.as_ref().filter(|h| h.count() < tip_tree.count()) {
+            if let Some(sync) = self.websocket_sync.clone() {
+                let target = submitter.checkpoint_at_block(&tip_tree);
                 let recovery = self.insertion_recovery();
                 tasks.push(tokio::spawn(async move {
                     sync.fill_history(recovery, target).await
                 }));
-                Some(IncrementalMerkle::default())
-            };
-            info!(
-                count,
-                "Starting live verification from RPC-authenticated Explorer frontier"
-            );
-            (tip, history, count)
-        } else if let Some(reader) = &self.checkpoint_reader {
-            if restored.count() == 0 {
-                self.readiness.mark_waiting_for_first_message();
-                wait_for_consensus_first_message(
-                    reader,
-                    &self.reorg_period,
-                    self.interval,
-                    &self.readiness,
-                )
-                .await;
+            } else {
+                // One RPC cursor supplies historical and live insertions.
+                verified_count = u32::try_from(history.count()).expect("published frontier count");
             }
-            let count = u32::try_from(restored.count()).expect("snapshot count fits in u32");
-            (
-                IncrementalMerkleAtBlock {
-                    tree: restored.clone(),
-                    block_height: None,
-                },
-                Some(restored),
-                count,
-            )
-        } else {
-            let tip = wait_for_first_message(
-                self.merkle_tree_hook.clone(),
-                &self.reorg_period,
-                self.interval,
-                &self.readiness,
-            )
-            .await;
-            let history = submitter
-                .restored_snapshot_tree(tip.index())
-                .await
-                .unwrap_or_default();
-            let count = u32::try_from(history.count()).expect("snapshot count fits in u32");
-            (tip, Some(history), count)
-        };
-
+        }
         if let Some(floor) = indexing_floor {
             floor.send(verified_count).expect("WebSocket indexing task");
         } else {
@@ -769,7 +719,7 @@ impl BaseAgent for Validator {
                 }
             }
         }
-        tasks.extend(self.run_checkpoint_submitters(submitter, tip_tree, backfill_tree));
+        tasks.extend(self.run_checkpoint_submitters(submitter, tip_tree, history));
 
         tasks.push(self.runtime_metrics.spawn());
 
@@ -843,32 +793,33 @@ impl Validator {
         )
     }
 
-    async fn explorer_start(
+    async fn chain_start(
         &self,
         submitter: &ValidatorSubmitter,
-    ) -> Option<(MerkleTreeHookWebSocketSync, IncrementalMerkle)> {
-        let sync = self.websocket_sync.as_ref()?;
-        let api = sync.explorer.as_ref()?;
-        // In single/fallback mode the configured chain provider supplies one vote.
-        let reader = self
-            .checkpoint_reader
-            .clone()
-            .unwrap_or_else(|| Arc::new(CheckpointReader::single(self.merkle_tree_hook.clone())));
+        reader: &CheckpointReader,
+    ) -> Option<IncrementalMerkle> {
+        let api = self
+            .websocket_sync
+            .as_ref()
+            .and_then(|s| s.explorer.as_ref());
+        let recovery = self.insertion_recovery();
         let bootstrap = async {
             submitter
-                .explorer_start(api, &reader, self.skip_announce)
+                .chain_start(reader, self.skip_announce, |first, end, height| {
+                    recovery.frontier_page(api, first, end, height)
+                })
                 .await?
                 .map(|start| start.resume(&self.db))
                 .transpose()
         };
         match tokio::time::timeout(Duration::from_secs(45), bootstrap).await {
-            Ok(Ok(tree)) => tree.map(|tree| (sync.clone(), tree)),
+            Ok(Ok(tree)) => tree,
             Ok(Err(err)) => {
-                warn!(?err, "Explorer bootstrap unavailable");
+                warn!(?err, "On-chain frontier bootstrap unavailable");
                 None
             }
             Err(_) => {
-                warn!("Explorer bootstrap timed out");
+                warn!("On-chain frontier bootstrap timed out");
                 None
             }
         }
@@ -923,11 +874,16 @@ impl Validator {
         }
 
         if let Some(history) = backfill_tree {
-            let target = submitter.checkpoint_at_block(&tip_tree);
-            tasks.push(spawn_submitter(
-                info_span!("BackfillCheckpointSubmitter"),
-                backfill_submitter.backfill_checkpoint_submitter(target, history),
-            ));
+            if tip_tree.count() == 0 {
+                // The live worker already replays the entire first batch from zero.
+                submitter.start_historical_publication(&history);
+            } else {
+                let target = submitter.checkpoint_at_block(&tip_tree);
+                tasks.push(spawn_submitter(
+                    info_span!("BackfillCheckpointSubmitter"),
+                    backfill_submitter.backfill_checkpoint_submitter(target, history),
+                ));
+            }
         }
         tasks.push(spawn_submitter(
             info_span!("TipCheckpointSubmitter"),
@@ -1729,65 +1685,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    #[tracing_test::traced_test]
-    async fn empty_tree_waits_then_starts_from_first_message_without_restart() {
-        let count_calls = Arc::new(AtomicUsize::new(0));
-        let mut hook = MockMerkleTreeHook::new();
-        hook.expect_count().times(2).returning({
-            let count_calls = Arc::clone(&count_calls);
-            move |_| {
-                Ok(if count_calls.fetch_add(1, Ordering::SeqCst) == 0 {
-                    0
-                } else {
-                    1
-                })
-            }
-        });
-        hook.expect_tree().once().return_once(|_| {
-            let mut tree = hyperlane_core::accumulator::incremental::IncrementalMerkle::default();
-            tree.ingest(H256::from_low_u64_be(1));
-            Ok(IncrementalMerkleAtBlock {
-                tree,
-                block_height: Some(10),
-            })
-        });
-
-        let readiness = Arc::new(ValidatorReadiness::default());
-        let readiness_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
-            Arc::new(hook),
-            Arc::clone(&readiness),
-            "merkle_tree_hook",
-        ));
-        let task = tokio::spawn({
-            let readiness = Arc::clone(&readiness);
-            async move {
-                wait_for_first_message(
-                    readiness_hook,
-                    &ReorgPeriod::None,
-                    Duration::from_secs(5),
-                    &readiness,
-                )
-                .await
-            }
-        });
-
-        tokio::task::yield_now().await;
-        assert_eq!(
-            readiness.snapshot().state,
-            validator_server::ValidatorReadinessState::WaitingForFirstMessage
-        );
-        assert!(!logs_contain("Error getting merkle tree"));
-
-        tokio::time::advance(Duration::from_secs(5)).await;
-        let tree = task.await.expect("wait task should complete");
-        assert_eq!(tree.count(), 1);
-        assert_eq!(
-            readiness.snapshot().state,
-            validator_server::ValidatorReadinessState::Ready
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn consensus_startup_recovers_after_empty_tree_and_unavailable_counts() {
         let hooks = (0..2)
             .map(|_| {
@@ -1814,7 +1711,7 @@ mod tests {
         let task = tokio::spawn({
             let readiness = Arc::clone(&readiness);
             async move {
-                wait_for_consensus_first_message(
+                wait_for_first_message(
                     &reader,
                     &ReorgPeriod::None,
                     Duration::from_secs(5),

@@ -2836,6 +2836,7 @@ mockall::mock! {
 
     #[async_trait]
     impl hyperlane_core::SequenceAwareIndexer<MerkleTreeInsertion> for RecoveryIndexer {
+        async fn sequence_count_at_block(&self, block: u32) -> ChainResult<Option<u32>>;
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
     }
 }
@@ -3106,7 +3107,7 @@ async fn historical_backfill_rechecks_explorer_between_rpc_batches() {
                             Some(leaves[0])
                         );
                     }
-                    fixture(request, 0, if attempt < 2 { 0 } else { 3 })
+                    fixture(request, if attempt < 2 { 0 } else { 3 })
                 },
                 0,
                 H256::zero(),
@@ -4159,10 +4160,129 @@ async fn consensus_refresh_preserves_reachable_targets_during_slow_replay() {
     assert!(task.await.unwrap_err().is_cancelled());
 }
 
+fn frontier_fixture(count: u32) -> IncrementalMerkleAtBlock {
+    let mut tree = IncrementalMerkle::default();
+    for i in 1..=count {
+        tree.ingest(H256::from_low_u64_be(u64::from(i)));
+    }
+    IncrementalMerkleAtBlock {
+        tree,
+        block_height: Some(100),
+    }
+}
+
 #[tokio::test]
-async fn explorer_bootstrap_signs_every_live_insertion_while_history_is_missing() {
+async fn chain_frontier_requires_matching_rpc_threshold_and_tip_leaf() {
+    for (matching, valid_leaf, accepted) in [(2, true, true), (1, true, false), (2, false, false)] {
+        let submitter = consensus_test_submitter(Arc::default(), Arc::default());
+        let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = vec![];
+        for i in 0..3 {
+            let mut rpc = MockMerkleTreeHook::new();
+            if i == 0 {
+                rpc.expect_tree()
+                    .once()
+                    .returning(|_| Err(eyre::eyre!("offline").into()));
+            } else if i == 1 {
+                rpc.expect_tree()
+                    .once()
+                    .returning(|_| Ok(frontier_fixture(8)));
+            }
+            let mut vote = consensus_checkpoints(8).pop().expect("nonempty fixture");
+            if i >= matching {
+                vote.checkpoint.root = H256::zero();
+            }
+            rpc.expect_latest_checkpoint()
+                .returning(move |_| Ok(vote.clone()));
+            hooks.push(Arc::new(rpc));
+        }
+        let reader =
+            CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("configured reader");
+        let result = submitter
+            .chain_start(&reader, true, |index, _, _| async move {
+                let id = if valid_leaf {
+                    H256::from_low_u64_be(8)
+                } else {
+                    H256::zero()
+                };
+                Ok(vec![(MerkleTreeInsertion::new(index, id), 100)])
+            })
+            .await;
+        assert_eq!(result.is_ok_and(|v| v.is_some()), accepted);
+    }
+}
+
+#[tokio::test]
+async fn announced_restart_without_a_publication_snapshot_cannot_skip_a_gap() {
+    let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
+    let mut store = MockCheckpointSyncer::new();
+    store.expect_latest_index().return_once(|| Ok(Some(100)));
+    submitter.checkpoint_syncer = Arc::new(store);
+    let reader = CheckpointReader::single(Arc::new(MockMerkleTreeHook::new()));
+    assert!(submitter
+        .chain_start(&reader, false, |_, _, _| async {
+            panic!("an announced restart must recover publication history")
+        })
+        .await
+        .expect("frontier fixture")
+        .is_none());
+}
+
+#[tokio::test]
+async fn rpc_only_bootstrap_finds_last_insertion_on_quiet_block_indexed_chain() {
+    let mut indexer = MockRecoveryIndexer::new();
+    indexer
+        .expect_sequence_count_at_block()
+        .returning(|_| Ok(None));
+    indexer
+        .expect_fetch_logs_in_range()
+        .times(2)
+        .returning(|range| {
+            if range == (99..=100) {
+                return Ok(vec![]);
+            }
+            assert_eq!(range, 97..=98);
+            Ok(vec![(
+                MerkleTreeInsertion::new(7, H256::from_low_u64_be(8)).into(),
+                Default::default(),
+            )])
+        });
+    let (mut recovery, _directory) = rpc_recovery_fixture(indexer);
+    recovery.index_settings.chunk_size = 2;
+    let page = recovery
+        .frontier_page(None, 7, 8, Some(100))
+        .await
+        .expect("frontier fixture");
+    assert_eq!(page[0].0.index(), 7);
+}
+
+#[tokio::test]
+async fn rpc_frontier_fetches_only_the_insertion_block_when_counts_are_available() {
+    let mut indexer = MockRecoveryIndexer::new();
+    indexer
+        .expect_sequence_count_at_block()
+        .returning(|block| Ok(Some(if block < 111 { 7 } else { 8 })));
+    indexer
+        .expect_fetch_logs_in_range()
+        .once()
+        .returning(|range| {
+            assert_eq!(range, 111..=111);
+            Ok(vec![(
+                MerkleTreeInsertion::new(7, H256::from_low_u64_be(8)).into(),
+                Default::default(),
+            )])
+        });
+    let (recovery, _directory) = rpc_recovery_fixture(indexer);
+    let rows = recovery
+        .frontier_page(None, 7, 8, Some(100000))
+        .await
+        .expect("tip insertion");
+    assert_eq!(rows.len(), 1);
+}
+
+#[tokio::test]
+async fn chain_bootstrap_signs_every_live_insertion_while_history_is_missing() {
     use crate::explorer::tests::{fixture, serve};
-    let api = serve(|r| fixture(r, 8, 8), 0, H256::zero()).await;
+    let api = serve(|r| fixture(r, 8), 0, H256::zero()).await;
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let mut submitter = consensus_test_submitter(Arc::default(), signed.clone());
     let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
@@ -4172,6 +4292,9 @@ async fn explorer_bootstrap_signs_every_live_insertion_while_history_is_missing(
     let observed = count.clone();
     let checkpoints = consensus_checkpoints(12);
     let mut rpc = MockMerkleTreeHook::new();
+    rpc.expect_tree()
+        .once()
+        .returning(|_| Ok(frontier_fixture(8)));
     rpc.expect_latest_checkpoint()
         .returning(move |_| Ok(checkpoints[observed.load(Ordering::SeqCst) - 1].clone()));
     let reader = Arc::new(
@@ -4179,7 +4302,7 @@ async fn explorer_bootstrap_signs_every_live_insertion_while_history_is_missing(
             .expect("checkpoint reader"),
     );
     let live = submitter
-        .explorer_start(&api, &reader, false)
+        .chain_start(&reader, false, |a, b, _| api.page(a, b))
         .await
         .expect("verified fixture")
         .expect("snapshot")
@@ -4236,7 +4359,7 @@ async fn explorer_bootstrap_signs_every_live_insertion_while_history_is_missing(
 #[tokio::test]
 async fn live_only_restart_requires_rpc_agreement_with_previous_signature() {
     use crate::explorer::tests::{fixture, serve};
-    let api = serve(|r| fixture(r, 8, 8), 0, H256::zero()).await;
+    let api = serve(|r| fixture(r, 8), 0, H256::zero()).await;
     let checkpoints = consensus_checkpoints(8);
     for confirmed in [true, false] {
         let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
@@ -4262,6 +4385,9 @@ async fn live_only_restart_requires_rpc_agreement_with_previous_signature() {
             .return_once(|_| Ok(Some(30)));
         submitter.db = Arc::new(db);
         let mut rpc = MockMerkleTreeHook::new();
+        rpc.expect_tree()
+            .once()
+            .returning(|_| Ok(frontier_fixture(8)));
         let mut tip = checkpoints[7].clone();
         tip.block_height = Some(100);
         rpc.expect_latest_checkpoint()
@@ -4280,7 +4406,7 @@ async fn live_only_restart_requires_rpc_agreement_with_previous_signature() {
         let reader = CheckpointReader::single(Arc::new(rpc));
         assert_eq!(
             submitter
-                .explorer_start(&api, &reader, true)
+                .chain_start(&reader, true, |a, b, _| api.page(a, b))
                 .await
                 .expect("snapshot lookup")
                 .is_some(),
@@ -4323,7 +4449,7 @@ async fn live_only_publishes_intermediates_without_a_full_history_snapshot() {
 
 // Mirror production startup: authenticate once, then pass that same tree to signing.
 async fn start_consensus_submitter(submitter: ValidatorSubmitter, reader: Arc<CheckpointReader>) {
-    let tree = submitter.restore_consensus_tree().await;
+    let tree = submitter.restore_published_tree().await;
     submitter
         .consensus_checkpoint_submitter(reader, Some(tree.clone()), tree)
         .await;
@@ -4681,7 +4807,7 @@ async fn recovery_sources_repair_only_the_prefix_verified_by_rpc_votes() {
     let calls = Arc::new(AtomicUsize::new(0));
     let api = serve(
         move |r| {
-            let mut result = fixture(r, 0, 2);
+            let mut result = fixture(r, 2);
             if calls.fetch_add(1, Ordering::SeqCst) == 0 {
                 result["data"]["merkle_tree_insertions"]["insertions"][0]["message_id"] =
                     serde_json::json!(H256::zero());
@@ -5275,7 +5401,7 @@ async fn future_authenticated_snapshot_waits_for_canonical_rpc_progress() {
         .once()
         .return_once(move |_| Ok(Some(signed)));
     let submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
-    let restored = submitter.restore_consensus_tree().await;
+    let restored = submitter.restore_published_tree().await;
     let mut tree = CheckpointTree::new(restored);
     target.checkpoint.index = 0;
     let batch = submitter

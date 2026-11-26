@@ -16,7 +16,7 @@ majority needs both. Exact duplicate URLs are counted once.
 
 For normal quorum/majority, indexing and auxiliary RPC calls use fallback transport;
 only the explicit history vote authorizes signatures. Startup reconstructs the tree
-from indexed leaves, its own signed snapshot, or an Explorer frontier authenticated
+from indexed leaves, its own signed snapshot, or the on-chain frontier authenticated
 against the configured RPC threshold. Healthy, caught-up validators wait for insertions, with a
 60-second root audit to detect same-count reorgs. If a local batch disagrees,
 RPC recovery may fetch replacement insertions, but it repairs storage and permits
@@ -35,15 +35,16 @@ to `majority`.
 
 ## Explorer indexing
 
-Known mainnet and testnet domains use Hyperlane Explorer by default. The validator
-verifies the snapshot root against its own RPCs, fills missing insertions over
-GraphQL, then switches to WebSocket. It publishes older checkpoints in the background.
-Without a usable snapshot, it replays from verified local history or leaf zero.
+A fresh validator reads the Merkle frontier from the first available configured RPC.
+It replays the tip insertion and checks the root against its configured RPC threshold
+before signing. Normal restarts resume from the validator's own authenticated snapshot
+or replay missing publication history. Known mainnet and testnet domains use Explorer
+for insertion backfill and WebSocket for live events.
 
 - `explorerApiUrl` defaults to `https://explorer-api.hyperlane.xyz/graphql`. Set it explicitly for local or unknown domains.
 - `websocketUrl` defaults to the Explorer host at `/validators`. Setting only a custom WebSocket URL uses RPC for backfill.
 - `allowRpcFallback` defaults to `true`. The validator indexes over RPC while Explorer is unavailable and retries automatically. Set it to `false` to wait for Explorer. RPC root verification still runs.
-- `skipAnnounce: true` is for local tests. It skips the announcement and, with a verified snapshot, starts signing at its tip.
+- `skipAnnounce: true` is for local tests. It skips the announcement and, with a verified on-chain frontier, starts signing at its tip.
 
 ## Checkpoint verification and publication
 
