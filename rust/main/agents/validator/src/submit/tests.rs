@@ -3065,6 +3065,14 @@ async fn historical_backfill_rechecks_explorer_between_rpc_batches() {
         target.block_height = Some(20);
         let mut indexer = MockRecoveryIndexer::new();
         let mut calls = mockall::Sequence::new();
+        if matches!(mode, IndexMode::Block) {
+            indexer
+                .expect_fetch_logs_in_range()
+                .once()
+                .in_sequence(&mut calls)
+                .with(mockall::predicate::eq(start..=start + 2))
+                .returning(|_| Err(eyre::eyre!("one block per request").into()));
+        }
         for position in start..=start + 1 {
             let leaf = leaves[0];
             indexer
@@ -3083,6 +3091,9 @@ async fn historical_backfill_rechecks_explorer_between_rpc_batches() {
                 });
         }
         let (mut recovery, _dir) = rpc_recovery_fixture(indexer);
+        if matches!(mode, IndexMode::Block) {
+            recovery.index_settings.chunk_size = 3;
+        }
         recovery.index_settings.mode = mode;
         let db = recovery.db.clone();
         let mut sync = MerkleTreeHookWebSocketSync::new(
@@ -4173,19 +4184,26 @@ fn frontier_fixture(count: u32) -> IncrementalMerkleAtBlock {
 
 #[tokio::test]
 async fn chain_frontier_requires_matching_rpc_threshold_and_tip_leaf() {
-    for (matching, valid_leaf, accepted) in [(2, true, true), (1, true, false), (2, false, false)] {
+    for (ahead, matching, valid_leaf, accepted) in [
+        (false, 2, true, true),
+        (true, 2, true, true),
+        (true, 1, true, false),
+        (true, 2, false, false),
+    ] {
         let submitter = consensus_test_submitter(Arc::default(), Arc::default());
         let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = vec![];
         for i in 0..3 {
             let mut rpc = MockMerkleTreeHook::new();
             if i == 0 {
-                rpc.expect_tree()
-                    .once()
-                    .returning(|_| Err(eyre::eyre!("offline").into()));
-            } else if i == 1 {
-                rpc.expect_tree()
-                    .once()
-                    .returning(|_| Ok(frontier_fixture(8)));
+                rpc.expect_tree().once().returning(move |_| {
+                    if ahead {
+                        Ok(frontier_fixture(9))
+                    } else {
+                        Err(eyre::eyre!("offline").into())
+                    }
+                });
+            } else {
+                rpc.expect_tree().returning(|_| Ok(frontier_fixture(8)));
             }
             let mut vote = consensus_checkpoints(8).pop().expect("nonempty fixture");
             if i >= matching {

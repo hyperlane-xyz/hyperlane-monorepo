@@ -590,6 +590,7 @@ impl MerkleTreeHookWebSocketSync {
             .expect("verified frontier count");
         let mut next = 0;
         let mut block_range = None;
+        let mut span = recovery.index_settings.chunk_size.max(1);
         while next < end {
             let result: Result<()> = async {
                 next = load_contiguous_sequence(self.db.clone(), next).await?;
@@ -611,12 +612,23 @@ impl MerkleTreeHookWebSocketSync {
                     None => recovery.rpc_bounds(sync, next, &target).await?,
                 };
                 ensure!(start <= last, "Empty historical RPC scan range");
-                let batch_end = recovery.batch_end(start, last);
-                warn!(
-                    start,
-                    batch_end, "Fetching historical insertion range from RPC"
-                );
-                let mut logs = fetch_rpc_logs(sync, start..=batch_end).await?;
+                let (batch_end, mut logs) = loop {
+                    let end = start.saturating_add(span.saturating_sub(1)).min(last);
+                    match fetch_rpc_logs(sync, start..=end).await {
+                        Ok(logs) => break (end, logs),
+                        Err(err)
+                            if matches!(recovery.index_settings.mode, IndexMode::Block)
+                                && start < end =>
+                        {
+                            span = end.saturating_sub(start).div_ceil(2);
+                            warn!(
+                                ?err,
+                                start, end, span, "Reducing historical RPC block range"
+                            );
+                        }
+                        Err(err) => return Err(err),
+                    }
+                };
                 logs.sort_unstable_by_key(|(row, _)| row.inner().index());
                 let first = next;
                 // Restart a block scan if the returned leaves expose an earlier gap.
@@ -747,6 +759,7 @@ impl MerkleTreeHookWebSocketSync {
         let mut pending = BTreeMap::new();
         let mut page = None;
         let mut last_page_failure = None;
+        let mut first_live_leaf = None;
         let mut received_boundary = false;
         let mut target_count = None;
         let mut live = false;
@@ -765,21 +778,19 @@ impl MerkleTreeHookWebSocketSync {
                     page = None;
                     match result {
                         Ok(rows) => {
-                            self.stop_fallback(fallback, next_sequence).await?;
                             self.store_page(rows, next_sequence)?;
+                            last_page_failure = None;
                         }
-                        Err(err) if pending.contains_key(next_sequence) => {
-                            tracing::debug!(?err, "Buffered live stream covers missing Explorer insertion");
-                        }
-                        Err(err) if fallback.is_some() => {
-                            tracing::debug!(?err, "RPC fallback is still filling the handoff gap");
+                        Err(err) if fallback.is_some() || !self.allow_rpc_fallback
+                            || first_live_leaf.is_some_and(|first| first <= *next_sequence) => {
+                            tracing::debug!(?err, "Waiting for missing handoff insertions");
                             last_page_failure = Some(tokio::time::Instant::now());
                         }
                         Err(err) => return Err(err),
                     }
                     None
                 }
-                _ = handoff_poll.tick(), if !live && fallback.is_some() => None,
+                _ = handoff_poll.tick(), if !live && (fallback.is_some() || last_page_failure.is_some()) => None,
                 event = socket.next::<EventData>(live, || {
                     let probe = count_probe(dependencies);
                     stream::once(async move { (sequence, probe.await) }).boxed()
@@ -822,19 +833,13 @@ impl MerkleTreeHookWebSocketSync {
                         let dependencies = dependencies.clone();
                         socket.start_cutover(self.domain, async move {
                             let floor = floor.await;
-                            let target = timeout(timeouts.read, async {
-                                loop {
-                                    if let Some(count) =
-                                        boundary_probe(&dependencies, boundary).await?
-                                    {
-                                        return Ok::<_, eyre::Report>(count);
-                                    }
-                                    sleep(HANDOFF_POLL_INTERVAL).await;
+                            loop {
+                                if let Some(count) = boundary_probe(&dependencies, boundary).await?
+                                {
+                                    return Ok((floor, count));
                                 }
-                            })
-                            .await
-                            .context("Live-start RPC verification timed out")??;
-                            Ok((floor, target))
+                                sleep(HANDOFF_POLL_INTERVAL).await;
+                            }
                         });
                     }
                     ServerMessage::LiveStartUnavailable { domain } => {
@@ -847,6 +852,13 @@ impl MerkleTreeHookWebSocketSync {
                             continue;
                         };
                         if !live && insertion.index() >= *next_sequence {
+                            ensure!(
+                                first_live_leaf.is_none()
+                                    || !pending.is_empty()
+                                    || insertion.index() == *next_sequence,
+                                "Gap after buffered live insertions"
+                            );
+                            first_live_leaf.get_or_insert(insertion.index());
                             buffer_insertion(&mut pending, insertion, block_number)?;
                         } else {
                             self.store_insertion(insertion, block_number, next_sequence)?;
@@ -859,22 +871,22 @@ impl MerkleTreeHookWebSocketSync {
                     _ => {}
                 }
             }
-            if !live && page.is_none() {
+            if !live {
                 live = self
                     .try_handoff(next_sequence, target_count, fallback, &mut pending)
                     .await?;
-                if live
-                    || (fallback.is_some()
-                        && last_page_failure.is_some_and(|t| t.elapsed() < RETRY_DELAY))
-                {
+                if live {
+                    page = None;
+                    continue;
+                }
+                if page.is_some() || last_page_failure.is_some_and(|t| t.elapsed() < RETRY_DELAY) {
                     continue;
                 }
                 if let (Some(target), Some(api)) = (target_count, &self.explorer) {
-                    let end = pending
-                        .range(*next_sequence..)
-                        .next()
-                        .map_or(target, |(index, _)| target.min(*index));
-                    page = Some(Box::pin(api.page(*next_sequence, end)));
+                    let end = target.min(first_live_leaf.unwrap_or(target));
+                    if *next_sequence < end {
+                        page = Some(Box::pin(api.page(*next_sequence, end)));
+                    }
                 }
             }
         }
@@ -899,8 +911,13 @@ impl MerkleTreeHookWebSocketSync {
             return Ok(false);
         };
         *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
+        // buffer_insertion enforces consecutive indices. Keep RPC running until
+        // the stored prefix and buffered stream together cover the boundary.
         if *next_sequence >= target
-            || (self.explorer.is_some() && pending.contains_key(next_sequence))
+            || (pending.contains_key(next_sequence)
+                && pending
+                    .last_key_value()
+                    .is_some_and(|(&last, _)| last >= target.saturating_sub(1)))
         {
             self.stop_fallback(fallback, next_sequence).await?;
         }
@@ -1134,7 +1151,7 @@ mod tests {
     use hyperlane_base::scraper_websocket::StringOrNumber;
     use hyperlane_core::HyperlaneDomain;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU32, AtomicUsize, Ordering},
         Arc,
     };
     use tempfile::TempDir;
@@ -1144,7 +1161,7 @@ mod tests {
     #[derive(Debug)]
     struct TestIndexer {
         count: Arc<AtomicUsize>,
-        tip: u32,
+        tip: Arc<AtomicU32>,
     }
     #[async_trait]
     impl hyperlane_core::Indexer<MerkleTreeInsertion> for TestIndexer {
@@ -1165,7 +1182,7 @@ mod tests {
         ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
             Ok((
                 Some(u32::try_from(self.count.load(Ordering::SeqCst)).expect("test count")),
-                self.tip,
+                self.tip.load(Ordering::SeqCst),
             ))
         }
     }
@@ -1336,7 +1353,7 @@ mod tests {
             provider: test_provider(),
             indexer: Arc::new(TestIndexer {
                 count: Arc::new(AtomicUsize::new(7)),
-                tip: 100,
+                tip: Arc::new(100.into()),
             }),
         };
         assert_eq!(
@@ -1404,7 +1421,7 @@ mod tests {
                         provider: test_provider(),
                         indexer: Arc::new(TestIndexer {
                             count: Arc::default(),
-                            tip: 100,
+                            tip: Arc::new(100.into()),
                         }),
                     },
                     std::future::ready(0).boxed().shared(),
@@ -1424,6 +1441,58 @@ mod tests {
             assert!(fallback.is_some());
             server.abort();
         }
+    }
+
+    #[tokio::test]
+    async fn healthy_socket_keeps_its_boundary_while_finalized_rpc_lags() {
+        let (mut sync, _dir) = test_sync();
+        let listener = listener_for(&mut sync).await;
+        let tip = Arc::new(AtomicU32::new(9));
+        let finalized = tip.clone();
+        let active = sync.websocket_active.clone();
+        let server = tokio::spawn(async move {
+            let mut socket = accept_ready(&listener).await;
+            socket
+                .send(Message::text(boundary_frame().to_string()))
+                .await
+                .expect("send boundary");
+            let started = tokio::time::Instant::now();
+            while active.get() == 0 {
+                if started.elapsed() > Duration::from_millis(600) {
+                    finalized.store(10, Ordering::SeqCst);
+                }
+                socket
+                    .send(Message::Ping(vec![1].into()))
+                    .await
+                    .expect("send heartbeat");
+                sleep(Duration::from_millis(30)).await;
+            }
+            socket.close(None).await.expect("close test socket");
+        });
+        let dependencies = StreamDependencies {
+            provider: test_provider(),
+            indexer: Arc::new(TestIndexer {
+                count: Arc::default(),
+                tip,
+            }),
+        };
+        let _ = timeout(
+            Duration::from_secs(5),
+            sync.stream_with_timeout(
+                &mut 0,
+                &mut None,
+                StreamTimeouts {
+                    read: Duration::from_millis(300),
+                    ..Default::default()
+                },
+                &dependencies,
+                std::future::ready(0).boxed().shared(),
+            ),
+        )
+        .await
+        .expect("handoff deadline");
+        assert_eq!(sync.websocket_active.get(), 1);
+        server.await.expect("heartbeat server");
     }
 
     #[tokio::test]
@@ -1585,11 +1654,10 @@ mod tests {
         invalid.stream_cursor = Some("1".into());
         assert!(sync.decode_event(invalid).is_err());
         let mut last_height = event(0);
-        last_height.data.block_number = StringOrNumber::Number(u64::from(u32::MAX));
+        last_height.data.block_number = StringOrNumber::Number(u64::from(u32::MAX) + 1);
         assert_eq!(
-            sync.decode_event(last_height)
-                .expect("maximum cursor height"),
-            Some((leaf(0), u64::from(u32::MAX)))
+            sync.decode_event(last_height).expect("64-bit block height"),
+            Some((leaf(0), u64::from(u32::MAX) + 1))
         );
     }
 
@@ -1647,7 +1715,7 @@ mod tests {
                     let attempt = calls.fetch_add(1, Ordering::SeqCst);
                     assert_eq!(
                         rpc_active.get(),
-                        i64::from(allow_rpc_fallback && (1..=first_available).contains(&attempt))
+                        i64::from(allow_rpc_fallback && attempt > 0)
                     );
                     if attempt > first_available {
                         release.notified().await;
@@ -1674,7 +1742,7 @@ mod tests {
                     provider: test_provider(),
                     indexer: Arc::new(TestIndexer {
                         count: Arc::new(AtomicUsize::new(2)),
-                        tip: 100,
+                        tip: Arc::new(100.into()),
                     }),
                 },
                 |_| {
@@ -1692,29 +1760,31 @@ mod tests {
                 .expect("boundary");
             socket
         };
-        let _first = connect().await;
+        let mut socket = connect().await;
         assert_eq!(queries.load(Ordering::SeqCst), 0);
         floor.send(0).expect("use leaf zero");
-        let mut second = timeout(Duration::from_secs(5), connect())
-            .await
-            .expect("reconnect after missing history");
+        if allow_rpc_fallback {
+            socket = timeout(Duration::from_secs(5), connect())
+                .await
+                .expect("reconnect to start RPC fallback");
+        }
         let expected_requests = first_available + 2;
         wait_until(|| queries.load(Ordering::SeqCst) == expected_requests).await;
-        second.send(frame(1)).await.expect("live insertion");
+        socket.send(frame(1)).await.expect("live insertion");
         // A pong proves the client consumed the preceding event before GraphQL returns its empty page.
-        second
+        socket
             .send(Message::Ping(vec![1].into()))
             .await
             .expect("ping");
         assert_eq!(
-            timeout(Duration::from_secs(5), second.next())
+            timeout(Duration::from_secs(5), socket.next())
                 .await
                 .expect("deadline")
                 .expect("frame")
                 .expect("pong"),
             Message::Pong(vec![1].into())
         );
-        reply.notify_one();
+        // Handoff must complete even while the redundant Explorer request is pending.
         wait_until(|| {
             active.get() == 1
                 && db
@@ -1723,6 +1793,7 @@ mod tests {
                     .is_some()
         })
         .await;
+        reply.notify_one();
         assert_eq!(queries.load(Ordering::SeqCst), expected_requests);
         assert_eq!(
             db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
@@ -1747,7 +1818,7 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(1));
         let indexer = Arc::new(TestIndexer {
             count: count.clone(),
-            tip: 100,
+            tip: Arc::new(100.into()),
         });
         let (frames, mut receiver) = mpsc::channel::<Message>(16);
         let subscriptions = Arc::new(AtomicUsize::new(0));

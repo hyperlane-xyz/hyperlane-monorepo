@@ -380,13 +380,54 @@ impl ValidatorSubmitter {
         if previous.is_some() && !live_only {
             return Ok(None);
         }
-        let Some(candidate) = reader.frontier(&self.reorg_period).await else {
-            return Ok(None);
-        };
-        let tree = candidate.tree;
-        if tree.count() == 0 {
-            return Ok(None);
+        let mut failure = None;
+        for slot in 0..reader.endpoint_count() {
+            let candidate = match reader.frontier(slot, &self.reorg_period).await {
+                Ok(tree) if tree.count() == 0 => continue,
+                Ok(tree) => tree,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        endpoint_index = slot,
+                        "Could not read Merkle frontier"
+                    );
+                    failure = Some(err);
+                    continue;
+                }
+            };
+            let verified = self
+                .verify_frontier(reader, candidate, previous, &page)
+                .await;
+            match verified {
+                Err(err) if previous.is_none() => {
+                    warn!(
+                        ?err,
+                        endpoint_index = slot,
+                        "Could not verify Merkle frontier"
+                    );
+                    failure = Some(err);
+                }
+                result => return result,
+            }
         }
+        match failure {
+            Some(err) => Err(err),
+            None => Ok(None),
+        }
+    }
+
+    async fn verify_frontier<F, Fut>(
+        &self,
+        reader: &CheckpointReader,
+        candidate: IncrementalMerkleAtBlock,
+        previous: Option<u32>,
+        page: &F,
+    ) -> eyre::Result<Option<VerifiedStart>>
+    where
+        F: Fn(u32, u32, Option<u64>) -> Fut,
+        Fut: std::future::Future<Output = eyre::Result<Vec<(MerkleTreeInsertion, u64)>>>,
+    {
+        let tree = candidate.tree;
         let expected = self.checkpoint(tree.root(), tree.index());
         let required = reader.consensus.required(reader.endpoint_count());
         if let Some(index) = previous {

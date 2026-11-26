@@ -92,7 +92,7 @@ async fn pages_check_scope_contiguity_and_limits() {
         ("domain", "99"),
         ("merkle_tree_hook", "99"),
         ("message_id", "99"),
-        ("block_number", "4294967296"),
+        ("block_number", "18446744073709551616"),
     ] {
         let api = serve(
             move |r| {

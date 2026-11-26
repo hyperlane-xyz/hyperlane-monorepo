@@ -128,16 +128,14 @@ impl CheckpointReader {
     }
 
     /// Read one candidate frontier. Independent checkpoint votes authenticate it.
-    pub(crate) async fn frontier(&self, period: &ReorgPeriod) -> Option<IncrementalMerkleAtBlock> {
-        for (slot, hook) in self.hooks.iter().enumerate() {
-            if let Ok(Ok(tree)) = timeout(RPC_TIMEOUT, hook.tree(period)).await {
-                if u32::try_from(tree.count()).is_ok() {
-                    return Some(tree);
-                }
-            }
-            tracing::warn!(endpoint_index = slot, "Could not read Merkle frontier");
-        }
-        None
+    pub(crate) async fn frontier(
+        &self,
+        slot: usize,
+        period: &ReorgPeriod,
+    ) -> eyre::Result<IncrementalMerkleAtBlock> {
+        let tree = timeout(RPC_TIMEOUT, self.hooks[slot].tree(period)).await??;
+        u32::try_from(tree.count())?;
+        Ok(tree)
     }
 
     /// Try a historical read only when that endpoint places the requested

@@ -238,7 +238,7 @@ impl MerkleEventData {
         }
         Ok((
             MerkleTreeInsertion::new(leaf_index, parse_hash(&self.message_id)?),
-            u64::from(self.block_number.as_u32("Merkle block number")?),
+            self.block_number.as_u64("Merkle block number")?,
         ))
     }
 }

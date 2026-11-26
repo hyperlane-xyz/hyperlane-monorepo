@@ -803,26 +803,25 @@ impl Validator {
             .as_ref()
             .and_then(|s| s.explorer.as_ref());
         let recovery = self.insertion_recovery();
-        let bootstrap = async {
-            submitter
+        let bootstrap = || async {
+            let start = submitter
                 .chain_start(reader, self.skip_announce, |first, end, height| {
                     recovery.frontier_page(api, first, end, height)
                 })
-                .await?
-                .map(|start| start.resume(&self.db))
-                .transpose()
+                .await?;
+            start.map(|start| start.resume(&self.db)).transpose()
         };
-        match tokio::time::timeout(Duration::from_secs(45), bootstrap).await {
-            Ok(Ok(tree)) => tree,
-            Ok(Err(err)) => {
-                warn!(?err, "On-chain frontier bootstrap unavailable");
-                None
+        for attempt in 1..=2 {
+            match tokio::time::timeout(Duration::from_secs(45), bootstrap()).await {
+                Ok(Ok(tree)) => return tree,
+                Ok(Err(err)) => warn!(?err, attempt, "On-chain frontier bootstrap unavailable"),
+                Err(_) => warn!(attempt, "On-chain frontier bootstrap timed out"),
             }
-            Err(_) => {
-                warn!("On-chain frontier bootstrap timed out");
-                None
+            if attempt == 1 {
+                sleep(Duration::from_secs(1)).await;
             }
         }
+        None
     }
 
     fn insertion_recovery(&self) -> MerkleTreeRecovery {

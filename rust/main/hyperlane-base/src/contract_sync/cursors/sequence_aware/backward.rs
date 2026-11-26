@@ -419,7 +419,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
-        let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
+        let lowest_block_height_or_sequence = self
+            .get_lowest_block_height_or_sequence()
+            .await?
+            .max(self.sequence_floor);
 
         // Query the sequence range ending at the current_indexing_snapshot's sequence.
         // When current sequence equals lowest sequence, we still need to index it
@@ -2159,6 +2162,19 @@ mod test {
         async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
             get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE, LOWEST_SEQUENCE)
                 .await
+        }
+
+        #[tokio::test]
+        async fn missing_leaf_respects_both_sequence_floors() {
+            for (configured, resume, expected) in [(95, 98, 98), (97, 0, 97)] {
+                let mut cursor =
+                    get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, 20, configured).await;
+                cursor.sequence_floor = resume;
+                assert_eq!(
+                    cursor.get_next_range().await.expect("sequence range"),
+                    Some(expected..=99)
+                );
+            }
         }
 
         #[tracing_test::traced_test]
