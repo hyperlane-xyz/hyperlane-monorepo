@@ -72,6 +72,9 @@ import {
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
 
+const REVEAL_MESSAGE_ID_MISMATCH =
+  'Reveal does not match the signed message id';
+
 export const CalldataLookupEnabledSchema = z
   .enum(['true', 'false'])
   .optional()
@@ -1486,12 +1489,14 @@ export class CallCommitmentsService extends BaseService {
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',
           (message: string, relayer: string, logger: Logger) => {
-            if (
-              this.auth.messageId(request) !== messageId(message).toLowerCase()
-            ) {
-              throw new CommitmentAccessDeniedError(
-                'Reveal does not match the signed message id',
+            const signedMessageId = this.auth.messageId(request);
+            const revealMessageId = messageId(message).toLowerCase();
+            if (signedMessageId !== revealMessageId) {
+              logger.warn(
+                { relayer, signedMessageId, revealMessageId },
+                REVEAL_MESSAGE_ID_MISMATCH,
               );
+              throw new CommitmentAccessDeniedError(REVEAL_MESSAGE_ID_MISMATCH);
             }
             return this.handleFetchCommitment(
               message,

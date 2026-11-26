@@ -124,7 +124,11 @@ const response = await fetch(`${baseUrl}/calldata/${commitment}`, {
 
 The server uses its configured URL, never the request's Host header. Missing or invalid
 credentials return 401; a signer outside either applicable whitelist receives 403.
-Query-string credentials are not accepted.
+Query-string credentials are not accepted. Every 401 has the same body; the server logs
+its cause at warn as `reason`: `missing_v2_fields` (for example a v1 POST body),
+`malformed_credentials`, `stale_signature`, `future_dated_signature`, `invalid_signature`
+or `get_sender_mismatch`. A reveal whose signed `message_id` is not the reveal's is
+logged with both ids before the 403.
 
 ## Uploads, compatibility, and rollout
 

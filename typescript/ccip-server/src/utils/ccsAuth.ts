@@ -44,6 +44,47 @@ const V2CredentialsSchema = CredentialsSchema.extend({
   issued_at: z.number().int().nonnegative(),
   origin_tx_hash: z.string().regex(NON_EMPTY_HEX_BYTES_REGEX),
 });
+/**
+ * Why a request failed authentication. Logged, never sent: every failure gets
+ * the same 401 response.
+ */
+export const CcsAuthFailure = {
+  Malformed: 'malformed_credentials',
+  /** Valid base credentials without valid v2 fields, as a v1 POST sends. */
+  MissingV2Fields: 'missing_v2_fields',
+  Stale: 'stale_signature',
+  FutureDated: 'future_dated_signature',
+  InvalidSignature: 'invalid_signature',
+  SenderMismatch: 'get_sender_mismatch',
+} as const;
+export type CcsAuthFailure =
+  (typeof CcsAuthFailure)[keyof typeof CcsAuthFailure];
+
+class CcsAuthError extends Error {
+  constructor(readonly reason: CcsAuthFailure) {
+    super(`CCS authentication failed: ${reason}`);
+  }
+}
+
+function parseCredentials<T extends z.ZodTypeAny>(
+  schema: T,
+  value: unknown,
+): z.infer<T> {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw new CcsAuthError(CcsAuthFailure.Malformed);
+  return parsed.data;
+}
+
+/** Recovers the EIP-191 signer of `hash`, lowercased. */
+function recoverSigner(hash: string, signature: string): string {
+  try {
+    return utils.verifyMessage(utils.arrayify(hash), signature).toLowerCase();
+  } catch {
+    // ethers rejects a signature it cannot parse or recover.
+    throw new CcsAuthError(CcsAuthFailure.InvalidSignature);
+  }
+}
+
 const CommitmentParamsSchema = z.object({
   commitment: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
 });
@@ -104,28 +145,31 @@ export class CcsAuth {
   }
 
   private verifyV2(body: unknown): CcsIdentity {
-    const credentials = V2CredentialsSchema.parse(body);
+    if (
+      !V2CredentialsSchema.safeParse(body).success &&
+      CredentialsSchema.safeParse(body).success
+    ) {
+      throw new CcsAuthError(CcsAuthFailure.MissingV2Fields);
+    }
+    const credentials = parseCredentials(V2CredentialsSchema, body);
     const now = Math.floor(Date.now() / 1000);
-    assert(
-      credentials.issued_at >= now - this.maxAgeSeconds &&
-        credentials.issued_at <= now + CCS_AUTH_MAX_CLOCK_SKEW_SECONDS,
-      'CCS signature is not fresh',
+    if (credentials.issued_at < now - this.maxAgeSeconds) {
+      throw new CcsAuthError(CcsAuthFailure.Stale);
+    }
+    if (credentials.issued_at > now + CCS_AUTH_MAX_CLOCK_SKEW_SECONDS) {
+      throw new CcsAuthError(CcsAuthFailure.FutureDated);
+    }
+    const signer = recoverSigner(
+      offchainLookupRequestHash({
+        urlTemplate: `${this.baseUrl}${CCS_REVEAL_PATH}`,
+        sender: credentials.sender,
+        callData: credentials.data,
+        messageId: credentials.message_id,
+        originTxHash: credentials.origin_tx_hash,
+        issuedAt: credentials.issued_at,
+      }),
+      credentials.signature,
     );
-    const signer = utils
-      .verifyMessage(
-        utils.arrayify(
-          offchainLookupRequestHash({
-            urlTemplate: `${this.baseUrl}${CCS_REVEAL_PATH}`,
-            sender: credentials.sender,
-            callData: credentials.data,
-            messageId: credentials.message_id,
-            originTxHash: credentials.origin_tx_hash,
-            issuedAt: credentials.issued_at,
-          }),
-        ),
-        credentials.signature,
-      )
-      .toLowerCase();
     return {
       signer,
       messageId: credentials.message_id.toLowerCase(),
@@ -142,8 +186,10 @@ export class CcsAuth {
         request.method === 'POST'
           ? this.verifyV2(request.body)
           : this.verifyV1(request);
-    } catch {
-      request.log.warn('CCS authentication failed');
+    } catch (error: unknown) {
+      // Anything else is a server bug, not a credential failure.
+      if (!(error instanceof CcsAuthError)) throw error;
+      request.log.warn({ reason: error.reason }, 'CCS authentication failed');
       return reply
         .code(401)
         .send({ error: 'Invalid or missing CCS authentication' });
@@ -158,29 +204,24 @@ export class CcsAuth {
   };
 
   private verifyV1(request: CcipRequest): CcsIdentity {
-    const credentials = CredentialsSchema.parse({
+    const credentials = parseCredentials(CredentialsSchema, {
       sender: request.headers['x-hyperlane-sender'],
-      data: CommitmentParamsSchema.parse(request.params).commitment,
+      data: parseCredentials(CommitmentParamsSchema, request.params).commitment,
       signature: request.headers.authorization?.match(
         SIGNATURE_HEADER_REGEX,
       )?.[1],
     });
-    const signer = utils
-      .verifyMessage(
-        utils.arrayify(
-          offchainLookupRequestMessageHash(
-            credentials.sender,
-            credentials.data,
-            `${this.baseUrl}/calldata`,
-          ),
-        ),
-        credentials.signature,
-      )
-      .toLowerCase();
-    assert(
-      credentials.sender.toLowerCase() === signer,
-      'GET sender must match signer',
+    const signer = recoverSigner(
+      offchainLookupRequestMessageHash(
+        credentials.sender,
+        credentials.data,
+        `${this.baseUrl}/calldata`,
+      ),
+      credentials.signature,
     );
+    if (credentials.sender.toLowerCase() !== signer) {
+      throw new CcsAuthError(CcsAuthFailure.SenderMismatch);
+    }
     return { signer };
   }
 }

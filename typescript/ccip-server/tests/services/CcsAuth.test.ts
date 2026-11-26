@@ -41,6 +41,7 @@ import {
   CcsAuthMaxAgeSecondsSchema,
   type IcaRouters,
 } from '../../src/services/CallCommitmentsService.js';
+import { CcsAuthFailure } from '../../src/utils/ccsAuth.js';
 import { registerRateLimiting } from '../../src/utils/rateLimit.js';
 
 const origin = 'https://ccs.example';
@@ -114,13 +115,29 @@ async function server(
     calldataLookupEnabled = true,
     sealevelRevealsEnabled = false,
     authMaxAgeSeconds = 30,
+    logs,
   }: {
     calldataLookupEnabled?: boolean;
     sealevelRevealsEnabled?: boolean;
     authMaxAgeSeconds?: number;
+    /** Collects the server's warn and error log lines when given. */
+    logs?: Record<string, unknown>[];
   } = {},
 ) {
-  const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
+  const app = Fastify({
+    loggerInstance: logs
+      ? pino(
+          { level: 'warn' },
+          {
+            write: (line: string) => {
+              logs.push(
+                z.record(z.string(), z.unknown()).parse(JSON.parse(line)),
+              );
+            },
+          },
+        )
+      : pino({ level: 'silent' }),
+  });
   await registerRateLimiting(app);
   const service = new CallCommitmentsService(
     {
@@ -641,7 +658,8 @@ describe('CCS v2 reveal authentication', () => {
 
   it('rejects a signed message id that is not the decoded reveal message id', async () => {
     const fetch = stubFetch();
-    const app = await server();
+    const logs: Record<string, unknown>[] = [];
+    const app = await server(undefined, undefined, { logs });
     const fields: V2Fields = {
       sender,
       data,
@@ -656,6 +674,20 @@ describe('CCS v2 reveal authentication', () => {
         error: 'Reveal does not match the signed message id',
       });
       sinon.assert.notCalled(fetch);
+      expect(
+        logs.filter(
+          (log) => log.msg === 'Reveal does not match the signed message id',
+        ),
+      ).to.have.length(1);
+      expect(
+        logs.find(
+          (log) => log.msg === 'Reveal does not match the signed message id',
+        ),
+      ).to.include({
+        relayer: wallet.address.toLowerCase(),
+        signedMessageId: messageId('0x1235').toLowerCase(),
+        revealMessageId: revealMessageId.toLowerCase(),
+      });
     } finally {
       await app.close();
     }
@@ -869,6 +901,114 @@ describe('CCS v2 reveal authentication', () => {
         expect(response.json()).to.deep.equal({
           error: 'Invalid or missing CCS authentication',
         });
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  interface FailureReasonCase {
+    name: string;
+    request: () => Promise<{
+      method: 'GET' | 'POST';
+      url: string;
+      headers?: Record<string, string>;
+      payload?: Record<string, unknown>;
+    }>;
+    reason: CcsAuthFailure;
+  }
+  const signedAt = async (issuedAt: number) => {
+    const fields: V2Fields = {
+      sender,
+      data,
+      message_id: revealMessageId,
+      issued_at: issuedAt,
+      origin_tx_hash: originTxHash,
+    };
+    return v2Body(fields, await signV2(fields));
+  };
+  const failureReasonCases: FailureReasonCase[] = [
+    {
+      name: 'a v1 POST body',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: {
+          sender,
+          data,
+          signature: await wallet.signMessage(
+            utils.arrayify(
+              offchainLookupRequestMessageHash(sender, data, origin + postPath),
+            ),
+          ),
+          origin_tx_hash: originTxHash,
+        },
+      }),
+      reason: CcsAuthFailure.MissingV2Fields,
+    },
+    {
+      name: 'a POST body without credentials',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: { data },
+      }),
+      reason: CcsAuthFailure.Malformed,
+    },
+    {
+      name: 'a stale v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: await signedAt(now - 31),
+      }),
+      reason: CcsAuthFailure.Stale,
+    },
+    {
+      name: 'a future-dated v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: await signedAt(now + 6),
+      }),
+      reason: CcsAuthFailure.FutureDated,
+    },
+    {
+      name: 'an unrecoverable v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: v2Body(signed, '0x' + '00'.repeat(65)),
+      }),
+      reason: CcsAuthFailure.InvalidSignature,
+    },
+    {
+      name: 'a GET signed for another sender',
+      request: async () => ({
+        method: 'GET',
+        url: path,
+        headers: await headers(wallet, undefined, undefined, other.address),
+      }),
+      reason: CcsAuthFailure.SenderMismatch,
+    },
+  ];
+  for (const c of failureReasonCases) {
+    it(`logs why ${c.name} failed authentication without returning it`, async () => {
+      const fetch = stubFetch();
+      const logs: Record<string, unknown>[] = [];
+      const app = await server(undefined, undefined, { logs });
+      try {
+        const response = await app.inject(await c.request());
+        expect(response.statusCode).to.equal(401);
+        expect(response.json()).to.deep.equal({
+          error: 'Invalid or missing CCS authentication',
+        });
+        expect(
+          logs
+            .filter((log) => log.msg === 'CCS authentication failed')
+            .map((log) => log.reason),
+        ).to.deep.equal([c.reason]);
         sinon.assert.notCalled(fetch);
       } finally {
         await app.close();
