@@ -16,8 +16,8 @@ majority needs both. Exact duplicate URLs are counted once.
 
 For normal quorum/majority, indexing and auxiliary RPC calls use fallback transport;
 only the explicit history vote authorizes signatures. Startup reconstructs the tree
-from indexed leaves or a snapshot authenticated by this validator's signed
-checkpoint, never an unverified RPC frontier. RPC indexing fallback and WebSocket
+from indexed leaves, its own signed snapshot, or an Explorer frontier authenticated
+against the configured RPC threshold. RPC indexing fallback and WebSocket
 freshness checks remain enabled. Healthy, caught-up validators wait for insertions, with a
 60-second root audit to detect same-count reorgs. If a local batch disagrees,
 RPC recovery may fetch replacement insertions, but it repairs storage and permits
@@ -34,43 +34,51 @@ Mainnet/testnet configs explicitly select `majority` and pin validator images
 containing its parser. The binary and local development validators also default
 to `majority`.
 
-## Live WebSocket indexing
+## Explorer indexing
 
-`websocketUrl` is optional. Omit it to retain ordinary RPC-only indexing. When
-provided, it subscribes only to live `merkle_tree_insertion` events. Numeric
-reorg periods request the same scraper confirmation depth; block tags use the
-scraper's canonical stream. Configure a query-free `ws://` or `wss://` URL ending
-in `/validators`; other paths fail startup validation. No validator subscription
-sends replay cursors or waits for `caught_up` markers.
+Known mainnet and testnet domains default to `https://explorer-api.hyperlane.xyz/graphql`
+and `wss://explorer-api.hyperlane.xyz/validators`. Local and unknown domains require explicit endpoints to enable
+Explorer. Set `explorerApiUrl` to use a custom GraphQL service. Its WebSocket defaults
+to the same host at `/validators`, or set `websocketUrl` explicitly. Configuring
+only a custom WebSocket preserves RPC backfill.
 
-HTTP upgrade rejections, policy mismatches and WebSocket 1008 closes use a
-five-minute retry base while RPC indexing continues. Transient 1013 closes and
-transport failures retain the ordinary short retry interval.
-Retries include random per-process jitter.
+The validator subscribes to live insertions while it restores its startup frontier.
+On first startup it requests the confirmed frontier for its domain and
+hook. It replays the last leaf and authenticates the reconstructed root against
+its configured RPCs at their own finality settings. When RPCs report different
+indices it can replay additional confirmed leaves to check those votes. A matching
+historical read is accepted only within the endpoint's finalized height. A fresh
+validator can then publish the verified tip while it reconstructs and publishes
+older checkpoints in the background. Restarts prefer the validator's own signed
+snapshot. An existing checkpoint publisher without a usable snapshot replays its
+history. Only complete historical publication advances its persisted snapshot.
 
-RPC indexing starts immediately and fills historical gaps, including after every
-WebSocket disconnect. The validator buffers up to 4,096 consecutive live insertions
-while RPC catches up. The first buffered leaf is a fixed overlap target. Once the
-local contiguous RPC prefix covers that leaf and the startup checkpoint count,
-the validator compares the insertion, cancels and awaits RPC indexing, then drains
-the buffered tail, deduplicating any additional RPC overlap. It does not chase a
-moving chain head. A quiet stream stays on RPC until an overlap arrives.
+For a local smoke test, `skipAnnounce: true` skips the on-chain announcement.
+With an RPC-verified Explorer snapshot, the validator
+publishes the snapshot tip and each subsequent insertion, including gaps up to the
+WebSocket handoff. It skips earlier signatures and leaves the full-history snapshot
+unwritten. If the snapshot is missing or fails authentication, normal sync resumes
+from an authenticated publication frontier or leaf zero. On a repeat run, the configured RPC threshold must also authenticate the signer's
+previously published tip before the validator can skip ahead again. `allowRpcFallback` still controls
+RPC insertion indexing.
 
-Sequence gaps, conflicting insertions, buffer overflow, rollbacks, and disconnects
-retain or restore RPC indexing. Each connection needs a new overlap. On-chain count
-probes still detect stale or persistently ahead streams after handoff. No indexing
-handoff authorizes signatures: the configured checkpoint verification remains the
-signing gate, including historical checkpoint publication and reorg protection.
+The validator buffers up to 4,096 live insertions, checks the socket's fixed
+live-start block against independent RPC, and fills the gap with contiguous
+GraphQL pages of up to 1,000 leaves. After covering the boundary it drains the
+buffer and switches to live events. This also works on quiet chains. Numeric
+reorg periods request the configured confirmation depth. Block tags use the
+scraper's canonical stream.
 
-Validators require RPC log-indexing access in addition to state reads. Optional
-WebSocket indexing supplies live updates after RPC recovery. `lightweight` and
-`leightweigt` are unsupported settings, including when set to `false`.
-`allowPublicRpcs` is an explicit opt-in; it is not enabled automatically.
-
-Startup restores a structurally validated snapshot authenticated by this validator's
-own signed checkpoint, then reconstructs missing history through RPC. A fresh local
-DB without a valid snapshot starts from insertion zero. A snapshot is persisted
-only after its covered historical checkpoints have been published.
+`allowRpcFallback` defaults to `true`. Gaps, disconnects, and rollbacks can start
+RPC insertion indexing. The historical backfill retries Explorer after each RPC
+range. On reconnect, Explorer can take over as soon as it supplies the next
+missing leaf at the verified handoff. Set the flag to `false` to source all insertions and frontier
+data from Explorer or previously verified local state. Supply `explorerApiUrl`
+when using a custom WebSocket in this mode. If the snapshot is missing, the
+validator replays from its own published frontier or leaf zero. Unavailable
+history is retried, and affected checkpoints wait until the gap is filled.
+Independent RPC root verification, live-start block checks, and audits run in
+both modes.
 
 Each verification batch requests the latest checkpoint from every endpoint using
 that protocol's existing confirmation/finality policy. Endpoints may return
@@ -82,9 +90,11 @@ through the highest index supported by its configured checkpoint threshold:
 `ceil(2N/3)` for majority, or `ceil(N/2)` for quorum. It uses the required-th
 highest matching index. For example, matching checkpoints
 at indices 100, 102, 103, and 104 authorize signing through 102 (three of four votes).
-Missing a polling window does not lose historical checkpoints: replay reconstructs
-the intermediate roots, which can be signed after a later root authenticates them.
-Historical block-height queries are not required.
+Every mode publishes a signed checkpoint for each insertion, including multiple
+insertions in one block. The verified batch tip can become available first.
+After an Explorer bootstrap, publication of intermediate live checkpoints proceeds
+even while pre-start leaves are unavailable. One verified batch root authenticates
+all intermediate roots without additional per-insertion RPC reads.
 
 Unavailable, conflicting, or behind-frontier endpoints do not count as matching
 votes. A minority cannot veto a sufficient matching majority. Without enough
@@ -164,10 +174,10 @@ their own RPC calls.
 read attempts, including each consensus endpoint and failed or timed-out reads.
 It counts adapter method calls, not underlying wire requests or RPC indexing calls.
 
-WebSocket failures restore RPC indexing before reconnection. Insufficient
+With RPC fallback enabled, WebSocket failures restore RPC indexing before reconnection. Insufficient
 checkpoint responses or matching roots block signing until verification succeeds.
-The `single`/`fallback` policies retain classic checkpoint verification and recovery;
-`quorum`/`majority` retain the endpoint vote, RPC recovery, and 60-second root audit.
+In Explorer-only mode, `single` and `fallback` use the configured state provider
+as one checkpoint vote. Quorum and majority retain their configured thresholds.
 
 The obsolete `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings
 remain rejected. Move those endpoints into the chain's existing state-read fields;

@@ -25,7 +25,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::checkpoint_consensus::{CheckpointConsensus, CheckpointReader};
-use crate::merkle_tree_hook_sync::{MerkleTreeRpcRecovery, RecoveryProgress};
+use crate::merkle_tree_hook_sync::{MerkleTreeRecovery, RecoveryProgress};
 use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
@@ -155,6 +155,8 @@ pub(crate) struct ValidatorSubmitter {
     signer: Signers,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    // Classic live and historical workers share the storage read/compare/write.
+    latest_index_lock: Arc<tokio::sync::Mutex<()>>,
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
@@ -162,7 +164,7 @@ pub(crate) struct ValidatorSubmitter {
     readiness: Arc<ValidatorReadiness>,
     reorg_halt: watch::Sender<bool>,
     checkpoint_wake: Option<Arc<Notify>>,
-    rpc_recovery: Option<MerkleTreeRpcRecovery>,
+    insertion_recovery: Option<MerkleTreeRecovery>,
     recovery_progress: Arc<tokio::sync::Mutex<RecoveryProgress>>,
     historical_publication: bool,
     checkpoint_consensus: CheckpointConsensus,
@@ -194,6 +196,7 @@ impl ValidatorSubmitter {
             singleton_signer,
             signer,
             checkpoint_syncer,
+            latest_index_lock: Arc::default(),
             db,
             metrics,
             max_sign_concurrency,
@@ -201,7 +204,7 @@ impl ValidatorSubmitter {
             readiness,
             reorg_halt: watch::channel(false).0,
             checkpoint_wake: None,
-            rpc_recovery: None,
+            insertion_recovery: None,
             recovery_progress: Arc::default(),
             historical_publication: false,
             checkpoint_consensus: CheckpointConsensus::Majority,
@@ -213,8 +216,8 @@ impl ValidatorSubmitter {
         self
     }
 
-    pub(crate) fn with_rpc_recovery(mut self, recovery: MerkleTreeRpcRecovery) -> Self {
-        self.rpc_recovery = Some(recovery);
+    pub(crate) fn with_insertion_recovery(mut self, recovery: MerkleTreeRecovery) -> Self {
+        self.insertion_recovery = Some(recovery);
         self
     }
 
@@ -341,24 +344,94 @@ impl ValidatorSubmitter {
         restored.unwrap_or_default()
     }
 
+    pub(crate) async fn explorer_start(
+        &self,
+        explorer: &crate::explorer::Explorer,
+        reader: &CheckpointReader,
+        live_only: bool,
+    ) -> eyre::Result<Option<crate::explorer::VerifiedStart>> {
+        let previous = self.checkpoint_syncer.latest_index().await?;
+        // Announced validators must account for their complete publication history.
+        if previous.is_some() && !live_only {
+            return Ok(None);
+        }
+        let Some((tree, height)) = explorer.snapshot().await? else {
+            return Ok(None);
+        };
+        if tree.count() == 0 || (!live_only && tree.count() == 1) {
+            return Ok(None);
+        }
+        let expected = self.checkpoint(tree.root(), tree.index());
+        let required = reader.consensus.required(reader.endpoint_count());
+        if let Some(index) = previous {
+            let Some(signed) = self.checkpoint_syncer.fetch_checkpoint(index).await? else {
+                return Ok(None);
+            };
+            let prior = signed.value.checkpoint;
+            if index > expected.index
+                || signed.recover()? != self.signer.eth_address()
+                || prior != self.checkpoint(prior.root, index)
+            {
+                return Ok(None);
+            }
+            if index == expected.index {
+                eyre::ensure!(
+                    prior == expected,
+                    "Snapshot conflicts with previously signed tip"
+                );
+            } else {
+                // A fresh snapshot may advance past this signer's last checkpoint only
+                // when its configured RPC threshold still authenticates that checkpoint.
+                let Some(block) = self
+                    .db
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&index)?
+                else {
+                    return Ok(None);
+                };
+                let votes = reader
+                    .snapshot_checkpoints(
+                        &self.reorg_period,
+                        block,
+                        prior,
+                        &self.metrics.checkpoint_reads,
+                    )
+                    .await;
+                if votes.iter().filter(|vote| vote.checkpoint == prior).count() < required {
+                    return Ok(None);
+                }
+            }
+        }
+        let votes = reader
+            .snapshot_checkpoints(
+                &self.reorg_period,
+                height,
+                expected,
+                &self.metrics.checkpoint_reads,
+            )
+            .await;
+        Ok(Some(explorer.verified_start(tree, &votes, required).await?))
+    }
+
     /// Authenticate indexed insertions against the configured endpoint threshold. Historical
     /// publication cannot block new verified messages.
     pub(crate) async fn consensus_checkpoint_submitter(
         mut self,
         reader: Arc<CheckpointReader>,
-        restored_tree: IncrementalMerkle,
+        restored_tree: Option<IncrementalMerkle>,
+        live_tree: IncrementalMerkle,
     ) {
         self.checkpoint_consensus = reader.consensus;
         let started = Instant::now();
         let mut initial_verification_complete = false;
-        self.record_tree_progress(&restored_tree).await;
+        self.record_tree_progress(&live_tree).await;
         let (history_target, history_targets) = watch::channel(None);
         let mut history = tokio::task::JoinSet::new();
-        history.spawn(
-            self.clone()
-                .checkpoint_history_submitter(restored_tree.clone(), history_targets),
-        );
-        let mut tree = CheckpointTree::new(restored_tree);
+        history.spawn(self.clone().checkpoint_history_submitter(
+            restored_tree,
+            live_tree.clone(),
+            history_targets,
+        ));
+        let mut tree = CheckpointTree::new(live_tree);
         let mut samples: Option<Vec<Option<CheckpointAtBlock>>> = None;
         let mut last_rpc_audit = tokio::time::Instant::now();
         let mut lag_retry_interval = self.checkpoint_lag_retry_interval();
@@ -507,7 +580,7 @@ impl ValidatorSubmitter {
                         lag_retry_interval = self.checkpoint_lag_retry_interval();
                     }
                     if let Some(latest) = latest {
-                        // Older indices are reconstructed by one worker from the DB.
+                        // Publish the tip first, then wake publication of intermediate indices.
                         self.sign_and_submit_checkpoints(std::iter::once(
                             latest.into_checkpoint(checkpoint.checkpoint),
                         ))
@@ -530,56 +603,98 @@ impl ValidatorSubmitter {
         }
     }
 
-    /// Coalesce newer targets while retrying old uploads. There is one worker
-    /// and one pending target, regardless of how long checkpoint storage stalls.
+    /// Publish every intermediate checkpoint from the live frontier independently of
+    /// pre-start history. Each channel retains only the newest target.
     async fn checkpoint_history_submitter(
         mut self,
-        mut tree: IncrementalMerkle,
+        restored: Option<IncrementalMerkle>,
+        mut live: IncrementalMerkle,
         mut targets: watch::Receiver<Option<CheckpointAtBlock>>,
     ) {
-        self.start_historical_publication(&tree);
+        if let Some(tree) = &restored {
+            self.start_historical_publication(tree);
+        }
         let started = Instant::now();
-        let mut initial_publication_complete = false;
-        while targets.changed().await.is_ok() {
-            let target = targets
-                .borrow_and_update()
-                .clone()
-                .expect("verified target");
-            if !initial_publication_complete {
+        // Explorer authenticates this frontier by re-ingesting its last leaf.
+        let pre_start_target = restored
+            .as_ref()
+            .is_some_and(|tree| tree.count() < live.count())
+            .then(|| CheckpointAtBlock {
+                checkpoint: self.checkpoint(live.root(), live.index()),
+                block_height: None,
+            });
+        let (published, mut snapshots) = watch::channel(None);
+        let sign_live = async {
+            while targets.changed().await.is_ok() {
+                let target = targets
+                    .borrow_and_update()
+                    .clone()
+                    .expect("verified target");
+                let mut queue = self.verified_checkpoints(&mut live, &target).await;
+                // The live verifier already published this target before notifying us.
+                if queue.pop().is_some() && self.historical_publication {
+                    self.metrics.backfill_merkle_tree_leaf_count.inc();
+                }
+                self.submit_checkpoints(
+                    queue
+                        .into_iter()
+                        .map(|q| q.into_checkpoint(target.checkpoint)),
+                    false,
+                )
+                .await;
+                if self.historical_publication {
+                    published.send_replace(Some(live.clone()));
+                }
+            }
+            drop(published);
+        };
+        let finish_history = async {
+            // A live-only run cannot attest to a fully published prefix.
+            let Some(mut restored) = restored else { return };
+            if let Some(target) = pre_start_target {
                 info!(
-                    domain = target.mailbox_domain,
-                    reconstructed_leaf_count = tree.count(),
-                    target_leaf_count = u64::from(target.index).saturating_add(1),
+                    reconstructed_leaf_count = restored.count(),
+                    through_index = target.index,
                     "Reconstructing historical checkpoints from cached insertions before publication"
                 );
+                let queue = self.verified_checkpoints(&mut restored, &target).await;
+                self.submit_checkpoints(
+                    queue
+                        .into_iter()
+                        .map(|q| q.into_checkpoint(target.checkpoint)),
+                    false,
+                )
+                .await;
             }
-            let mut queue = self.verified_checkpoints(&mut tree, &target).await;
-            // The live submitter published this target before notifying us.
-            if queue.pop().is_some() {
-                self.metrics.backfill_merkle_tree_leaf_count.inc();
-            }
-            self.submit_checkpoints(
-                queue
-                    .into_iter()
-                    .map(|queued| queued.into_checkpoint(target.checkpoint)),
-                false,
-            )
-            .await;
-            // Only this worker writes snapshots, after every covered checkpoint
-            // is durable. Never snapshot the main loop's newer committed tree.
-            self.persist_consensus_snapshot(&tree).await;
-            self.metrics.backfill_complete.set(1);
-            if !initial_publication_complete {
-                info!(
-                    domain = target.mailbox_domain,
-                    through_index = target.index,
-                    root = ?tree.root(),
-                    elapsed = ?started.elapsed(),
-                    "Initial historical checkpoint publication complete"
+            let mut initial = true;
+            while snapshots.changed().await.is_ok() {
+                let tree = snapshots
+                    .borrow_and_update()
+                    .clone()
+                    .expect("published tree");
+                // Live replay may have finished while reconstruction was waiting on old leaves.
+                let progress = &self.metrics.historical_reconstruction_leaf_count;
+                progress.set(
+                    progress
+                        .get()
+                        .max(i64::from(tree.index()).saturating_add(1)),
                 );
-                initial_publication_complete = true;
+                // Only a contiguous, durable prefix can be restored on restart.
+                self.persist_consensus_snapshot(&tree).await;
+                self.metrics.backfill_complete.set(1);
+                if initial {
+                    info!(
+                        domain = self.merkle_tree_hook.domain().id(),
+                        through_index = tree.index(),
+                        root = ?tree.root(),
+                        elapsed = ?started.elapsed(),
+                        "Initial historical checkpoint publication complete"
+                    );
+                    initial = false;
+                }
             }
-        }
+        };
+        tokio::join!(sign_live, finish_history);
     }
 
     async fn persist_consensus_snapshot(&self, tree: &IncrementalMerkle) {
@@ -772,7 +887,7 @@ impl ValidatorSubmitter {
         tree: &mut CheckpointTree,
         checkpoints: &[Option<CheckpointAtBlock>],
     ) -> Option<CheckpointBatch> {
-        let recovery = self.rpc_recovery.as_ref()?;
+        let recovery = self.insertion_recovery.as_ref()?;
         // Ignore samples beyond the locally available suffix; a minority's invented
         // high index must not make recovery wait for nonexistent insertions.
         let mut target = checkpoints
@@ -813,10 +928,7 @@ impl ValidatorSubmitter {
         let indices: BTreeSet<_> = checkpoints.iter().flatten().map(|c| c.index).collect();
         let mut recovered = CheckpointTree::new(tree.committed.clone());
         for (insertion, _) in &leaves {
-            recovered.ingest(
-                insertion.inner().message_id(),
-                indices.contains(&insertion.inner().index()),
-            );
+            recovered.ingest(insertion.message_id(), indices.contains(&insertion.index()));
             self.record_tree_progress(&recovered.accumulated).await;
         }
         let batch = self.evaluate_checkpoint_batch(&mut recovered, checkpoints);
@@ -910,7 +1022,7 @@ impl ValidatorSubmitter {
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await;
-            if let Some(recovery) = &mut self.rpc_recovery {
+            if let Some(recovery) = &mut self.insertion_recovery {
                 if let Some(height) = latest_checkpoint.block_height {
                     recovery.from_block = Some(height);
                 }
@@ -952,6 +1064,21 @@ impl ValidatorSubmitter {
         .await;
     }
 
+    async fn queue_insertion(
+        &self,
+        tree: &mut IncrementalMerkle,
+        message_id: H256,
+        queue: &mut Vec<QueuedCheckpoint>,
+    ) {
+        tree.ingest(message_id);
+        queue.push(QueuedCheckpoint {
+            root: tree.root(),
+            index: tree.index(),
+            message_id,
+        });
+        self.record_tree_progress(tree).await;
+    }
+
     /// Reconstruct a complete prefix and verify it before exposing checkpoints to signing.
     async fn verified_checkpoints(
         &self,
@@ -972,8 +1099,8 @@ impl ValidatorSubmitter {
         // checkpoint is reached.
         let mut checkpoint_queue = vec![];
         // Retain the last verified tree so untrusted websocket leaves can be
-        // replaced by RPC fallback without advancing the signing boundary.
-        let verified_tree = self.rpc_recovery.as_ref().map(|_| tree.clone());
+        // recovered and checked without advancing the signing boundary.
+        let verified_tree = self.insertion_recovery.as_ref().map(|_| tree.clone());
         let mut blocked_insertion_operation: Option<String> = None;
 
         // If the correctness checkpoint is ahead of the tree, we need to ingest more messages.
@@ -1014,21 +1141,13 @@ impl ValidatorSubmitter {
                 }
             };
 
-            let message_id = insertion.message_id();
-            tree.ingest(message_id);
-
-            checkpoint_queue.push(QueuedCheckpoint {
-                root: tree.root(),
-                index: tree.index(),
-                message_id,
-            });
-            self.record_tree_progress(tree).await;
+            self.queue_insertion(tree, insertion.message_id(), &mut checkpoint_queue)
+                .await;
         }
 
-        if let (Some(recovery), Some(verified_tree)) = (&self.rpc_recovery, verified_tree) {
-            if !checkpoint_queue.is_empty()
-                && self.checkpoint(tree.root(), tree.index()) != correctness_checkpoint.checkpoint
-            {
+        let mut checkpoint = self.checkpoint(tree.root(), tree.index());
+        if let (Some(recovery), Some(verified_tree)) = (&self.insertion_recovery, verified_tree) {
+            if !checkpoint_queue.is_empty() && checkpoint != correctness_checkpoint.checkpoint {
                 let operation = format!(
                     "websocket_checkpoint_recovery[{}]",
                     correctness_checkpoint.index
@@ -1037,46 +1156,54 @@ impl ValidatorSubmitter {
                 warn!(
                     first_sequence = verified_tree.count(),
                     last_sequence = correctness_checkpoint.index,
-                    "WebSocket batch failed root verification; recovering checkpoint batch through RPC"
+                    "Indexed batch failed root verification; recovering insertions"
                 );
                 let first_sequence = u32::try_from(verified_tree.count())
                     .expect("Merkle tree count fits in u32 before the target checkpoint");
                 let leaves = loop {
-                    match recovery
+                    let leaves = match recovery
                         .fetch_insertions(first_sequence, correctness_checkpoint)
                         .await
                     {
-                        Ok(leaves) => break leaves,
+                        Ok(leaves) => leaves,
                         Err(err) => {
-                            warn!(
-                                ?err,
-                                "RPC fallback batch recovery failed; signing remains blocked"
-                            );
+                            warn!(?err, "Insertion recovery failed; signing remains blocked");
                             sleep(self.interval).await;
+                            continue;
                         }
-                    }
-                };
-                *tree = verified_tree;
-                self.record_tree_progress(tree).await;
-                checkpoint_queue.clear();
-                for (insertion, _) in &leaves {
-                    let message_id = insertion.inner().message_id();
-                    tree.ingest(message_id);
-                    checkpoint_queue.push(QueuedCheckpoint {
-                        root: tree.root(),
-                        index: tree.index(),
-                        message_id,
-                    });
+                    };
+                    *tree = verified_tree.clone();
                     self.record_tree_progress(tree).await;
-                }
+                    checkpoint_queue.clear();
+                    for (insertion, _) in &leaves {
+                        self.queue_insertion(tree, insertion.message_id(), &mut checkpoint_queue)
+                            .await;
+                    }
+                    checkpoint = self.checkpoint(tree.root(), tree.index());
+                    // Explorer disagreement is an unverified input failure. Retry without
+                    // writing a permanent on-chain reorg flag for this candidate suffix.
+                    if matches!(
+                        recovery.source,
+                        crate::merkle_tree_hook_sync::RecoverySource::Explorer(_)
+                    ) && checkpoint != correctness_checkpoint.checkpoint
+                    {
+                        warn!("Explorer recovery disagrees with RPC; signing remains blocked");
+                        sleep(self.interval).await;
+                        continue;
+                    }
+                    break leaves;
+                };
                 // Only repair durable rows after the recovered batch passes the
                 // same checkpoint gate. Persistent disagreement still halts below.
-                if self.checkpoint(tree.root(), tree.index()) == correctness_checkpoint.checkpoint {
+                if checkpoint == correctness_checkpoint.checkpoint {
                     loop {
                         match recovery.store_verified_insertions(&leaves) {
                             Ok(()) => break,
                             Err(err) => {
-                                warn!(?err, "Persisting verified RPC recovery failed; signing remains blocked");
+                                warn!(
+                                    ?err,
+                                    "Persisting verified recovery failed; signing remains blocked"
+                                );
                                 sleep(self.interval).await;
                             }
                         }
@@ -1086,22 +1213,7 @@ impl ValidatorSubmitter {
             }
         }
 
-        let root = checkpoint_queue
-            .last()
-            .map(|checkpoint| checkpoint.root)
-            .unwrap_or_else(|| tree.root());
-
-        // At this point we know that correctness_checkpoint.index == tree.index().
-        assert_eq!(
-            correctness_checkpoint.index,
-            tree.index(),
-            "correctness checkpoint index {} != tree index {}",
-            correctness_checkpoint.index,
-            tree.index(),
-        );
-
-        let checkpoint = self.checkpoint(root, tree.index());
-
+        assert_eq!(checkpoint.index, correctness_checkpoint.index);
         self.verify_checkpoint(
             checkpoint,
             correctness_checkpoint,
@@ -1111,7 +1223,7 @@ impl ValidatorSubmitter {
 
         if !checkpoint_queue.is_empty() {
             info!(
-                ?root,
+                root = ?checkpoint.root,
                 queue_length = checkpoint_queue.len(),
                 elapsed = ?start.elapsed(),
                 "Checkpoint submitter reached correctness checkpoint"
@@ -1132,12 +1244,16 @@ impl ValidatorSubmitter {
     }
 
     async fn record_tree_progress(&self, tree: &IncrementalMerkle) {
-        let metric = if self.historical_publication {
-            &self.metrics.historical_reconstruction_leaf_count
+        let count = i64::try_from(tree.count()).expect("Merkle leaf count fits in i64");
+        if self.historical_publication {
+            // Report contiguous reconstruction when live and pre-start ranges run together.
+            let progress = &self.metrics.historical_reconstruction_leaf_count;
+            if progress.get().checked_add(1) == Some(count) {
+                progress.set(count);
+            }
         } else {
-            &self.metrics.merkle_tree_leaf_count
-        };
-        metric.set(i64::try_from(tree.count()).expect("Merkle leaf count fits in i64"));
+            self.metrics.merkle_tree_leaf_count.set(count);
+        }
         yield_during_merkle_replay(tree.count()).await;
     }
 
@@ -1419,7 +1535,13 @@ impl ValidatorSubmitter {
             Box::pin(async move {
                 let start = Instant::now();
                 let result = self_clone
-                    .unless_reorg(self_clone.checkpoint_syncer.update_latest_index(index))
+                    .unless_reorg(async {
+                        let _guard = self_clone.latest_index_lock.lock().await;
+                        self_clone
+                            .checkpoint_syncer
+                            .update_latest_index(index)
+                            .await
+                    })
                     .await;
                 match result {
                     Ok(()) => self_clone

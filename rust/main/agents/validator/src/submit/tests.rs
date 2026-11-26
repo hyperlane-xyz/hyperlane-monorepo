@@ -140,7 +140,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
         for _ in 0..endpoints {
             let indexed = available.clone();
             let observed = reads.clone();
-            let checkpoints = consensus_checkpoints(5);
+            let checkpoints = consensus_checkpoints(6);
             let mut hook = MockMerkleTreeHook::new();
             hook.expect_domain().return_const(dummy_domain(0, "test"));
             hook.expect_address().return_const(H256::zero());
@@ -162,7 +162,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
             }
         };
         let started = tokio::time::Instant::now();
-        for count in [1, 2, 5] {
+        for count in [1, 2, 6] {
             available.store(count, Ordering::SeqCst);
             // A burst is coalesced into one verification of the latest frontier.
             for _ in 0..100 {
@@ -170,17 +170,16 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
             }
             for _ in 0..200 {
                 tokio::task::yield_now().await;
-                if signed
-                    .lock()
-                    .unwrap()
-                    .contains(&(u32::try_from(count).unwrap() - 1))
-                {
+                if signed.lock().unwrap().len() == count {
                     break;
                 }
             }
-            assert!(
-                signed.lock().unwrap().contains(&(u32::try_from(count).unwrap() - 1)),
-                "new insertion must be authenticated and signed without advancing the clock: {consensus:?}"
+            let mut indices = signed.lock().unwrap().clone();
+            indices.sort_unstable();
+            assert_eq!(
+                indices,
+                (0..count as u32).collect::<Vec<_>>(),
+                "{consensus:?}"
             );
             assert_eq!(started.elapsed(), Duration::ZERO);
         }
@@ -1762,6 +1761,31 @@ async fn reorg_status_retries_until_guard_is_persisted_then_exits() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn historical_and_live_workers_serialize_latest_index_updates() {
+    let mut submitter = dummy_submitter(Duration::from_secs(1));
+    let publication = Arc::new(BlockedPublication::default());
+    submitter.checkpoint_syncer = Arc::new(RetryingReorgSyncer {
+        attempts: Arc::default(),
+        stall_write: false,
+        succeed_after: None,
+        publication: Some(publication.clone()),
+    });
+    let history = Arc::new(submitter.clone());
+    let live = Arc::new(submitter);
+    let first = history.publish_latest_checkpoint_index(7);
+    let second = live.publish_latest_checkpoint_index(8);
+    tokio::pin!(first, second);
+    assert!(first.as_mut().now_or_never().is_none());
+    publication.started.notified().await;
+    assert!(second.as_mut().now_or_never().is_none());
+    assert!(publication.started.notified().now_or_never().is_none());
+    publication.release.notify_one();
+    first.await;
+    publication.release.notify_one();
+    second.await;
+}
+
+#[tokio::test(start_paused = true)]
 async fn reorg_cancels_sibling_publication_already_waiting_on_storage() {
     for latest_index in [false, true] {
         let mut submitter = dummy_submitter(Duration::from_secs(1));
@@ -2818,7 +2842,7 @@ mockall::mock! {
 
 fn rpc_recovery_fixture(
     indexer: impl hyperlane_core::SequenceAwareIndexer<MerkleTreeInsertion> + 'static,
-) -> (MerkleTreeRpcRecovery, tempfile::TempDir) {
+) -> (MerkleTreeRecovery, tempfile::TempDir) {
     use hyperlane_base::{
         db::{HyperlaneRocksDB, DB},
         settings::IndexSettings,
@@ -2840,8 +2864,8 @@ fn rpc_recovery_fixture(
         false,
     );
     (
-        MerkleTreeRpcRecovery {
-            sync: Arc::new(sync),
+        MerkleTreeRecovery {
+            source: crate::merkle_tree_hook_sync::RecoverySource::Rpc(Arc::new(sync)),
             db,
             index_settings: IndexSettings {
                 mode: hyperlane_core::IndexMode::Block,
@@ -2951,7 +2975,7 @@ async fn websocket_batches_only_fetch_rpc_logs_on_root_mismatch() {
         let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
         let mut submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
         submitter.db = Arc::new(recovery.db.clone());
-        submitter = submitter.with_rpc_recovery(recovery.clone());
+        submitter = submitter.with_insertion_recovery(recovery.clone());
         let mut tree = IncrementalMerkle::default();
         submitter
             .submit_checkpoints_until_correctness_checkpoint(&mut tree, &target)
@@ -3030,6 +3054,73 @@ async fn tag_recovery_honors_configured_start_and_retries_only_failed_range() {
 }
 
 #[tokio::test]
+async fn historical_backfill_rechecks_explorer_between_rpc_batches() {
+    use crate::explorer::tests::{fixture, serve};
+    use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
+    use hyperlane_core::IndexMode;
+
+    for (mode, start) in [(IndexMode::Block, 10), (IndexMode::Sequence, 0)] {
+        let (_, leaves, _, mut target, _) = three_leaf_snapshot_fixture();
+        target.block_height = Some(20);
+        let mut indexer = MockRecoveryIndexer::new();
+        let mut calls = mockall::Sequence::new();
+        for position in start..=start + 1 {
+            let leaf = leaves[0];
+            indexer
+                .expect_fetch_logs_in_range()
+                .once()
+                .in_sequence(&mut calls)
+                .with(mockall::predicate::eq(position..=position))
+                .returning(move |_| {
+                    if position == start {
+                        Ok(vec![(leaf.into(), hyperlane_core::LogMeta::default())])
+                    } else {
+                        Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                            "RPC unavailable",
+                        ))
+                    }
+                });
+        }
+        let (mut recovery, _dir) = rpc_recovery_fixture(indexer);
+        recovery.index_settings.mode = mode;
+        let db = recovery.db.clone();
+        let mut sync = MerkleTreeHookWebSocketSync::new(
+            db.clone(),
+            0,
+            H256::zero(),
+            "ws://localhost/validators".parse().expect("url"),
+            IntGauge::new("ws", "test").expect("gauge"),
+            IntGauge::new("rpc", "test").expect("gauge"),
+        );
+        let requests = Arc::new(AtomicUsize::new(0));
+        let attempts = requests.clone();
+        sync.explorer = Some(
+            serve(
+                move |request| {
+                    let attempt = attempts.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(request["variables"]["from"], u32::from(attempt > 0));
+                    if attempt > 0 {
+                        assert_eq!(
+                            db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                                .expect("stored leaf"),
+                            Some(leaves[0])
+                        );
+                    }
+                    fixture(request, 0, if attempt < 2 { 0 } else { 3 })
+                },
+                0,
+                H256::zero(),
+            )
+            .await,
+        );
+        tokio::time::timeout(Duration::from_secs(15), sync.fill_history(recovery, target))
+            .await
+            .expect("Explorer completes history after the RPC failure");
+        assert_eq!(requests.load(Ordering::SeqCst), 3);
+    }
+}
+
+#[tokio::test]
 async fn rpc_recovery_rejects_incomplete_batch() {
     let (_, _, _, mut target, _) = three_leaf_snapshot_fixture();
     target.block_height = Some(10);
@@ -3099,7 +3190,7 @@ async fn rpc_recovery_cannot_sign_a_batch_that_still_mismatches() {
         submitter.db = Arc::new(recovery.db.clone());
         submitter.reorg_reporter = Some(Arc::new(reporter));
         if enable_recovery {
-            submitter = submitter.with_rpc_recovery(recovery);
+            submitter = submitter.with_insertion_recovery(recovery);
         }
         let mut tree = IncrementalMerkle::default();
         assert!(std::panic::AssertUnwindSafe(
@@ -3135,9 +3226,7 @@ async fn sequence_recovery_only_fetches_the_unverified_prefix() {
         .await
         .expect("complete sequence range");
     assert_eq!(
-        logs.iter()
-            .map(|(leaf, _)| *leaf.inner())
-            .collect::<Vec<_>>(),
+        logs.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>(),
         expected
     );
 }
@@ -3177,6 +3266,7 @@ fn consensus_test_submitter(
             )
         });
     let mut syncer = MockCheckpointSyncer::new();
+    syncer.expect_latest_index().returning(|| Ok(None));
     syncer.expect_read_merkle_snapshot().returning(|| Ok(None));
     syncer.expect_write_merkle_snapshot().returning(|_| Ok(()));
     syncer.expect_fetch_checkpoint().returning(|_| Ok(None));
@@ -3882,7 +3972,11 @@ async fn consensus_live_signing_continues_while_history_uploads_retry() {
     let mut all_signed = signed.lock().unwrap().clone();
     all_signed.sort_unstable();
     assert_eq!(all_signed, vec![0, 1, 2, 3]);
-    assert_eq!(*snapshots.lock().unwrap(), vec![2, 3]);
+    // The single stored snapshot may coalesce complete ranges while uploads catch up.
+    let snapshots = snapshots.lock().unwrap().clone();
+    assert_eq!(snapshots.last(), Some(&3));
+    assert!(snapshots.iter().all(|index| *index >= 2));
+    assert!(snapshots.windows(2).all(|pair| pair[0] < pair[1]));
     assert!(!task.is_finished());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
@@ -4065,10 +4159,174 @@ async fn consensus_refresh_preserves_reachable_targets_during_slow_replay() {
     assert!(task.await.unwrap_err().is_cancelled());
 }
 
+#[tokio::test]
+async fn explorer_bootstrap_signs_every_live_insertion_while_history_is_missing() {
+    use crate::explorer::tests::{fixture, serve};
+    let api = serve(|r| fixture(r, 8, 8), 0, H256::zero()).await;
+    let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut submitter = consensus_test_submitter(Arc::default(), signed.clone());
+    let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
+    let db = recovery.db;
+    submitter.db = Arc::new(db.clone());
+    let count = Arc::new(AtomicUsize::new(8));
+    let observed = count.clone();
+    let checkpoints = consensus_checkpoints(12);
+    let mut rpc = MockMerkleTreeHook::new();
+    rpc.expect_latest_checkpoint()
+        .returning(move |_| Ok(checkpoints[observed.load(Ordering::SeqCst) - 1].clone()));
+    let reader = Arc::new(
+        CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(rpc)])
+            .expect("checkpoint reader"),
+    );
+    let live = submitter
+        .explorer_start(&api, &reader, false)
+        .await
+        .expect("verified fixture")
+        .expect("snapshot")
+        .resume(&db)
+        .expect("seed last insertion");
+    assert_eq!(live.count(), 7);
+    let wake = Arc::new(Notify::new());
+    submitter = submitter.with_checkpoint_wake(Some(wake.clone()));
+    let metrics = submitter.metrics.clone();
+    let task = tokio::spawn(submitter.consensus_checkpoint_submitter(
+        reader,
+        Some(IncrementalMerkle::default()),
+        live,
+    ));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while signed.lock().expect("signed checkpoints").is_empty() {
+            tokio::task::yield_now().await;
+        }
+        // No socket, RPC log scan, or prior history was needed to publish the tip.
+        assert_eq!(*signed.lock().expect("signed checkpoints"), [7]);
+        // Four leaves in the same block while leaf zero is still unavailable.
+        for index in 8..12 {
+            let leaf = MerkleTreeInsertion::new(index, H256::from_low_u64_be(u64::from(index) + 1));
+            db.store_tree_insertion(&leaf, 100).unwrap();
+        }
+        count.store(12, Ordering::SeqCst);
+        wake.notify_one();
+        while signed.lock().unwrap().len() < 5 {
+            tokio::task::yield_now().await;
+        }
+        let mut live = signed.lock().unwrap().clone();
+        live.sort_unstable();
+        assert_eq!(live, [7, 8, 9, 10, 11]);
+        assert_eq!(metrics.backfill_complete.get(), 0);
+        assert_eq!(metrics.historical_reconstruction_leaf_count.get(), 0);
+        for (leaf, height) in api.page(0, 7).await.expect("historical page") {
+            db.store_tree_insertion(&leaf, height).expect("history");
+        }
+        while metrics.backfill_complete.get() == 0
+            || metrics.historical_reconstruction_leaf_count.get() < 12
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("published both live and pre-start checkpoints");
+    let mut indices = signed.lock().expect("signed checkpoints").clone();
+    assert_eq!(indices[0], 7);
+    indices.sort_unstable();
+    assert_eq!(indices, (0..12).collect::<Vec<_>>());
+    task.abort();
+}
+
+#[tokio::test]
+async fn live_only_restart_requires_rpc_agreement_with_previous_signature() {
+    use crate::explorer::tests::{fixture, serve};
+    let api = serve(|r| fixture(r, 8, 8), 0, H256::zero()).await;
+    let checkpoints = consensus_checkpoints(8);
+    for confirmed in [true, false] {
+        let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
+        let prior = checkpoints[3].clone();
+        let signed = submitter
+            .signer
+            .sign(CheckpointWithMessageId {
+                checkpoint: prior.checkpoint,
+                message_id: H256::from_low_u64_be(4),
+            })
+            .await
+            .expect("signed prior tip");
+        let mut store = MockCheckpointSyncer::new();
+        store.expect_latest_index().return_once(|| Ok(Some(3)));
+        store
+            .expect_fetch_checkpoint()
+            .with(mockall::predicate::eq(3))
+            .return_once(move |_| Ok(Some(signed)));
+        submitter.checkpoint_syncer = Arc::new(store);
+        let mut db = MockDb::new();
+        db.expect_retrieve_merkle_tree_insertion_block_number_by_leaf_index()
+            .with(mockall::predicate::eq(3))
+            .return_once(|_| Ok(Some(30)));
+        submitter.db = Arc::new(db);
+        let mut rpc = MockMerkleTreeHook::new();
+        let mut tip = checkpoints[7].clone();
+        tip.block_height = Some(100);
+        rpc.expect_latest_checkpoint()
+            .returning(move |_| Ok(tip.clone()));
+        rpc.expect_latest_checkpoint_at_block()
+            .with(mockall::predicate::eq(30))
+            .once()
+            .return_once(move |_| {
+                let mut at_height = prior;
+                at_height.block_height = Some(30);
+                if !confirmed {
+                    at_height.checkpoint.root = H256::zero();
+                }
+                Ok(at_height)
+            });
+        let reader = CheckpointReader::single(Arc::new(rpc));
+        assert_eq!(
+            submitter
+                .explorer_start(&api, &reader, true)
+                .await
+                .expect("snapshot lookup")
+                .is_some(),
+            confirmed
+        );
+    }
+}
+
+#[tokio::test]
+async fn live_only_publishes_intermediates_without_a_full_history_snapshot() {
+    let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(8)), signed.clone());
+    let mut store = MockCheckpointSyncer::new();
+    store.expect_fetch_checkpoint().returning(|_| Ok(None));
+    let observed = signed.clone();
+    store.expect_write_checkpoint().returning(move |cp| {
+        observed
+            .lock()
+            .expect("signed checkpoint list")
+            .push(cp.value.index);
+        Ok(())
+    });
+    // Any full-history snapshot write fails this mock.
+    submitter.checkpoint_syncer = Arc::new(store);
+    let mut live = IncrementalMerkle::default();
+    for i in 1..=4 {
+        live.ingest(H256::from_low_u64_be(i));
+    }
+    let (send, receive) = watch::channel(None);
+    send.send(consensus_checkpoints(8).pop())
+        .expect("worker receiver");
+    drop(send);
+    submitter
+        .checkpoint_history_submitter(None, live, receive)
+        .await;
+    let mut actual = signed.lock().expect("signed checkpoint list").clone();
+    actual.sort_unstable();
+    assert_eq!(actual, [4, 5, 6]); // The verifier has already published index 7.
+}
+
 // Mirror production startup: authenticate once, then pass that same tree to signing.
 async fn start_consensus_submitter(submitter: ValidatorSubmitter, reader: Arc<CheckpointReader>) {
     let tree = submitter.restore_consensus_tree().await;
-    submitter.consensus_checkpoint_submitter(reader, tree).await;
+    submitter
+        .consensus_checkpoint_submitter(reader, Some(tree.clone()), tree)
+        .await;
 }
 
 #[tokio::test]
@@ -4173,7 +4431,7 @@ async fn normal_consensus_recovery_requires_votes_before_repairing_or_signing() 
             let mut submitter =
                 consensus_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
             submitter.db = Arc::new(recovery.db.clone());
-            submitter = submitter.with_rpc_recovery(recovery);
+            submitter = submitter.with_insertion_recovery(recovery);
             submitter.checkpoint_consensus = policy;
             let checkpoints = consensus_checkpoints(3);
             let samples: Vec<_> = (0..4)
@@ -4266,7 +4524,7 @@ async fn rpc_indexed_insertions_wake_the_same_idle_verifier() {
     let wake = Arc::new(Notify::new());
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let submitter = consensus_test_submitter(available.clone(), signed.clone())
-        .with_rpc_recovery(recovery)
+        .with_insertion_recovery(recovery)
         .with_checkpoint_wake(Some(wake.clone()));
     let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..200 {
@@ -4326,8 +4584,12 @@ async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
         let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
         submitter.checkpoint_syncer = Arc::new(syncer);
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
-        submitter = submitter.with_rpc_recovery(recovery);
-        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(reader, committed));
+        submitter = submitter.with_insertion_recovery(recovery);
+        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(
+            reader,
+            Some(committed.clone()),
+            committed,
+        ));
         tokio::task::yield_now().await;
         tokio::time::advance(Duration::from_secs(59)).await;
         tokio::task::yield_now().await;
@@ -4414,7 +4676,24 @@ async fn consensus_does_not_replay_minority_tail_on_consecutive_advances() {
 }
 
 #[tokio::test]
-async fn invented_minority_index_cannot_veto_canonical_prefix_recovery() {
+async fn recovery_sources_repair_only_the_prefix_verified_by_rpc_votes() {
+    use crate::explorer::tests::{fixture, serve};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let api = serve(
+        move |r| {
+            let mut result = fixture(r, 0, 2);
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                result["data"]["merkle_tree_insertions"]["insertions"][0]["message_id"] =
+                    serde_json::json!(H256::zero());
+            }
+            result
+        },
+        0,
+        H256::zero(),
+    )
+    .await;
+    let (mut explorer, explorer_dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
+    explorer.source = crate::merkle_tree_hook_sync::RecoverySource::Explorer(api);
     let mut indexer = MockRecoveryIndexer::new();
     indexer
         .expect_fetch_logs_in_range()
@@ -4434,55 +4713,77 @@ async fn invented_minority_index_cannot_veto_canonical_prefix_recovery() {
                 })
                 .collect())
         });
-    let (mut recovery, _dir) = rpc_recovery_fixture(indexer);
-    recovery.index_settings.mode = hyperlane_core::IndexMode::Sequence;
-    recovery.index_settings.chunk_size = 10;
-    for index in 0..3 {
-        recovery
-            .db
-            .store_tree_insertion(
-                &MerkleTreeInsertion::new(index, H256::from_low_u64_be(999)),
-                0,
-            )
-            .unwrap();
+    let (mut rpc, rpc_dir) = rpc_recovery_fixture(indexer);
+    rpc.index_settings.mode = hyperlane_core::IndexMode::Sequence;
+    rpc.index_settings.chunk_size = 10;
+    for (recovery, _dir) in [(explorer, explorer_dir), (rpc, rpc_dir)] {
+        for index in 0..3 {
+            recovery
+                .db
+                .store_tree_insertion(
+                    &MerkleTreeInsertion::new(index, H256::from_low_u64_be(999)),
+                    0,
+                )
+                .expect("store fixture");
+        }
+        let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), Arc::default());
+        submitter.db = Arc::new(recovery.db.clone());
+        let explorer_only = matches!(
+            &recovery.source,
+            crate::merkle_tree_hook_sync::RecoverySource::Explorer(_)
+        );
+        submitter = submitter.with_insertion_recovery(recovery);
+        let checkpoints = consensus_checkpoints(3);
+        let mut invented = checkpoints[2].clone();
+        invented.checkpoint.root = H256::from_low_u64_be(555);
+        let samples = [
+            Some(checkpoints[1].clone()),
+            Some(checkpoints[1].clone()),
+            Some(invented),
+        ];
+        let mut tree = CheckpointTree::new(IncrementalMerkle::default());
+        assert!(matches!(
+            submitter.verify_checkpoint_batch(&mut tree, &samples).await,
+            CheckpointBatch::WaitingForRpc
+        ));
+        if explorer_only {
+            assert!(submitter
+                .recover_checkpoint_batch(&mut tree, &samples)
+                .await
+                .is_none());
+            assert_eq!(tree.committed.count(), 0);
+            assert_eq!(
+                submitter
+                    .db
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                    .expect("read")
+                    .expect("cached leaf")
+                    .message_id(),
+                H256::from_low_u64_be(999)
+            );
+        }
+        assert!(
+            matches!(submitter.recover_checkpoint_batch(&mut tree, &samples).await, Some(CheckpointBatch::Verified { checkpoint, .. }) if checkpoint.index == 1)
+        );
+        assert_eq!(
+            submitter
+                .db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .expect("read")
+                .expect("cached leaf")
+                .message_id(),
+            H256::from_low_u64_be(1)
+        );
+        assert_eq!(
+            submitter
+                .db
+                .retrieve_merkle_tree_insertion_by_leaf_index(&2)
+                .expect("read")
+                .expect("cached leaf")
+                .message_id(),
+            H256::from_low_u64_be(999)
+        );
     }
-    let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), Arc::default());
-    submitter.db = Arc::new(recovery.db.clone());
-    submitter = submitter.with_rpc_recovery(recovery);
-    let checkpoints = consensus_checkpoints(3);
-    let mut invented = checkpoints[2].clone();
-    invented.checkpoint.root = H256::from_low_u64_be(555);
-    let samples = [
-        Some(checkpoints[1].clone()),
-        Some(checkpoints[1].clone()),
-        Some(invented),
-    ];
-    let mut tree = CheckpointTree::new(IncrementalMerkle::default());
-    assert!(matches!(
-        submitter.verify_checkpoint_batch(&mut tree, &samples).await,
-        CheckpointBatch::WaitingForRpc
-    ));
-    assert!(
-        matches!(submitter.recover_checkpoint_batch(&mut tree, &samples).await, Some(CheckpointBatch::Verified { checkpoint, .. }) if checkpoint.index == 1)
-    );
-    assert_eq!(
-        submitter
-            .db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&0)
-            .unwrap()
-            .unwrap()
-            .message_id(),
-        H256::from_low_u64_be(1)
-    );
-    assert_eq!(
-        submitter
-            .db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&2)
-            .unwrap()
-            .unwrap()
-            .message_id(),
-        H256::from_low_u64_be(999)
-    );
 }
 
 #[derive(Debug)]
@@ -4612,9 +4913,11 @@ async fn consensus_signs_before_stalled_minority_but_waits_for_deciding_vote() {
         let reader = Arc::new(CheckpointReader::new(CheckpointConsensus::Majority, hooks).unwrap());
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), signed.clone());
-        let task = tokio::spawn(
-            submitter.consensus_checkpoint_submitter(reader, IncrementalMerkle::default()),
-        );
+        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(
+            reader,
+            Some(IncrementalMerkle::default()),
+            IncrementalMerkle::default(),
+        ));
         tokio::time::advance(Duration::from_millis(10)).await;
         for _ in 0..20 {
             tokio::task::yield_now().await;
@@ -4718,12 +5021,16 @@ async fn consensus_loop_consumes_ready_and_mid_replay_votes_before_minority_tail
         submitter.db = Arc::new(db);
         // Exercise normal-mode polling without the lightmode idle insertion probe.
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
-        submitter = submitter.with_rpc_recovery(recovery);
+        submitter = submitter.with_insertion_recovery(recovery);
         let mut committed = IncrementalMerkle::default();
         for index in 0..100 {
             committed.ingest(H256::from_low_u64_be(index + 1));
         }
-        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(reader, committed));
+        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(
+            reader,
+            Some(committed.clone()),
+            committed,
+        ));
         for target in [100, 101] {
             frontier.store(target, Ordering::SeqCst);
             for _ in 0..20 {

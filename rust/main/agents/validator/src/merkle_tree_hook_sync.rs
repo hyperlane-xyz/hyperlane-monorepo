@@ -2,7 +2,10 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use eyre::{bail, ensure, eyre, Context, ContextCompat, Result};
-use futures_util::{future::BoxFuture, stream, FutureExt, StreamExt};
+use futures_util::{
+    future::{BoxFuture, Shared},
+    stream, FutureExt, StreamExt,
+};
 use prometheus::IntGauge;
 use rand::Rng;
 use tokio::{
@@ -21,7 +24,7 @@ use hyperlane_base::{
         StreamHealth, StreamTimeouts, RETRY_DELAY, RETRY_JITTER_MS, RPC_PROBE_TIMEOUT,
     },
     settings::IndexSettings,
-    ContractSyncer, SequencedDataContractSync,
+    SequencedDataContractSync,
 };
 use hyperlane_core::{
     BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneLogStore, HyperlaneProvider,
@@ -31,15 +34,34 @@ use hyperlane_core::{
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use redact::Secret;
 
+use crate::explorer::Explorer;
+
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const MAX_HANDOFF_INSERTIONS: usize = 4_096;
 const HANDOFF_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-/// Explicit RPC fallback for a batch that failed checkpoint verification. Never
-/// trusts websocket block numbers to choose the recovery range.
+pub(crate) fn index_settings_for_snapshot(
+    mut settings: IndexSettings,
+    verified_count: u32,
+) -> IndexSettings {
+    // The authenticated snapshot covers exactly the prefix below this count.
+    // A configured floor must not skip any of the remaining leaves.
+    if matches!(settings.mode, IndexMode::Sequence) {
+        settings.from = i64::from(verified_count);
+    }
+    settings
+}
+
 #[derive(Clone)]
-pub(crate) struct MerkleTreeRpcRecovery {
-    pub(crate) sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
+pub(crate) enum RecoverySource {
+    Rpc(Arc<SequencedDataContractSync<MerkleTreeInsertion>>),
+    Explorer(Explorer),
+}
+
+/// Fetch replacement leaves for a batch that failed independent verification.
+#[derive(Clone)]
+pub(crate) struct MerkleTreeRecovery {
+    pub(crate) source: RecoverySource,
     pub(crate) db: HyperlaneRocksDB,
     pub(crate) index_settings: IndexSettings,
     /// A previously verified checkpoint's block, inclusive (it may contain new leaves).
@@ -51,15 +73,26 @@ pub(crate) struct MerkleTreeRpcRecovery {
 pub(crate) struct RecoveryProgress {
     first_sequence: Option<u32>,
     next: Option<u32>,
-    leaves: BTreeMap<u32, (Indexed<MerkleTreeInsertion>, LogMeta)>,
+    leaves: BTreeMap<u32, (MerkleTreeInsertion, u64)>,
 }
 
-impl MerkleTreeRpcRecovery {
+impl RecoveryProgress {
+    /// Only the contiguous prefix can participate in the subsequent checkpoint vote.
+    fn prefix(&self, first: u32, last: u32) -> Vec<(MerkleTreeInsertion, u64)> {
+        self.leaves
+            .range(first..=last)
+            .zip(first..=last)
+            .map_while(|((&index, row), expected)| (index == expected).then_some(*row))
+            .collect()
+    }
+}
+
+impl MerkleTreeRecovery {
     pub(crate) async fn fetch_insertions(
         &self,
         first_sequence: u32,
         checkpoint: &hyperlane_core::CheckpointAtBlock,
-    ) -> Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+    ) -> Result<Vec<(MerkleTreeInsertion, u64)>> {
         let leaves = self
             .fetch_insertions_with_progress(
                 first_sequence,
@@ -67,16 +100,12 @@ impl MerkleTreeRpcRecovery {
                 &mut RecoveryProgress::default(),
             )
             .await?;
-        let expected_count = u64::from(
-            checkpoint
-                .index
-                .checked_sub(first_sequence)
-                .context("RPC recovery range starts after its target checkpoint")?,
-        )
-        .saturating_add(1);
-        if u64::try_from(leaves.len())? != expected_count {
-            bail!("RPC fallback did not return every insertion in the unverified batch");
-        }
+        ensure!(
+            leaves
+                .last()
+                .is_some_and(|(leaf, _)| leaf.index() == checkpoint.index),
+            "Insertion recovery did not return every insertion in the unverified batch"
+        );
         Ok(leaves)
     }
 
@@ -85,14 +114,97 @@ impl MerkleTreeRpcRecovery {
         first_sequence: u32,
         checkpoint: &hyperlane_core::CheckpointAtBlock,
         progress: &mut RecoveryProgress,
-    ) -> Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+    ) -> Result<Vec<(MerkleTreeInsertion, u64)>> {
+        ensure!(
+            first_sequence <= checkpoint.index,
+            "Recovery range starts after its target"
+        );
         if progress.first_sequence != Some(first_sequence) {
             *progress = RecoveryProgress {
                 first_sequence: Some(first_sequence),
                 ..Default::default()
             };
         }
-        let (mut start, end) = match self.index_settings.mode {
+        let sync = match &self.source {
+            RecoverySource::Explorer(api) => {
+                let end = checkpoint
+                    .index
+                    .checked_add(1)
+                    .context("Invalid checkpoint index")?;
+                let mut next = progress.next.unwrap_or(first_sequence);
+                while next < end {
+                    let page = match api.page(next, end).await {
+                        Ok(page) => page,
+                        Err(err) if next > first_sequence => {
+                            tracing::debug!(
+                                ?err,
+                                next,
+                                "Verifying available Explorer recovery prefix"
+                            );
+                            break;
+                        }
+                        Err(err) => return Err(err),
+                    };
+                    for row in page {
+                        progress.leaves.insert(row.0.index(), row);
+                        next = next.checked_add(1).context("Insertion count overflow")?;
+                    }
+                    progress.next = Some(next);
+                }
+                return Ok(progress.prefix(first_sequence, checkpoint.index));
+            }
+            RecoverySource::Rpc(sync) => sync,
+        };
+        let (mut start, end) = self.rpc_bounds(sync, first_sequence, checkpoint).await?;
+        start = progress.next.unwrap_or(start);
+        while start <= end {
+            let batch_end = self.batch_end(start, end);
+            // Retry only the failed range; completed ranges and recovered leaves
+            // remain in memory until this captured checkpoint is verified.
+            let logs = loop {
+                match fetch_rpc_logs(sync, start..=batch_end).await {
+                    Ok(logs) => break logs,
+                    Err(error) => {
+                        warn!(?error, start, batch_end, "Retrying RPC recovery range");
+                        sleep(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+                    }
+                }
+            };
+            for (insertion, meta) in logs {
+                let index = insertion.inner().index();
+                if index >= first_sequence {
+                    if let Some((existing, _)) = progress
+                        .leaves
+                        .insert(index, (*insertion.inner(), meta.block_number))
+                    {
+                        if existing != *insertion.inner() {
+                            bail!("RPC fallback returned conflicting leaves at index {index}");
+                        }
+                    }
+                }
+            }
+            progress.next = batch_end.checked_add(1);
+            if batch_end == end {
+                break;
+            }
+            start = progress.next.expect("batch end is below the target");
+        }
+        Ok(progress.prefix(first_sequence, checkpoint.index))
+    }
+
+    fn batch_end(&self, start: u32, end: u32) -> u32 {
+        start
+            .saturating_add(self.index_settings.chunk_size.saturating_sub(1))
+            .min(end)
+    }
+
+    async fn rpc_bounds(
+        &self,
+        sync: &SequencedDataContractSync<MerkleTreeInsertion>,
+        first_sequence: u32,
+        checkpoint: &hyperlane_core::CheckpointAtBlock,
+    ) -> Result<(u32, u32)> {
+        Ok(match self.index_settings.mode {
             IndexMode::Block => {
                 // Tag-based checkpoint reads may not return a height. Resolve a
                 // finalized scan boundary only after entering RPC recovery. The
@@ -101,7 +213,7 @@ impl MerkleTreeRpcRecovery {
                     Some(height) => u32::try_from(height)?,
                     None => timeout(
                         RPC_PROBE_TIMEOUT,
-                        self.sync.latest_indexed_position(IndexMode::Block),
+                        sync.latest_indexed_position(IndexMode::Block),
                     )
                     .await
                     .context("Resolving RPC recovery height timed out")??
@@ -123,74 +235,30 @@ impl MerkleTreeRpcRecovery {
                 )
             }
             IndexMode::Sequence => (first_sequence, checkpoint.index),
-        };
-        start = progress.next.unwrap_or(start);
-        while start <= end {
-            let batch_end = start
-                .saturating_add(self.index_settings.chunk_size.saturating_sub(1))
-                .min(end);
-            // Retry only the failed range; completed ranges and recovered leaves
-            // remain in memory until this captured checkpoint is verified.
-            let logs = loop {
-                let result = timeout(
-                    RPC_PROBE_TIMEOUT,
-                    with_rpc_operation(
-                        RpcOperation::ContractSync,
-                        self.sync.fetch_logs_in_range(start..=batch_end),
-                    ),
-                )
-                .await
-                .context("RPC fallback checkpoint recovery timed out")
-                .and_then(|result| result.map_err(Into::into));
-                match result {
-                    Ok(logs) => break logs,
-                    Err(error) => {
-                        warn!(?error, start, batch_end, "Retrying RPC recovery range");
-                        sleep(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
-                    }
-                }
-            };
-            for (insertion, meta) in logs {
-                let index = insertion.inner().index();
-                if index >= first_sequence {
-                    if let Some((existing, _)) = progress.leaves.insert(index, (insertion, meta)) {
-                        if existing != insertion {
-                            bail!("RPC fallback returned conflicting leaves at index {index}");
-                        }
-                    }
-                }
-            }
-            progress.next = batch_end.checked_add(1);
-            if batch_end == end {
-                break;
-            }
-            start = progress.next.expect("batch end is below the target");
-        }
-        // Return the available contiguous prefix. A minority may advertise leaves
-        // that do not exist; only the caller's endpoint vote can authorize repair.
-        let mut next = first_sequence;
-        Ok(progress
-            .leaves
-            .range(first_sequence..=checkpoint.index)
-            .take_while(|(index, _)| {
-                let contiguous = **index == next;
-                next = next.saturating_add(1);
-                contiguous
-            })
-            .map(|(_, leaf)| leaf.clone())
-            .collect())
+        })
     }
 
     pub(crate) fn store_verified_insertions(
         &self,
-        leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)],
+        leaves: &[(MerkleTreeInsertion, u64)],
     ) -> Result<()> {
-        for (insertion, meta) in leaves {
-            self.db
-                .store_tree_insertion(insertion.inner(), meta.block_number)?;
+        for (insertion, height) in leaves {
+            self.db.store_tree_insertion(insertion, *height)?;
         }
         Ok(())
     }
+}
+
+async fn fetch_rpc_logs(
+    sync: &SequencedDataContractSync<MerkleTreeInsertion>,
+    range: std::ops::RangeInclusive<u32>,
+) -> Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+    Ok(timeout(
+        RPC_PROBE_TIMEOUT,
+        with_rpc_operation(RpcOperation::ContractSync, sync.fetch_logs_in_range(range)),
+    )
+    .await
+    .context("RPC fallback checkpoint recovery timed out")??)
 }
 
 /// Adds checkpoint wakeups to the ordinary RPC log store.
@@ -283,6 +351,7 @@ struct RpcFallback {
     active: IntGauge,
 }
 
+#[derive(Clone)]
 struct StreamDependencies {
     provider: Arc<dyn HyperlaneProvider>,
     indexer: Arc<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
@@ -299,12 +368,16 @@ impl RpcFallback {
         sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
         index_settings: IndexSettings,
         active: IntGauge,
+        first_sequence: u32,
     ) -> Self {
         let domain = sync.domain().name().to_owned();
         let handle = tokio::spawn(
             async move {
                 loop {
-                    match sync.cursor(index_settings.clone()).await {
+                    match sync
+                        .cursor_from_sequence(index_settings.clone(), first_sequence)
+                        .await
+                    {
                         Ok(cursor) => {
                             let label = "merkle_tree_hook";
                             sync.clone().sync(label, cursor.into()).await;
@@ -347,6 +420,8 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     domain: u32,
     merkle_tree_hook: H256,
     url: Secret<Url>,
+    pub(crate) explorer: Option<Explorer>,
+    pub(crate) allow_rpc_fallback: bool,
     confirmations: Option<u32>,
     websocket_active: IntGauge,
     fallback_active: IntGauge,
@@ -369,6 +444,8 @@ impl MerkleTreeHookWebSocketSync {
             domain,
             merkle_tree_hook,
             url: Secret::new(url),
+            explorer: None,
+            allow_rpc_fallback: true,
             confirmations: None,
             websocket_active,
             fallback_active,
@@ -380,10 +457,75 @@ impl MerkleTreeHookWebSocketSync {
         self.checkpoint_wake.clone()
     }
 
-    /// RPC reconstructs history; the socket only supplies live insertions.
+    /// Historical publication fills the prefix below the live verification floor.
+    pub(crate) async fn fill_history(
+        &self,
+        recovery: MerkleTreeRecovery,
+        target: hyperlane_core::CheckpointAtBlock,
+    ) {
+        let end = target
+            .index
+            .checked_add(1)
+            .expect("verified frontier count");
+        let api = self.explorer.as_ref().expect("Explorer bootstrap");
+        let mut next = 0;
+        let mut block_range = None;
+        while next < end {
+            let result: Result<()> = async {
+                next = load_contiguous_sequence(self.db.clone(), next).await?;
+                if next >= end {
+                    return Ok(());
+                }
+                let err = match api.page(next, end).await {
+                    Ok(page) => return self.store_page(page, &mut next),
+                    Err(err) => err,
+                };
+                let RecoverySource::Rpc(sync) = &recovery.source else {
+                    return Err(err);
+                };
+                let (start, last) = match block_range {
+                    Some(bounds) => bounds,
+                    None => recovery.rpc_bounds(sync, next, &target).await?,
+                };
+                ensure!(start <= last, "Empty historical RPC scan range");
+                let batch_end = recovery.batch_end(start, last);
+                warn!(
+                    ?err,
+                    start, batch_end, "Fetching historical insertion range from RPC"
+                );
+                let mut logs = fetch_rpc_logs(sync, start..=batch_end).await?;
+                logs.sort_unstable_by_key(|(row, _)| row.inner().index());
+                let first = next;
+                // Restart a block scan if the returned leaves expose an earlier gap.
+                block_range = None;
+                for (row, meta) in logs {
+                    if (first..end).contains(&row.inner().index()) {
+                        self.store_insertion(*row.inner(), meta.block_number, &mut next)?;
+                    }
+                }
+                match recovery.index_settings.mode {
+                    IndexMode::Sequence => ensure!(next > first, "RPC did not return leaf {next}"),
+                    IndexMode::Block if batch_end < last => {
+                        block_range = Some((batch_end.saturating_add(1), last));
+                    }
+                    IndexMode::Block => {
+                        ensure!(next >= end, "Historical RPC scan ended before leaf {next}")
+                    }
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(err) = result {
+                warn!(?err, next, "Historical insertion recovery failed; retrying");
+                sleep(RETRY_DELAY).await;
+            }
+        }
+    }
+
+    /// Buffer live events while filling the prefix through Explorer or RPC.
     pub(crate) async fn run(
         mut self,
-        next_sequence: u32,
+        floor: impl std::future::Future<Output = u32> + Send + 'static,
         fallback_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
         index_settings: IndexSettings,
         provider: Arc<dyn HyperlaneProvider>,
@@ -397,18 +539,19 @@ impl MerkleTreeHookWebSocketSync {
             ))
             .expect("bounded retry jitter cannot overflow Duration");
         self.run_loop(
-            next_sequence,
+            floor,
             StreamTimeouts::default(),
             retry_delay,
             StreamDependencies {
                 provider,
                 indexer: fallback_sync.indexer().clone(),
             },
-            || {
+            |floor| {
                 RpcFallback::start(
                     fallback_sync.clone(),
-                    index_settings.clone(),
+                    index_settings_for_snapshot(index_settings.clone(), floor),
                     self.fallback_active.clone(),
+                    floor,
                 )
             },
         )
@@ -417,26 +560,39 @@ impl MerkleTreeHookWebSocketSync {
 
     async fn run_loop(
         &self,
-        mut next_sequence: u32,
+        floor: impl std::future::Future<Output = u32> + Send + 'static,
         timeouts: StreamTimeouts,
         retry_delay: Duration,
         dependencies: StreamDependencies,
-        mut start_fallback: impl FnMut() -> RpcFallback,
+        mut start_fallback: impl FnMut(u32) -> RpcFallback,
     ) {
-        let mut fallback = Some(start_fallback());
+        let floor = floor.boxed().shared();
+        let mut next_sequence = 0;
+        let mut fallback = if self.explorer.is_none() && self.allow_rpc_fallback {
+            Some(start_fallback(floor.clone().await))
+        } else {
+            None
+        };
         loop {
             let result = self
-                .stream_with_timeout(&mut next_sequence, &mut fallback, timeouts, &dependencies)
+                .stream_with_timeout(
+                    &mut next_sequence,
+                    &mut fallback,
+                    timeouts,
+                    &dependencies,
+                    floor.clone(),
+                )
                 .await;
             self.websocket_active.set(0);
-            if fallback
-                .as_ref()
-                .is_none_or(|task| task.handle.is_finished())
+            if self.allow_rpc_fallback
+                && fallback
+                    .as_ref()
+                    .is_none_or(|task| task.handle.is_finished())
             {
                 if let Some(task) = fallback.take() {
                     task.stop().await;
                 }
-                fallback = Some(start_fallback());
+                fallback = Some(start_fallback(floor.clone().await));
                 warn!(
                     domain = self.domain,
                     "Switched Merkle tree hook indexing to RPC fallback"
@@ -452,8 +608,9 @@ impl MerkleTreeHookWebSocketSync {
         fallback: &mut Option<RpcFallback>,
         timeouts: StreamTimeouts,
         dependencies: &StreamDependencies,
+        floor: Shared<BoxFuture<'static, u32>>,
     ) -> Result<()> {
-        let mut socket = ScraperSession::<_, Result<Option<u32>>>::connect_validator(
+        let mut socket = ScraperSession::<_, Result<(u32, u32)>>::connect_validator(
             self.url.expose_secret(),
             self.domain,
             self.confirmations,
@@ -465,21 +622,42 @@ impl MerkleTreeHookWebSocketSync {
             "Connected to live Merkle tree insertions"
         );
         let mut pending = BTreeMap::new();
-        let mut boundary = None;
+        let mut page = None;
+        let mut last_page_failure = None;
+        let mut received_boundary = false;
         let mut target_count = None;
+        let mut live = false;
+        let marker_deadline = tokio::time::sleep(timeouts.read);
+        tokio::pin!(marker_deadline);
         let mut health = StreamHealth::new(timeouts.progress_grace);
         let mut handoff_poll = interval(HANDOFF_POLL_INTERVAL);
         handoff_poll.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
             let sequence = *next_sequence;
             let event = tokio::select! {
-                _ = handoff_poll.tick(), if fallback.is_some() => {
-                    if let Some(boundary) = boundary.filter(|_| target_count.is_none()) {
-                        socket.start_cutover(self.domain, boundary_probe(dependencies, boundary));
+                _ = &mut marker_deadline, if !received_boundary => {
+                    bail!("Explorer live-start boundary timed out")
+                }
+                result = async { page.as_mut().expect("pending Explorer page").await }, if page.is_some() => {
+                    page = None;
+                    match result {
+                        Ok(rows) => {
+                            self.stop_fallback(fallback, next_sequence).await?;
+                            self.store_page(rows, next_sequence)?;
+                        }
+                        Err(err) if pending.contains_key(next_sequence) => {
+                            tracing::debug!(?err, "Buffered live stream covers missing Explorer insertion");
+                        }
+                        Err(err) if fallback.is_some() => {
+                            tracing::debug!(?err, "RPC fallback is still filling the handoff gap");
+                            last_page_failure = Some(tokio::time::Instant::now());
+                        }
+                        Err(err) => return Err(err),
                     }
                     None
                 }
-                event = socket.next::<EventData>(fallback.is_none(), || {
+                _ = handoff_poll.tick(), if !live && fallback.is_some() => None,
+                event = socket.next::<EventData>(live, || {
                     let probe = count_probe(dependencies);
                     stream::once(async move { (sequence, probe.await) }).boxed()
                 }) => {
@@ -490,7 +668,9 @@ impl MerkleTreeHookWebSocketSync {
             let message = match event {
                 Some(SessionEvent::Message(message)) => Some(message),
                 Some(SessionEvent::Cutover { result, .. }) => {
-                    target_count = result?;
+                    let (floor, target) = result?;
+                    *next_sequence = (*next_sequence).max(floor);
+                    target_count = Some(target);
                     None
                 }
                 None => None,
@@ -512,19 +692,38 @@ impl MerkleTreeHookWebSocketSync {
             if let Some(message) = message {
                 match message {
                     ServerMessage::LiveStart(wire) => {
-                        ensure!(boundary.is_none(), "Duplicate live-start boundary");
-                        let accepted = self.accept_boundary(wire)?;
-                        boundary = Some(accepted);
-                        socket.start_cutover(self.domain, boundary_probe(dependencies, accepted));
+                        ensure!(!received_boundary, "Duplicate live-start boundary");
+                        received_boundary = true;
+                        let boundary = self.accept_boundary(wire)?;
+                        let floor = floor.clone();
+                        let dependencies = dependencies.clone();
+                        socket.start_cutover(self.domain, async move {
+                            let floor = floor.await;
+                            let target = timeout(timeouts.read, async {
+                                loop {
+                                    if let Some(count) =
+                                        boundary_probe(&dependencies, boundary).await?
+                                    {
+                                        return Ok::<_, eyre::Report>(count);
+                                    }
+                                    sleep(HANDOFF_POLL_INTERVAL).await;
+                                }
+                            })
+                            .await
+                            .context("Live-start RPC verification timed out")??;
+                            Ok((floor, target))
+                        });
                     }
                     ServerMessage::LiveStartUnavailable { domain } => {
-                        bail!(RejectedStream(format!("Live-start boundary unavailable for domain {domain}; retaining RPC indexing")));
+                        bail!(RejectedStream(format!(
+                            "Live-start boundary unavailable for domain {domain}"
+                        )));
                     }
                     ServerMessage::Event(event) => {
                         let Some((insertion, block_number)) = self.decode_event(event)? else {
                             continue;
                         };
-                        if fallback.is_some() && insertion.index() >= *next_sequence {
+                        if !live && insertion.index() >= *next_sequence {
                             buffer_insertion(&mut pending, insertion, block_number)?;
                         } else {
                             self.store_insertion(insertion, block_number, next_sequence)?;
@@ -532,13 +731,29 @@ impl MerkleTreeHookWebSocketSync {
                     }
                     ServerMessage::Error { error } => return Err(RejectedStream(error).into()),
                     ServerMessage::Rollback { .. } => {
-                        bail!("Scraper stream rolled back; resuming RPC indexing")
+                        bail!("Scraper stream rolled back; reconnecting")
                     }
                     _ => {}
                 }
             }
-            self.try_handoff(next_sequence, target_count, fallback, &mut pending)
-                .await?;
+            if !live && page.is_none() {
+                live = self
+                    .try_handoff(next_sequence, target_count, fallback, &mut pending)
+                    .await?;
+                if live
+                    || (fallback.is_some()
+                        && last_page_failure.is_some_and(|t| t.elapsed() < RETRY_DELAY))
+                {
+                    continue;
+                }
+                if let (Some(target), Some(api)) = (target_count, &self.explorer) {
+                    let end = pending
+                        .range(*next_sequence..)
+                        .next()
+                        .map_or(target, |(index, _)| target.min(*index));
+                    page = Some(Box::pin(api.page(*next_sequence, end)));
+                }
+            }
         }
     }
 
@@ -548,31 +763,38 @@ impl MerkleTreeHookWebSocketSync {
         target_count: Option<u32>,
         fallback: &mut Option<RpcFallback>,
         pending: &mut BTreeMap<u32, (MerkleTreeInsertion, u64)>,
-    ) -> Result<()> {
-        let Some(task) = fallback.as_ref() else {
-            return Ok(());
-        };
-        if task.handle.is_finished() {
+    ) -> Result<bool> {
+        if fallback
+            .as_ref()
+            .is_some_and(|task| task.handle.is_finished())
+        {
             bail!("RPC fallback indexing task exited; restarting recovery");
         }
         // This count was sampled once from independent RPC at or beyond the
         // fixed boundary. A contiguous prefix also covers snapshot-restored history.
         let Some(target) = target_count else {
-            return Ok(());
+            return Ok(false);
         };
         *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
+        if *next_sequence >= target
+            || (self.explorer.is_some() && pending.contains_key(next_sequence))
+        {
+            self.stop_fallback(fallback, next_sequence).await?;
+        }
+        if fallback.is_some() {
+            return Ok(false);
+        }
+        while pending
+            .first_key_value()
+            .is_some_and(|(index, _)| index <= next_sequence)
+        {
+            let (_, (insertion, height)) = pending.pop_first().expect("buffered insertion");
+            self.store_insertion(insertion, height, next_sequence)?;
+        }
         if *next_sequence < target {
-            return Ok(());
+            return Ok(false);
         }
-        // Await cancellation before admitting socket writes. RPC may have advanced
-        // beyond the target while its task was stopping; deduplicate that overlap.
-        if let Some(task) = fallback.take() {
-            task.stop().await;
-        }
-        *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
-        while let Some((_, (insertion, block_number))) = pending.pop_first() {
-            self.store_insertion(insertion, block_number, next_sequence)?;
-        }
+        ensure!(pending.is_empty(), "Gap in buffered live insertions");
         self.websocket_active.set(1);
         info!(
             domain = self.domain,
@@ -580,6 +802,19 @@ impl MerkleTreeHookWebSocketSync {
             next_sequence = *next_sequence,
             "Live-start boundary verified; switched Merkle tree hook indexing to WebSocket"
         );
+        Ok(true)
+    }
+
+    async fn stop_fallback(
+        &self,
+        fallback: &mut Option<RpcFallback>,
+        next_sequence: &mut u32,
+    ) -> Result<()> {
+        if let Some(task) = fallback.take() {
+            task.stop().await;
+            // The RPC writer may have filled part of the gap while the page was in flight.
+            *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
+        }
         Ok(())
     }
 
@@ -635,6 +870,13 @@ impl MerkleTreeHookWebSocketSync {
         )?))
     }
 
+    fn store_page(&self, page: Vec<(MerkleTreeInsertion, u64)>, next: &mut u32) -> Result<()> {
+        for (row, height) in page {
+            self.store_insertion(row, height, next)?;
+        }
+        Ok(())
+    }
+
     fn store_insertion(
         &self,
         insertion: MerkleTreeInsertion,
@@ -642,6 +884,10 @@ impl MerkleTreeHookWebSocketSync {
         next_sequence: &mut u32,
     ) -> Result<()> {
         let leaf_index = insertion.index();
+        ensure!(
+            leaf_index < u32::MAX,
+            "Merkle tree insertion sequence exhausted"
+        );
         if leaf_index > *next_sequence {
             bail!(
                 "Unexpected Merkle tree insertion sequence: expected {}, received {leaf_index}",
@@ -659,14 +905,12 @@ impl MerkleTreeHookWebSocketSync {
         };
         ensure!(
             existing.is_none_or(|existing| existing == insertion),
-            "Conflicting WebSocket Merkle tree insertion at leaf {leaf_index}"
+            "Conflicting Merkle tree insertion at leaf {leaf_index}"
         );
         if leaf_index < *next_sequence {
             return Ok(());
         }
-        *next_sequence = next_sequence
-            .checked_add(1)
-            .ok_or_else(|| eyre!("Merkle tree insertion sequence exhausted"))?;
+        *next_sequence = leaf_index.saturating_add(1);
         // Indexing never authorizes signatures; independent root verification does.
         self.checkpoint_wake.notify_one();
         Ok(())
@@ -753,7 +997,7 @@ fn buffer_insertion(
         }
     }
     if pending.len() >= MAX_HANDOFF_INSERTIONS {
-        bail!("Merkle handoff buffer limit exceeded; retaining RPC indexing");
+        bail!("Merkle handoff buffer limit exceeded");
     }
     pending.insert(index, (insertion, block_number));
     Ok(())
@@ -830,6 +1074,32 @@ mod tests {
             })
         });
         Arc::new(provider)
+    }
+
+    async fn listener_for(sync: &mut MerkleTreeHookWebSocketSync) -> TcpListener {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        sync.url = Url::parse(&format!(
+            "ws://{}/validators",
+            listener.local_addr().expect("address")
+        ))
+        .expect("test URL")
+        .into();
+        listener
+    }
+
+    async fn accept_ready(
+        listener: &TcpListener,
+    ) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
+        let (tcp, _) = listener.accept().await.expect("connection");
+        let mut socket = accept_async(tcp).await.expect("upgrade");
+        socket.send(Message::Text(r#"{"type":"ready","domain":1,"eventTypes":["merkle_tree_insertion"],"historicalStreaming":false,"liveStartVersion":1}"#.into())).await.expect("ready");
+        socket
+    }
+
+    fn frame(i: u32) -> Message {
+        Message::Text(serde_json::json!({ "type": "event", "eventType": EVENT_TYPE, "domain": 1,
+            "sequence": i.to_string(), "data": { "block_number": i.saturating_add(10), "domain": 1, "leaf_index": i,
+            "merkle_tree_hook": format!("{:#x}", H256::from_low_u64_be(2)), "message_id": format!("{:#x}", leaf(i).message_id()) } }).to_string().into())
     }
 
     fn boundary_frame() -> serde_json::Value {
@@ -979,6 +1249,58 @@ mod tests {
         )
         .await
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn heartbeats_cannot_extend_validator_startup_indefinitely() {
+        for ready in [false, true] {
+            let (mut sync, _dir) = test_sync();
+            let listener = listener_for(&mut sync).await;
+            let server = tokio::spawn(async move {
+                let mut socket = if ready {
+                    accept_ready(&listener).await
+                } else {
+                    let (tcp, _) = listener.accept().await.expect("connection");
+                    accept_async(tcp).await.expect("upgrade")
+                };
+                while socket.send(Message::Ping(vec![1].into())).await.is_ok() {
+                    sleep(Duration::from_millis(20)).await;
+                }
+            });
+            let mut fallback = Some(test_fallback(&sync.fallback_active));
+            let result = timeout(
+                Duration::from_secs(3),
+                sync.stream_with_timeout(
+                    &mut 0,
+                    &mut fallback,
+                    StreamTimeouts {
+                        read: Duration::from_millis(400),
+                        ..Default::default()
+                    },
+                    &StreamDependencies {
+                        provider: test_provider(),
+                        indexer: Arc::new(TestIndexer {
+                            count: Arc::default(),
+                            tip: 100,
+                        }),
+                    },
+                    std::future::ready(0).boxed().shared(),
+                ),
+            )
+            .await
+            .expect("startup deadline");
+            let expected = if ready {
+                "live-start boundary timed out"
+            } else {
+                "ready timed out"
+            };
+            assert!(result
+                .expect_err("missing startup message")
+                .to_string()
+                .contains(expected));
+            assert!(fallback.is_some());
+            server.abort();
+        }
     }
 
     #[tokio::test]
@@ -1139,6 +1461,13 @@ mod tests {
         let mut invalid = event(0);
         invalid.stream_cursor = Some("1".into());
         assert!(sync.decode_event(invalid).is_err());
+        let mut last_height = event(0);
+        last_height.data.block_number = StringOrNumber::Number(u64::from(u32::MAX));
+        assert_eq!(
+            sync.decode_event(last_height)
+                .expect("maximum cursor height"),
+            Some((leaf(0), u64::from(u32::MAX)))
+        );
     }
 
     #[test]
@@ -1153,21 +1482,147 @@ mod tests {
             .retrieve_merkle_tree_insertion_by_leaf_index(&3)
             .expect("read old leaf")
             .is_none());
+        let index = u32::MAX;
+        let mut exhausted = index;
+        assert!(sync
+            .store_insertion(leaf(index), 1, &mut exhausted)
+            .is_err());
+        assert!(sync
+            .db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&index)
+            .expect("read exhausted index")
+            .is_none());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
     }
 
     #[tokio::test]
-    async fn fallback_panic_disconnect_and_sequence_gap_require_a_fresh_boundary() {
-        let listener = TcpListener::bind("127.0.0.1:0")
+    async fn explorer_only_buffers_during_startup_and_retries_missing_history_without_rpc_scans() {
+        reconnect_to_explorer(false).await;
+    }
+
+    #[tokio::test]
+    async fn recovered_explorer_takes_over_from_stalled_rpc() {
+        reconnect_to_explorer(true).await;
+    }
+
+    async fn reconnect_to_explorer(allow_rpc_fallback: bool) {
+        use crate::explorer::tests::{fixture, serve_async};
+        let (mut sync, _dir) = test_sync();
+        let rpc_active = sync.fallback_active.clone();
+        // With fallback enabled the second connection also sees an empty page before recovery.
+        let first_available = if allow_rpc_fallback { 2 } else { 1 };
+        let queries = Arc::new(AtomicUsize::new(0));
+        let calls = queries.clone();
+        let reply = Arc::new(Notify::new());
+        let release = reply.clone();
+        let api = serve_async(
+            move |request| {
+                let calls = calls.clone();
+                let release = release.clone();
+                let rpc_active = rpc_active.clone();
+                async move {
+                    if request["query"]
+                        .as_str()
+                        .expect("query")
+                        .contains("merkle_tree_snapshot")
+                    {
+                        return serde_json::json!({"data": {"merkle_tree_snapshot": null}});
+                    }
+                    let attempt = calls.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(
+                        rpc_active.get(),
+                        i64::from(allow_rpc_fallback && (1..=first_available).contains(&attempt))
+                    );
+                    if attempt > first_available {
+                        release.notified().await;
+                    }
+                    fixture(request, 0, u32::from(attempt >= first_available))
+                }
+            },
+            sync.domain,
+            sync.merkle_tree_hook,
+        )
+        .await;
+        sync.explorer = Some(api.clone());
+        sync.allow_rpc_fallback = allow_rpc_fallback;
+        let listener = listener_for(&mut sync).await;
+        let (floor, start) = tokio::sync::oneshot::channel();
+        let active = sync.websocket_active.clone();
+        let db = sync.db.clone();
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                async { start.await.expect("startup floor") },
+                StreamTimeouts::default(),
+                Duration::from_millis(1),
+                StreamDependencies {
+                    provider: test_provider(),
+                    indexer: Arc::new(TestIndexer {
+                        count: Arc::new(AtomicUsize::new(2)),
+                        tip: 100,
+                    }),
+                },
+                |_| {
+                    assert!(allow_rpc_fallback, "RPC insertion indexing is disabled");
+                    test_fallback(&sync.fallback_active)
+                },
+            )
+            .await;
+        });
+        let connect = || async {
+            let mut socket = accept_ready(&listener).await;
+            socket
+                .send(Message::Text(boundary_frame().to_string().into()))
+                .await
+                .expect("boundary");
+            socket
+        };
+        let _first = connect().await;
+        assert!(api.snapshot().await.expect("snapshot query").is_none());
+        assert_eq!(queries.load(Ordering::SeqCst), 0);
+        floor.send(0).expect("use leaf zero");
+        let mut second = timeout(Duration::from_secs(5), connect())
             .await
-            .expect("test operation");
+            .expect("reconnect after missing history");
+        let expected_requests = first_available + 2;
+        wait_until(|| queries.load(Ordering::SeqCst) == expected_requests).await;
+        second.send(frame(1)).await.expect("live insertion");
+        // A pong proves the client consumed the preceding event before GraphQL returns its empty page.
+        second
+            .send(Message::Ping(vec![1].into()))
+            .await
+            .expect("ping");
+        assert_eq!(
+            timeout(Duration::from_secs(5), second.next())
+                .await
+                .expect("deadline")
+                .expect("frame")
+                .expect("pong"),
+            Message::Pong(vec![1].into())
+        );
+        reply.notify_one();
+        wait_until(|| {
+            active.get() == 1
+                && db
+                    .retrieve_merkle_tree_insertion_by_leaf_index(&1)
+                    .expect("db read")
+                    .is_some()
+        })
+        .await;
+        assert_eq!(queries.load(Ordering::SeqCst), expected_requests);
+        assert_eq!(
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .expect("db read")
+                .expect("first insertion")
+                .message_id(),
+            H256::from_low_u64_be(1)
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn fallback_panic_disconnect_and_sequence_gap_require_a_fresh_boundary() {
         let (mut sync, _directory) = test_sync();
-        sync.url = Url::parse(&format!(
-            "ws://{}/validators",
-            listener.local_addr().expect("test operation")
-        ))
-        .expect("test operation")
-        .into();
+        let listener = listener_for(&mut sync).await;
         write_rpc(&sync, 0..=0).await;
         let writer = sync.clone();
         let active = sync.websocket_active.clone();
@@ -1184,12 +1639,7 @@ mod tests {
         let connected = subscriptions.clone();
         let server = tokio::spawn(async move {
             loop {
-                let (tcp, _) = listener.accept().await.expect("test operation");
-                let mut socket = accept_async(tcp).await.expect("test operation");
-                socket
-                    .send(Message::Text(r#"{"type":"ready","domain":1,"eventTypes":["merkle_tree_insertion"],"historicalStreaming":false,"liveStartVersion":1}"#.into()))
-                    .await
-                    .expect("test operation");
+                let mut socket = accept_ready(&listener).await;
                 connected.fetch_add(1, Ordering::SeqCst);
                 loop {
                     tokio::select! {
@@ -1207,7 +1657,7 @@ mod tests {
         let crash_task = crash.clone();
         let task = tokio::spawn(async move {
             sync.run_loop(
-                1,
+                std::future::ready(1),
                 StreamTimeouts {
                     read: Duration::from_secs(3600),
                     progress_check: Duration::from_millis(10),
@@ -1218,7 +1668,7 @@ mod tests {
                     provider: test_provider(),
                     indexer,
                 },
-                || {
+                |_| {
                     if started.fetch_add(1, Ordering::SeqCst) == 0 {
                         let crash = crash_task.clone();
                         sync.fallback_active.set(1);
@@ -1236,11 +1686,6 @@ mod tests {
             )
             .await;
         });
-        let frame = |i: u32| {
-            Message::Text(serde_json::json!({ "type": "event", "eventType": EVENT_TYPE, "domain": 1,
-            "sequence": i.to_string(), "data": { "block_number": i.saturating_add(10), "domain": 1, "leaf_index": i,
-            "merkle_tree_hook": format!("{:#x}", H256::from_low_u64_be(2)), "message_id": format!("{:#x}", leaf(i).message_id()) } }).to_string().into())
-        };
         wait_until(|| subscriptions.load(Ordering::SeqCst) == 1).await;
         // No boundary is needed to detect and replace a failed RPC task.
         crash.notify_one();

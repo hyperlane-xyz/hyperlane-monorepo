@@ -65,12 +65,7 @@ impl LocalStorage {
 #[async_trait]
 impl CheckpointSyncer for LocalStorage {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        match tokio::fs::read(self.latest_index_file_path())
-            .await
-            .and_then(|data| {
-                String::from_utf8(data)
-                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
-            }) {
+        match tokio::fs::read_to_string(self.latest_index_file_path()).await {
             Ok(data) => {
                 let index = data.parse()?;
                 if let Some(gauge) = &self.latest_index {
@@ -78,7 +73,8 @@ impl CheckpointSyncer for LocalStorage {
                 }
                 Ok(Some(index))
             }
-            _ => Ok(None),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err).context("Reading latest checkpoint index"),
         }
     }
 
@@ -222,6 +218,11 @@ mod tests {
         let directory = tempfile::tempdir().expect("temporary checkpoint directory");
         let storage =
             LocalStorage::new(directory.path().to_owned(), None).expect("local checkpoint storage");
+        assert_eq!(storage.latest_index().await.expect("missing index"), None);
+        tokio::fs::create_dir(storage.latest_index_file_path())
+            .await
+            .unwrap();
+        assert!(storage.latest_index().await.is_err());
         assert_eq!(
             storage
                 .fetch_checkpoint(7)

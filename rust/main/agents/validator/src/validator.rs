@@ -19,17 +19,17 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::{ChainConf, IndexSettings},
+    settings::ChainConf,
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
-    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
+    CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, rpc_clients::RPC_RETRY_SLEEP_DURATION,
     Announcement, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, IndexMode,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce,
-    ValidatorAnnounceSubmission, H256, U256,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, ValidatorAnnounceSubmission,
+    H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::{
@@ -38,8 +38,10 @@ use hyperlane_metric::{
 };
 
 use crate::checkpoint_consensus::CheckpointReader;
+use crate::explorer::Explorer;
 use crate::merkle_tree_hook_sync::{
-    MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
+    index_settings_for_snapshot, MerkleTreeHookWebSocketSync, MerkleTreeRecovery, MerkleTreeStore,
+    RecoverySource,
 };
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::rpc::{build_validator_per_url_hooks, dedupe_rpc_urls, state_read_urls};
@@ -493,13 +495,6 @@ impl BaseAgent for Validator {
                 .zip(hooks.iter().map(|(_, hook)| hook.clone())),
             checkpoint_syncer.clone(),
         ));
-        let checkpoint_reader = settings
-            .checkpoint_consensus
-            .map(|consensus| {
-                CheckpointReader::new(consensus, hooks.into_iter().map(|(_, hook)| hook).collect())
-                    .map(Arc::new)
-            })
-            .transpose()?;
         let raw_merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?
@@ -511,6 +506,20 @@ impl BaseAgent for Validator {
             "merkle_tree_hook",
         ));
 
+        // Explorer-only validators also reconstruct the single/fallback provider's
+        // checkpoint from leaves when no snapshot exists, using that provider's one vote.
+        let checkpoint_reader = match settings.checkpoint_consensus {
+            Some(policy) => Some(CheckpointReader::new(
+                policy,
+                hooks.into_iter().map(|(_, hook)| hook).collect(),
+            )?),
+            None if !settings.allow_rpc_fallback => {
+                Some(CheckpointReader::single(merkle_tree_hook.clone()))
+            }
+            None => None,
+        }
+        .map(Arc::new);
+
         let sync_source = metrics.new_int_gauge(
             "merkle_tree_hook_sync_source_active",
             "Whether a Merkle tree hook indexing source is active",
@@ -519,15 +528,29 @@ impl BaseAgent for Validator {
         let websocket_active =
             sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
         let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
+        let explorer = settings
+            .explorer_api_url
+            .clone()
+            .map(|url| {
+                Explorer::new(
+                    url,
+                    settings.origin_chain.id(),
+                    origin_chain_conf.addresses.merkle_tree_hook,
+                )
+            })
+            .transpose()?;
         let websocket_sync = settings.websocket_url.as_ref().map(|url| {
-            MerkleTreeHookWebSocketSync::new(
+            let mut sync = MerkleTreeHookWebSocketSync::new(
                 msg_db.clone(),
                 settings.origin_chain.id(),
                 origin_chain_conf.addresses.merkle_tree_hook,
                 url.expose_secret().clone(),
                 websocket_active.clone(),
                 rpc_active.clone(),
-            )
+            );
+            sync.explorer = explorer;
+            sync.allow_rpc_fallback = settings.allow_rpc_fallback;
+            sync
         });
         if websocket_sync.is_none() {
             rpc_active.set(1);
@@ -643,14 +666,65 @@ impl BaseAgent for Validator {
         self.announce().await.expect("Failed to announce validator");
 
         let submitter = self.checkpoint_submitter();
-        // Authenticate the snapshot before choosing the contiguous indexing floor.
-        let tip_tree = if let Some(reader) = &self.checkpoint_reader {
-            self.readiness.mark_waiting_for_first_message();
-            let tree = submitter.restore_consensus_tree().await;
-            // latestCheckpoint() underflows on a new, empty MerkleTreeHook.
-            // Use the full endpoint pool so a stalled first endpoint cannot
-            // block startup when the configured agreement is available.
-            if tree.count() == 0 {
+        // Subscribe while the publication frontier and its independent RPC votes are
+        // being read. The stream buffers until startup supplies the verified floor.
+        let indexing_floor = self.websocket_sync.clone().map(|websocket| {
+            let (send, receive) = tokio::sync::oneshot::channel();
+            let rpc = self.rpc_sync.clone();
+            let index = self.origin_chain_conf.index_settings();
+            let provider = self.merkle_tree_hook.provider().into();
+            let period = self.reorg_period.clone();
+            tasks.push(tokio::spawn(async move {
+                websocket
+                    .run(
+                        async { receive.await.expect("validator startup task") },
+                        rpc,
+                        index,
+                        provider,
+                        period,
+                    )
+                    .await;
+            }));
+            send
+        });
+        let restored = if self.checkpoint_reader.is_some() {
+            submitter.restore_consensus_tree().await
+        } else {
+            IncrementalMerkle::default()
+        };
+        let explorer_start = if self.skip_announce || restored.count() == 0 {
+            self.explorer_start(&submitter).await
+        } else {
+            None
+        };
+        let (tip_tree, backfill_tree, verified_count) = if let Some((sync, tree)) = explorer_start {
+            let count = u32::try_from(tree.count()).expect("verified snapshot count");
+            let tip = IncrementalMerkleAtBlock {
+                tree,
+                block_height: None,
+            };
+            let history = if self.skip_announce {
+                info!(
+                    count,
+                    "Skipping pre-start checkpoint history for unannounced validator"
+                );
+                None
+            } else {
+                let target = submitter.checkpoint_at_block(&tip);
+                let recovery = self.insertion_recovery();
+                tasks.push(tokio::spawn(async move {
+                    sync.fill_history(recovery, target).await
+                }));
+                Some(IncrementalMerkle::default())
+            };
+            info!(
+                count,
+                "Starting live verification from RPC-authenticated Explorer frontier"
+            );
+            (tip, history, count)
+        } else if let Some(reader) = &self.checkpoint_reader {
+            if restored.count() == 0 {
+                self.readiness.mark_waiting_for_first_message();
                 wait_for_consensus_first_message(
                     reader,
                     &self.reorg_period,
@@ -659,48 +733,43 @@ impl BaseAgent for Validator {
                 )
                 .await;
             }
-            IncrementalMerkleAtBlock {
-                tree,
-                block_height: None,
-            }
+            let count = u32::try_from(restored.count()).expect("snapshot count fits in u32");
+            (
+                IncrementalMerkleAtBlock {
+                    tree: restored.clone(),
+                    block_height: None,
+                },
+                Some(restored),
+                count,
+            )
         } else {
-            wait_for_first_message(
-                Arc::clone(&self.merkle_tree_hook),
+            let tip = wait_for_first_message(
+                self.merkle_tree_hook.clone(),
                 &self.reorg_period,
                 self.interval,
                 &self.readiness,
             )
-            .await
-        };
-
-        let backfill_tree = if self.checkpoint_reader.is_some() {
-            tip_tree.tree.clone()
-        } else {
-            submitter
-                .restored_snapshot_tree(tip_tree.index())
+            .await;
+            let history = submitter
+                .restored_snapshot_tree(tip.index())
                 .await
-                .unwrap_or_default()
+                .unwrap_or_default();
+            let count = u32::try_from(history.count()).expect("snapshot count fits in u32");
+            (tip, Some(history), count)
         };
-        let verified_count =
-            u32::try_from(backfill_tree.count()).expect("snapshot count fits in u32");
 
-        let merkle_tree_hook_sync = match self
-            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS, verified_count)
-            .await
-        {
-            Ok(s) => s,
-            Err(err) => {
-                error!(?err, "Failed to run merkle tree hook sync");
-                return;
+        if let Some(floor) = indexing_floor {
+            floor.send(verified_count).expect("WebSocket indexing task");
+        } else {
+            match self.start_rpc_indexing(verified_count).await {
+                Ok(task) => tasks.push(task),
+                Err(err) => {
+                    error!(?err, "Failed to run Merkle tree hook sync");
+                    return;
+                }
             }
-        };
-        tasks.push(merkle_tree_hook_sync);
-        for checkpoint_sync_task in self
-            .run_checkpoint_submitters(submitter, tip_tree, backfill_tree)
-            .await
-        {
-            tasks.push(checkpoint_sync_task);
         }
+        tasks.extend(self.run_checkpoint_submitters(submitter, tip_tree, backfill_tree));
 
         tasks.push(self.runtime_metrics.spawn());
 
@@ -711,86 +780,46 @@ impl BaseAgent for Validator {
     }
 }
 
+fn spawn_submitter(
+    span: tracing::Span,
+    task: impl std::future::Future<Output = ()> + Send + 'static,
+) -> JoinHandle<()> {
+    tokio::spawn(with_rpc_operation(RpcOperation::ValidatorCheckpoint, task).instrument(span))
+}
+
 impl Validator {
-    /// Try to create merkle tree hook contract sync attempts times before giving up.
-    async fn try_n_times_to_run_merkle_tree_hook_sync(
-        &self,
-        attempts: usize,
-        verified_count: u32,
-    ) -> eyre::Result<JoinHandle<()>> {
-        for i in 0..attempts {
-            let task = match self.run_merkle_tree_hook_sync(verified_count).await {
-                Ok(s) => s,
+    async fn start_rpc_indexing(&self, verified_count: u32) -> eyre::Result<JoinHandle<()>> {
+        let settings =
+            index_settings_for_snapshot(self.origin_chain_conf.index_settings(), verified_count);
+        let sync = self.rpc_sync.clone();
+        let origin = self.origin_chain.name();
+        for attempt in 1..=CURSOR_INSTANTIATION_ATTEMPTS {
+            match sync
+                .cursor_from_sequence(settings.clone(), verified_count)
+                .await
+            {
+                Ok(cursor) => {
+                    self.chain_metrics.set_critical_error(origin, false);
+                    return Ok(tokio::spawn(
+                        async move {
+                            let label = "merkle_tree_hook";
+                            sync.sync(label, cursor.into()).await;
+                            info!(label, "Contract sync task exited");
+                        }
+                        .instrument(info_span!("MerkleTreeHookSyncer", chain = origin)),
+                    ));
+                }
                 Err(err) => {
                     error!(
                         ?err,
-                        domain = self.origin_chain.name(),
-                        attempt_count = i,
-                        "Failed to run merkle tree hook sync"
+                        origin, attempt, "Failed to start RPC insertion indexing"
                     );
                     sleep(RPC_RETRY_SLEEP_DURATION).await;
-                    continue;
                 }
-            };
-            self.chain_metrics
-                .set_critical_error(self.origin_chain.name(), false);
-            return Ok(task);
-        }
-        self.chain_metrics
-            .set_critical_error(self.origin_chain.name(), true);
-        Err(eyre::eyre!(
-            "Failed to initialize merkle tree hook sync after {} attempts",
-            attempts
-        ))
-    }
-
-    async fn run_merkle_tree_hook_sync(&self, verified_count: u32) -> eyre::Result<JoinHandle<()>> {
-        let index_settings = Self::index_settings_for_snapshot(
-            self.origin_chain_conf.index_settings(),
-            verified_count,
-        );
-        let rpc_sync = self.rpc_sync.clone();
-        if let Some(websocket) = &self.websocket_sync {
-            let websocket = websocket.clone();
-            let provider = self.merkle_tree_hook.provider().into();
-            let reorg_period = self.reorg_period.clone();
-            return Ok(tokio::spawn(
-                async move {
-                    websocket
-                        .run(
-                            verified_count,
-                            rpc_sync,
-                            index_settings,
-                            provider,
-                            reorg_period,
-                        )
-                        .await;
-                }
-                .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
-            ));
-        }
-        let cursor = rpc_sync.cursor(index_settings).await?;
-        let origin = self.origin_chain.name().to_string();
-        Ok(tokio::spawn(
-            async move {
-                let label = "merkle_tree_hook";
-                rpc_sync.sync(label, cursor.into()).await;
-                info!(chain = origin, label, "contract sync task exit");
             }
-            .instrument(info_span!("MerkleTreeHookSyncer")),
-        ))
-    }
-
-    fn index_settings_for_snapshot(
-        mut settings: IndexSettings,
-        verified_count: u32,
-    ) -> IndexSettings {
-        // The authenticated snapshot covers exactly the prefix below this count.
-        // A configured floor must not skip any of the remaining leaves.
-        if matches!(settings.mode, IndexMode::Sequence) {
-            settings.from = i64::from(verified_count);
         }
-        settings
+        self.chain_metrics.set_critical_error(origin, true);
+        Err(eyre!("Failed to initialize Merkle tree indexing after {CURSOR_INSTANTIATION_ATTEMPTS} attempts"))
     }
 
     fn checkpoint_submitter(&self) -> ValidatorSubmitter {
@@ -814,70 +843,96 @@ impl Validator {
         )
     }
 
-    async fn run_checkpoint_submitters(
+    async fn explorer_start(
         &self,
-        mut submitter: ValidatorSubmitter,
-        tip_tree: IncrementalMerkleAtBlock,
-        backfill_tree: IncrementalMerkle,
-    ) -> Vec<JoinHandle<()>> {
-        // Root votes authenticate indices, not endpoint-supplied block metadata.
-        let mut recovery = MerkleTreeRpcRecovery {
-            sync: self.rpc_sync.clone(),
+        submitter: &ValidatorSubmitter,
+    ) -> Option<(MerkleTreeHookWebSocketSync, IncrementalMerkle)> {
+        let sync = self.websocket_sync.as_ref()?;
+        let api = sync.explorer.as_ref()?;
+        // In single/fallback mode the configured chain provider supplies one vote.
+        let reader = self
+            .checkpoint_reader
+            .clone()
+            .unwrap_or_else(|| Arc::new(CheckpointReader::single(self.merkle_tree_hook.clone())));
+        let bootstrap = async {
+            submitter
+                .explorer_start(api, &reader, self.skip_announce)
+                .await?
+                .map(|start| start.resume(&self.db))
+                .transpose()
+        };
+        match tokio::time::timeout(Duration::from_secs(45), bootstrap).await {
+            Ok(Ok(tree)) => tree.map(|tree| (sync.clone(), tree)),
+            Ok(Err(err)) => {
+                warn!(?err, "Explorer bootstrap unavailable");
+                None
+            }
+            Err(_) => {
+                warn!("Explorer bootstrap timed out");
+                None
+            }
+        }
+    }
+
+    fn insertion_recovery(&self) -> MerkleTreeRecovery {
+        MerkleTreeRecovery {
+            source: match self
+                .websocket_sync
+                .as_ref()
+                .filter(|w| !w.allow_rpc_fallback)
+            {
+                Some(ws) => RecoverySource::Explorer(
+                    ws.explorer
+                        .clone()
+                        .expect("validated Explorer-only configuration"),
+                ),
+                None => RecoverySource::Rpc(self.rpc_sync.clone()),
+            },
             db: self.db.clone(),
             index_settings: self.origin_chain_conf.index_settings(),
             from_block: None,
-        };
+        }
+    }
+
+    fn run_checkpoint_submitters(
+        &self,
+        mut submitter: ValidatorSubmitter,
+        tip_tree: IncrementalMerkleAtBlock,
+        backfill_tree: Option<IncrementalMerkle>,
+    ) -> Vec<JoinHandle<()>> {
+        // Root votes authenticate indices, not endpoint-supplied block metadata.
+        let mut recovery = self.insertion_recovery();
         if let Some(reader) = &self.checkpoint_reader {
-            submitter = submitter.with_rpc_recovery(recovery);
-            let reader = reader.clone();
-            return vec![tokio::spawn(
-                async move {
-                    with_rpc_operation(
-                        RpcOperation::ValidatorCheckpoint,
-                        submitter.consensus_checkpoint_submitter(reader, tip_tree.tree),
-                    )
-                    .await
-                }
-                .instrument(info_span!("ConsensusCheckpointSubmitter")),
+            submitter = submitter.with_insertion_recovery(recovery);
+            return vec![spawn_submitter(
+                info_span!("ConsensusCheckpointSubmitter"),
+                submitter.consensus_checkpoint_submitter(
+                    reader.clone(),
+                    backfill_tree,
+                    tip_tree.tree,
+                ),
             )];
         }
 
-        // `wait_for_first_message` only returns a non-empty, quorum-verified tree.
-        assert!(tip_tree.count() > 0, "merkle tree is empty");
-        let backfill_target = submitter.checkpoint_at_block(&tip_tree);
-
+        let mut tasks = Vec::new();
         let mut backfill_submitter = submitter.clone();
-
         if self.websocket_sync.is_some() {
-            backfill_submitter = backfill_submitter.with_rpc_recovery(recovery.clone());
+            backfill_submitter = backfill_submitter.with_insertion_recovery(recovery.clone());
             recovery.from_block = tip_tree.block_height;
-            submitter = submitter.with_rpc_recovery(recovery);
+            submitter = submitter.with_insertion_recovery(recovery);
         }
 
-        let mut tasks = vec![];
-        tasks.push(tokio::spawn(
-            async move {
-                with_rpc_operation(
-                    RpcOperation::ValidatorCheckpoint,
-                    backfill_submitter
-                        .backfill_checkpoint_submitter(backfill_target, backfill_tree),
-                )
-                .await
-            }
-            .instrument(info_span!("BackfillCheckpointSubmitter")),
+        if let Some(history) = backfill_tree {
+            let target = submitter.checkpoint_at_block(&tip_tree);
+            tasks.push(spawn_submitter(
+                info_span!("BackfillCheckpointSubmitter"),
+                backfill_submitter.backfill_checkpoint_submitter(target, history),
+            ));
+        }
+        tasks.push(spawn_submitter(
+            info_span!("TipCheckpointSubmitter"),
+            submitter.checkpoint_submitter(tip_tree.tree),
         ));
-
-        tasks.push(tokio::spawn(
-            async move {
-                with_rpc_operation(
-                    RpcOperation::ValidatorCheckpoint,
-                    submitter.checkpoint_submitter(tip_tree.tree),
-                )
-                .await
-            }
-            .instrument(info_span!("TipCheckpointSubmitter")),
-        ));
-
         tasks
     }
 
@@ -1148,6 +1203,8 @@ mod tests {
 
     use super::*;
     use crate::test_utils::mock_merkle_tree_hook::MockMerkleTreeHook;
+    use hyperlane_base::settings::IndexSettings;
+    use hyperlane_core::IndexMode;
 
     #[test]
     fn sequence_indexing_starts_after_the_verified_snapshot_prefix() {
@@ -1159,7 +1216,7 @@ mod tests {
             (IndexMode::Sequence, -1, 10, 10),
             (IndexMode::Block, 39, 0, 39),
         ] {
-            let settings = Validator::index_settings_for_snapshot(
+            let settings = index_settings_for_snapshot(
                 IndexSettings {
                     mode,
                     from,

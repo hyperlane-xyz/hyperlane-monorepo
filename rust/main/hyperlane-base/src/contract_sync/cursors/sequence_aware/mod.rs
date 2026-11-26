@@ -86,6 +86,11 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
 impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
     ForwardBackwardSequenceAwareSyncCursor<T>
 {
+    pub(crate) fn with_sequence_floor(mut self, first: u32) -> Self {
+        self.backward.sequence_floor = first;
+        self
+    }
+
     /// Construct a new contract sync helper.
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -431,6 +436,57 @@ mod tests {
             .unwrap();
             assert_eq!(cursor.backward.get_next_range().await.unwrap(), expected);
         }
+    }
+
+    #[tokio::test]
+    async fn block_cursor_stops_before_unpublished_snapshot_history() {
+        let mut indexer = MockSequenceAwareIndexerMock::<H256>::new();
+        indexer
+            .expect_latest_sequence_count_and_tip()
+            .returning(|| Ok((Some(101), 300)));
+        let mut store = MockDb::new();
+        store
+            .expect_retrieve_sequence_coverage()
+            .return_once(|| Ok(None));
+        store
+            .expect_retrieve_backward_cursors()
+            .return_once(|| Ok(vec![]));
+        store
+            .expect_retrieve_by_sequence()
+            .with(mockall::predicate::eq(100))
+            .once()
+            .returning(|_| Ok(Some(H256::zero())));
+        store
+            .expect_retrieve_log_block_number_by_sequence()
+            .with(mockall::predicate::eq(100))
+            .returning(|_| Ok(Some(250)));
+        store
+            .expect_store_sequence_coverage()
+            .withf(|range| range.first == 100 && range.last == 100)
+            .once()
+            .returning(|_| Ok(()));
+        let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
+            &HyperlaneDomain::new_test_domain("snapshot"),
+            Arc::new(mock_cursor_metrics()),
+            Arc::new(indexer),
+            Arc::new(store),
+            20,
+            0,
+            IndexMode::Block,
+            Duration::from_secs(5),
+        )
+        .await
+        .expect("block cursor")
+        .with_sequence_floor(100);
+        assert_eq!(
+            cursor
+                .backward
+                .get_next_range()
+                .await
+                .expect("completed floor"),
+            None
+        );
+        assert!(cursor.backward.is_caught_up());
     }
 
     #[tokio::test]
