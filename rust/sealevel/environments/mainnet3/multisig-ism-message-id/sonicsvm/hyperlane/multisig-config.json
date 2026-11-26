@@ -43,7 +43,8 @@
     "threshold": 2,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
+      "0xad5f240f0187d16281f407ed8f019569a5ae6c48"
     ]
   },
   "avalanche": {
@@ -424,7 +425,8 @@
     "threshold": 2,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
+      "0xc9ec22da8648563a42882dfe3dcfc004e2d1e842"
     ]
   },
   "solanamainnet": {
