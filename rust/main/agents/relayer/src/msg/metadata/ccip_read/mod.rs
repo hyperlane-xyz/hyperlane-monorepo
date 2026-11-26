@@ -4,7 +4,7 @@ use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{Arc, LazyLock, OnceLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
@@ -17,7 +17,7 @@ use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 // `reqwest::dns::Name` — the 0.12 trait wraps `Name` in a private-field struct.
 use hyper::client::connect::dns::Name;
 use hyperlane_base::cache::FunctionCallCache;
-use moka::future::Cache;
+use moka::{future::Cache, Expiry};
 use regex::Regex;
 use reqwest::{
     dns::{Addrs, Resolve, Resolving},
@@ -51,8 +51,9 @@ pub const DEFAULT_TIMEOUT: u64 = 30;
 static OFFCHAIN_LOOKUP_REGEX: LazyLock<Result<Regex, regex::Error>> =
     LazyLock::new(|| Regex::new(r"0x[[:xdigit:]]+"));
 
-/// How long a signed request is reused. Servers reject requests older than
-/// their own maximum age (30 s by default on CCS); reuse stays well inside it.
+/// How long a signed request is reused, counted from when signing started.
+/// Servers reject requests older than their own maximum age (30 s by default
+/// on CCS); reuse stays well inside it.
 const CCIP_SIGNATURE_REUSE: Duration = Duration::from_secs(5);
 
 /// Selector of `CommitmentReadIsmService.getCallsFromRevealMessage(bytes)`,
@@ -71,6 +72,29 @@ fn is_ccs_reveal_lookup(info: &OffchainLookup) -> bool {
 struct RequestSignature {
     signature: String,
     issued_at: u64,
+    /// What is left of `CCIP_SIGNATURE_REUSE` once signing finished.
+    reusable_for: Duration,
+}
+
+/// How long a signature can still be reused once signing finished at `signed_at`.
+fn signature_reuse_remaining(signing_started: Instant, signed_at: Instant) -> Duration {
+    CCIP_SIGNATURE_REUSE.saturating_sub(signed_at.saturating_duration_since(signing_started))
+}
+
+/// Expires a signature `CCIP_SIGNATURE_REUSE` after signing started, so time
+/// spent signing counts toward the reuse window. The window is measured with
+/// `Instant::now()` around signing, not with the cache's own clock.
+struct SignatureReuseExpiry;
+
+impl Expiry<(H160, H256), RequestSignature> for SignatureReuseExpiry {
+    fn expire_after_create(
+        &self,
+        _key: &(H160, H256),
+        value: &RequestSignature,
+        _created_at: Instant,
+    ) -> Option<Duration> {
+        Some(value.reusable_for)
+    }
 }
 
 /// Keyed by signer and the request's signing hash at `issued_at = 0`. Pending
@@ -80,13 +104,15 @@ type CcipSignatureCache = Cache<(H160, H256), RequestSignature>;
 
 static CCIP_SIGNATURE_CACHE: OnceLock<CcipSignatureCache> = OnceLock::new();
 
+fn new_signature_cache() -> CcipSignatureCache {
+    Cache::builder()
+        .max_capacity(10_000)
+        .expire_after(SignatureReuseExpiry)
+        .build()
+}
+
 fn ccip_signature_cache() -> &'static CcipSignatureCache {
-    CCIP_SIGNATURE_CACHE.get_or_init(|| {
-        Cache::builder()
-            .max_capacity(10_000)
-            .time_to_live(CCIP_SIGNATURE_REUSE)
-            .build()
-    })
+    CCIP_SIGNATURE_CACHE.get_or_init(new_signature_cache)
 }
 
 fn unix_now() -> Result<u64, std::time::SystemTimeError> {
@@ -346,6 +372,7 @@ impl CcipReadIsmMetadataBuilder {
 
         ccip_signature_cache()
             .try_get_with(cache_key, async {
+                let signing_started = Instant::now();
                 let issued_at = unix_now().map_err(|e| format!("System clock error: {e}"))?;
                 request.issued_at = issued_at;
 
@@ -355,6 +382,7 @@ impl CcipReadIsmMetadataBuilder {
                     .map(|signature| RequestSignature {
                         signature,
                         issued_at,
+                        reusable_for: signature_reuse_remaining(signing_started, Instant::now()),
                     })
                     .map_err(|e| e.to_string())
             })
@@ -1300,6 +1328,7 @@ mod test {
         let signature = RequestSignature {
             signature: "0xsig".to_owned(),
             issued_at: 1_700_000_000,
+            reusable_for: CCIP_SIGNATURE_REUSE,
         };
         let signed = serde_json::to_value(OffchainLookupRequestBody::new_post(
             "0xsender".to_owned(),
@@ -1417,6 +1446,48 @@ mod test {
     fn ccs_reveal_lookup(sender_byte: u8, url: &str) -> OffchainLookup {
         let call_data = [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat();
         test_offchain_lookup(&call_data, sender_byte, url)
+    }
+
+    #[test]
+    fn signature_reuse_counts_the_time_spent_signing() {
+        let signing_started = Instant::now();
+        let after = |secs| signing_started + Duration::from_secs(secs);
+
+        assert_eq!(
+            signature_reuse_remaining(signing_started, signing_started),
+            CCIP_SIGNATURE_REUSE
+        );
+        assert_eq!(
+            signature_reuse_remaining(signing_started, after(4)),
+            Duration::from_secs(1)
+        );
+        // Signing that outlasts the window leaves nothing to reuse.
+        assert_eq!(
+            signature_reuse_remaining(signing_started, after(5)),
+            Duration::ZERO
+        );
+        assert_eq!(
+            signature_reuse_remaining(signing_started, after(20)),
+            Duration::ZERO
+        );
+    }
+
+    #[tokio::test]
+    async fn signature_cache_keeps_a_signature_only_for_its_remaining_window() {
+        let cache = new_signature_cache();
+        let signature = |reusable_for| RequestSignature {
+            signature: "0xsig".to_owned(),
+            issued_at: 1_700_000_000,
+            reusable_for,
+        };
+        let spent = (H160::repeat_byte(0x01), H256::repeat_byte(0x01));
+        let fresh = (H160::repeat_byte(0x02), H256::repeat_byte(0x02));
+
+        cache.insert(spent, signature(Duration::ZERO)).await;
+        cache.insert(fresh, signature(CCIP_SIGNATURE_REUSE)).await;
+
+        assert_eq!(cache.get(&spent).await, None);
+        assert!(cache.get(&fresh).await.is_some());
     }
 
     #[test]
