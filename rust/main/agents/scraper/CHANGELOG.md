@@ -1,3 +1,14 @@
+## [4.1.0] - 2026-11-26
+
+* feat(scraper): persist confirmed Merkle tree frontiers (#10151)
+* feat(scraper): wake indexing on finalized Solana events (#10120)
+* fix(scraper): bound reconciliation scans and database concurrency (#10084)
+* fix(scraper): hold reconciliation permits through statement completion (#10091)
+* fix(scraper): index on the first wake-up per block (#10122)
+* fix(scraper): retain checkpoints for custom confirmation windows (#10070)
+* fix(scraper): tighten confirmed Merkle reads and pagination (#10156)
+* fix: Coalesce removed log wakes by block hash (#10139)
+
 ## [4.0.0] - 2026-11-17
 
 * feat(scraper): add WebSocket event and confirmation wake-ups (#9975)

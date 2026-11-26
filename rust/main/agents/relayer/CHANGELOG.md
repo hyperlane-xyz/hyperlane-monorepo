@@ -1,3 +1,10 @@
+## [4.1.0] - 2026-11-26
+
+* feat(relayer): collect multisig signatures alongside reorg checks (#10102)
+* fix(relayer): allowlist CCIP read domains (#10108)
+* fix(relayer): read allowContractCallCaching from its own key (#10106)
+* fix: point dead docs links at current pages (#10105)
+
 ## [4.0.0] - 2026-11-17
 
 * feat(infra): enable runtime denylists for mainnet and testnet (#9957)

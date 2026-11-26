@@ -1,3 +1,8 @@
+## [4.1.0] - 2026-11-26
+
+* fix(lander): drop already-delivered MEV preflight reverts (#10107)
+* fix(lander): start Aleo retry interval after broadcast (#10114)
+
 ## [4.0.0] - 2026-11-17
 
 * fix(katana): use network fee estimates for relayers (#9939)
