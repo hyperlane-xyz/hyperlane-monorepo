@@ -82,6 +82,11 @@ export function buildResolvers(diagnostics?: DiagnosticsService) {
         args: MerkleTreeArgs & { leaf_index: unknown },
         { scraperDb: db }: MercuriusContext,
       ) => db.merkleTreeInsertion(args),
+      merkle_tree_snapshot: (
+        _parent: unknown,
+        args: MerkleTreeArgs,
+        { scraperDb: db }: MercuriusContext,
+      ) => db.merkleTreeSnapshot(args),
       message_activity: (
         _parent: unknown,
         args: { message_id: string; before_id?: string; limit?: number },
