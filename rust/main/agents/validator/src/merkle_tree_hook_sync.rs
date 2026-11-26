@@ -123,7 +123,17 @@ impl MerkleTreeRecovery {
         // Providers can cap log queries at a few blocks. When historical counts
         // are available, locate the insertion and request only its block.
         let exact_block = if matches!(self.index_settings.mode, IndexMode::Block) {
-            insertion_block(sync, first, cursor).await
+            match timeout(Duration::from_secs(5), insertion_block(sync, first, cursor)).await {
+                Ok(block) => block,
+                Err(_) => {
+                    tracing::debug!(
+                        first,
+                        cursor,
+                        "Historical count lookup timed out; scanning logs"
+                    );
+                    None
+                }
+            }
         } else {
             None
         };
@@ -542,7 +552,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     merkle_tree_hook: H256,
     url: Secret<Url>,
     pub(crate) explorer: Option<Explorer>,
-    pub(crate) allow_rpc_fallback: bool,
+    pub(crate) allow_rpc_indexing_fallback: bool,
     confirmations: Option<u32>,
     websocket_active: IntGauge,
     fallback_active: IntGauge,
@@ -566,7 +576,7 @@ impl MerkleTreeHookWebSocketSync {
             merkle_tree_hook,
             url: Secret::new(url),
             explorer: None,
-            allow_rpc_fallback: true,
+            allow_rpc_indexing_fallback: true,
             confirmations: None,
             websocket_active,
             fallback_active,
@@ -600,7 +610,7 @@ impl MerkleTreeHookWebSocketSync {
                 if let Some(api) = &self.explorer {
                     match api.page(next, end).await {
                         Ok(page) => return self.store_page(page, &mut next),
-                        Err(err) if !self.allow_rpc_fallback => return Err(err),
+                        Err(err) if !self.allow_rpc_indexing_fallback => return Err(err),
                         Err(err) => warn!(?err, next, "Historical insertion page unavailable"),
                     }
                 }
@@ -703,7 +713,7 @@ impl MerkleTreeHookWebSocketSync {
     ) {
         let floor = floor.boxed().shared();
         let mut next_sequence = 0;
-        let mut fallback = if self.explorer.is_none() && self.allow_rpc_fallback {
+        let mut fallback = if self.explorer.is_none() && self.allow_rpc_indexing_fallback {
             Some(start_fallback(floor.clone().await))
         } else {
             None
@@ -719,7 +729,7 @@ impl MerkleTreeHookWebSocketSync {
                 )
                 .await;
             self.websocket_active.set(0);
-            if self.allow_rpc_fallback
+            if self.allow_rpc_indexing_fallback
                 && fallback
                     .as_ref()
                     .is_none_or(|task| task.handle.is_finished())
@@ -781,7 +791,7 @@ impl MerkleTreeHookWebSocketSync {
                             self.store_page(rows, next_sequence)?;
                             last_page_failure = None;
                         }
-                        Err(err) if fallback.is_some() || !self.allow_rpc_fallback
+                        Err(err) if fallback.is_some() || !self.allow_rpc_indexing_fallback
                             || first_live_leaf.is_some_and(|first| first <= *next_sequence) => {
                             tracing::debug!(?err, "Waiting for missing handoff insertions");
                             last_page_failure = Some(tokio::time::Instant::now());
@@ -1696,12 +1706,12 @@ mod tests {
         reconnect_to_explorer(true).await;
     }
 
-    async fn reconnect_to_explorer(allow_rpc_fallback: bool) {
+    async fn reconnect_to_explorer(allow_rpc_indexing_fallback: bool) {
         use crate::explorer::tests::{fixture, serve_async};
         let (mut sync, _dir) = test_sync();
         let rpc_active = sync.fallback_active.clone();
         // With fallback enabled the second connection also sees an empty page before recovery.
-        let first_available = if allow_rpc_fallback { 2 } else { 1 };
+        let first_available = if allow_rpc_indexing_fallback { 2 } else { 1 };
         let queries = Arc::new(AtomicUsize::new(0));
         let calls = queries.clone();
         let reply = Arc::new(Notify::new());
@@ -1715,7 +1725,7 @@ mod tests {
                     let attempt = calls.fetch_add(1, Ordering::SeqCst);
                     assert_eq!(
                         rpc_active.get(),
-                        i64::from(allow_rpc_fallback && attempt > 0)
+                        i64::from(allow_rpc_indexing_fallback && attempt > 0)
                     );
                     if attempt > first_available {
                         release.notified().await;
@@ -1728,7 +1738,7 @@ mod tests {
         )
         .await;
         sync.explorer = Some(api.clone());
-        sync.allow_rpc_fallback = allow_rpc_fallback;
+        sync.allow_rpc_indexing_fallback = allow_rpc_indexing_fallback;
         let listener = listener_for(&mut sync).await;
         let (floor, start) = tokio::sync::oneshot::channel();
         let active = sync.websocket_active.clone();
@@ -1746,7 +1756,10 @@ mod tests {
                     }),
                 },
                 |_| {
-                    assert!(allow_rpc_fallback, "RPC insertion indexing is disabled");
+                    assert!(
+                        allow_rpc_indexing_fallback,
+                        "RPC insertion indexing is disabled"
+                    );
                     test_fallback(&sync.fallback_active)
                 },
             )
@@ -1763,7 +1776,7 @@ mod tests {
         let mut socket = connect().await;
         assert_eq!(queries.load(Ordering::SeqCst), 0);
         floor.send(0).expect("use leaf zero");
-        if allow_rpc_fallback {
+        if allow_rpc_indexing_fallback {
             socket = timeout(Duration::from_secs(5), connect())
                 .await
                 .expect("reconnect to start RPC fallback");

@@ -483,7 +483,7 @@ impl BaseAgent for Validator {
                 policy,
                 hooks.into_iter().map(|(_, hook)| hook).collect(),
             )?),
-            None if !settings.allow_rpc_fallback => {
+            None if !settings.allow_rpc_indexing_fallback => {
                 Some(CheckpointReader::single(merkle_tree_hook.clone()))
             }
             None => None,
@@ -519,7 +519,7 @@ impl BaseAgent for Validator {
                 rpc_active.clone(),
             );
             sync.explorer = explorer;
-            sync.allow_rpc_fallback = settings.allow_rpc_fallback;
+            sync.allow_rpc_indexing_fallback = settings.allow_rpc_indexing_fallback;
             sync
         });
         if websocket_sync.is_none() {
@@ -665,7 +665,13 @@ impl BaseAgent for Validator {
             .unwrap_or_else(|| Arc::new(CheckpointReader::single(self.merkle_tree_hook.clone())));
         let restored = submitter.restore_published_tree().await;
         let startup = if restored.count() == 0 || self.skip_announce {
-            self.chain_start(&submitter, &reader).await
+            let api = self
+                .websocket_sync
+                .as_ref()
+                .and_then(|ws| ws.explorer.as_ref());
+            submitter
+                .bootstrap_frontier(&reader, self.skip_announce, &self.insertion_recovery(), api)
+                .await
         } else {
             None
         };
@@ -793,43 +799,12 @@ impl Validator {
         )
     }
 
-    async fn chain_start(
-        &self,
-        submitter: &ValidatorSubmitter,
-        reader: &CheckpointReader,
-    ) -> Option<IncrementalMerkle> {
-        let api = self
-            .websocket_sync
-            .as_ref()
-            .and_then(|s| s.explorer.as_ref());
-        let recovery = self.insertion_recovery();
-        let bootstrap = || async {
-            let start = submitter
-                .chain_start(reader, self.skip_announce, |first, end, height| {
-                    recovery.frontier_page(api, first, end, height)
-                })
-                .await?;
-            start.map(|start| start.resume(&self.db)).transpose()
-        };
-        for attempt in 1..=2 {
-            match tokio::time::timeout(Duration::from_secs(45), bootstrap()).await {
-                Ok(Ok(tree)) => return tree,
-                Ok(Err(err)) => warn!(?err, attempt, "On-chain frontier bootstrap unavailable"),
-                Err(_) => warn!(attempt, "On-chain frontier bootstrap timed out"),
-            }
-            if attempt == 1 {
-                sleep(Duration::from_secs(1)).await;
-            }
-        }
-        None
-    }
-
     fn insertion_recovery(&self) -> MerkleTreeRecovery {
         MerkleTreeRecovery {
             source: match self
                 .websocket_sync
                 .as_ref()
-                .filter(|w| !w.allow_rpc_fallback)
+                .filter(|w| !w.allow_rpc_indexing_fallback)
             {
                 Some(ws) => RecoverySource::Explorer(
                     ws.explorer

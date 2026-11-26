@@ -70,7 +70,7 @@ pub struct ValidatorSettings {
     /// Explorer endpoint for confirmed Merkle insertions.
     pub explorer_api_url: Option<Secret<url::Url>>,
     /// Permit insertion log scans through configured RPCs when Explorer cannot supply them.
-    pub allow_rpc_fallback: bool,
+    pub allow_rpc_indexing_fallback: bool,
     /// Root verification policy; single/fallback retain the classic signing path.
     pub(crate) checkpoint_consensus: Option<CheckpointConsensus>,
     /// A list of RPCs that the validator uses
@@ -318,9 +318,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             }
         }
 
-        let allow_rpc_fallback = p
+        let allow_rpc_indexing_fallback = p
             .chain(&mut err)
-            .get_opt_key("allowRpcFallback")
+            .get_opt_key("allowRpcIndexingFallback")
             .parse_bool()
             .unwrap_or(true);
         let api_url: Option<url::Url> = p
@@ -382,9 +382,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet
         );
         let (websocket_url, api_url) = explorer_endpoints(public_domain, websocket_url, api_url);
-        if !allow_rpc_fallback && api_url.is_none() {
+        if !allow_rpc_indexing_fallback && api_url.is_none() {
             err.push(
-                cwp.add("allowrpcfallback"),
+                cwp.add("allowrpcindexingfallback"),
                 eyre!("Configure explorerApiUrl for Explorer-only indexing on this domain"),
             );
         }
@@ -398,7 +398,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             interval,
             websocket_url: websocket_url.map(Secret::new),
             explorer_api_url: api_url.map(Secret::new),
-            allow_rpc_fallback,
+            allow_rpc_indexing_fallback,
             checkpoint_consensus,
             rpcs,
             allow_public_rpcs,
@@ -744,7 +744,7 @@ mod test {
     }
 
     #[test]
-    fn rpc_fallback_defaults_on_and_explorer_only_requires_a_history_source() {
+    fn rpc_indexing_fallback_defaults_on_and_explorer_only_requires_a_history_source() {
         let parse = |raw: Value| {
             ValidatorSettings::from_config_filtered(
                 RawValidatorSettings(raw.into()),
@@ -757,12 +757,16 @@ mod test {
         assert!(
             parse(raw.clone())
                 .expect("default config")
-                .allow_rpc_fallback
+                .allow_rpc_indexing_fallback
         );
-        raw["allowrpcfallback"] = false.into();
+        raw["allowrpcindexingfallback"] = false.into();
         assert!(parse(raw.clone()).is_err());
         raw["explorerapiurl"] = "http://127.0.0.1:8080/graphql".into();
-        assert!(!parse(raw).expect("Explorer-only config").allow_rpc_fallback);
+        assert!(
+            !parse(raw)
+                .expect("Explorer-only config")
+                .allow_rpc_indexing_fallback
+        );
     }
 
     #[test]

@@ -365,6 +365,36 @@ impl ValidatorSubmitter {
         restored.unwrap_or_default()
     }
 
+    pub(crate) async fn bootstrap_frontier(
+        &self,
+        reader: &CheckpointReader,
+        live_only: bool,
+        recovery: &MerkleTreeRecovery,
+        explorer: Option<&crate::explorer::Explorer>,
+    ) -> Option<IncrementalMerkle> {
+        // On retry use the configured recovery source directly. This bypasses
+        // a reachable Explorer serving incorrect leaves when RPC indexing is allowed.
+        for (attempt, api) in [explorer, None].into_iter().enumerate() {
+            if attempt > 0 {
+                sleep(Duration::from_secs(1)).await;
+            }
+            let bootstrap = async {
+                let start = self
+                    .chain_start(reader, live_only, |first, end, height| {
+                        recovery.frontier_page(api, first, end, height)
+                    })
+                    .await?;
+                start.map(|start| start.resume(&recovery.db)).transpose()
+            };
+            match tokio::time::timeout(Duration::from_secs(45), bootstrap).await {
+                Ok(Ok(tree)) => return tree,
+                Ok(Err(err)) => warn!(?err, "On-chain frontier bootstrap unavailable"),
+                Err(_) => warn!("On-chain frontier bootstrap timed out"),
+            }
+        }
+        None
+    }
+
     pub(crate) async fn chain_start<F, Fut>(
         &self,
         reader: &CheckpointReader,
@@ -829,7 +859,7 @@ impl ValidatorSubmitter {
         tokio::join!(sign_live, finish_history);
     }
 
-    async fn persist_consensus_snapshot(&self, tree: &IncrementalMerkle) {
+    async fn persist_consensus_snapshot(&self, tree: &IncrementalMerkle) -> bool {
         let snapshot = MerkleTreeSnapshot::capture(tree).expect("verified nonempty tree");
         match self
             .unless_reorg(tokio::time::timeout(
@@ -838,10 +868,11 @@ impl ValidatorSubmitter {
             ))
             .await
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => return true,
             Ok(Err(err)) => warn!(?err, "Failed to persist consensus snapshot"),
             Err(_) => warn!("Timed out persisting consensus snapshot"),
         }
+        false
     }
 
     async fn verify_checkpoint_batch(
@@ -1090,7 +1121,33 @@ impl ValidatorSubmitter {
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
-    pub(crate) async fn checkpoint_submitter(mut self, mut tree: IncrementalMerkle) {
+    pub(crate) async fn checkpoint_submitter(self, tree: IncrementalMerkle) {
+        if !self.historical_publication {
+            return self.submit_tip(tree, None).await;
+        }
+        // Only this worker publishes the initial prefix when starting from zero.
+        // Keep the newest durable frontier available while storage is retrying.
+        let (published, mut pending) = watch::channel(tree.clone());
+        let signer = self.clone();
+        let persist = async move {
+            if pending.changed().await.is_ok() {
+                loop {
+                    let tree = pending.borrow_and_update().clone();
+                    if self.persist_consensus_snapshot(&tree).await {
+                        break;
+                    }
+                    sleep(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+                }
+            }
+        };
+        tokio::join!(signer.submit_tip(tree, Some(published)), persist);
+    }
+
+    async fn submit_tip(
+        mut self,
+        mut tree: IncrementalMerkle,
+        snapshots: Option<watch::Sender<IncrementalMerkle>>,
+    ) {
         self.record_tree_progress(&tree).await;
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
@@ -1154,8 +1211,10 @@ impl ValidatorSubmitter {
             }
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await;
+            if let Some(sender) = snapshots.as_ref().filter(|s| !s.is_closed()) {
+                sender.send_replace(tree.clone());
+            }
             if self.historical_publication {
-                self.persist_consensus_snapshot(&tree).await;
                 self.metrics.backfill_complete.set(1);
                 self.historical_publication = false;
             }

@@ -942,7 +942,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'Test only. Skip on-chain announcement. With a verified on-chain frontier, publish from its tip and skip pre-start history. Otherwise use normal sync.',
     ),
-  allowRpcFallback: z
+  allowRpcIndexingFallback: z
     .boolean()
     .optional()
     .describe(
