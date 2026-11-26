@@ -4235,8 +4235,11 @@ async fn rpc_only_bootstrap_finds_last_insertion_on_quiet_block_indexed_chain() 
         .returning(|_| Ok(None));
     indexer
         .expect_fetch_logs_in_range()
-        .times(2)
+        .times(3)
         .returning(|range| {
+            if range == (97..=100) {
+                return Err(eyre::eyre!("RPC range limit").into());
+            }
             if range == (99..=100) {
                 return Ok(vec![]);
             }
@@ -4247,7 +4250,7 @@ async fn rpc_only_bootstrap_finds_last_insertion_on_quiet_block_indexed_chain() 
             )])
         });
     let (mut recovery, _directory) = rpc_recovery_fixture(indexer);
-    recovery.index_settings.chunk_size = 2;
+    recovery.index_settings.chunk_size = 4;
     let page = recovery
         .frontier_page(None, 7, 8, Some(100))
         .await

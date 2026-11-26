@@ -131,15 +131,30 @@ impl MerkleTreeRecovery {
             cursor = block;
         }
         let mut leaves = BTreeMap::new();
+        let mut span = self.index_settings.chunk_size.max(1);
         loop {
             let start = match self.index_settings.mode {
                 IndexMode::Sequence => first,
                 IndexMode::Block if exact_block.is_some() => cursor,
-                IndexMode::Block => {
-                    cursor.saturating_sub(self.index_settings.chunk_size.saturating_sub(1))
-                }
+                IndexMode::Block => cursor.saturating_sub(span.saturating_sub(1)),
             };
-            for (row, meta) in fetch_rpc_logs(sync, start..=cursor).await? {
+            let logs = match fetch_rpc_logs(sync, start..=cursor).await {
+                Ok(logs) => logs,
+                Err(err)
+                    if matches!(self.index_settings.mode, IndexMode::Block) && start < cursor =>
+                {
+                    tracing::debug!(
+                        ?err,
+                        start,
+                        cursor,
+                        "Retrying frontier lookup with a smaller log range"
+                    );
+                    span = cursor.saturating_sub(start).div_ceil(2);
+                    continue;
+                }
+                Err(err) => return Err(err),
+            };
+            for (row, meta) in logs {
                 let leaf = *row.inner();
                 if (first..=last).contains(&leaf.index()) {
                     leaves.insert(leaf.index(), (leaf, meta.block_number));
