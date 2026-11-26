@@ -143,9 +143,8 @@ export class ScraperDbService {
        FROM merkle_tree_snapshot s
        JOIN scraper_head h ON h.domain=s.domain
          AND h.merkle_tree_hook=s.merkle_tree_hook AND h.confirmed_height=s.confirmed_height
-       JOIN scraper_checkpoint c ON c.domain=h.domain
-         AND c.height=h.confirmed_height AND c.hash=s.block_hash
-       WHERE s.domain=$1 AND s.merkle_tree_hook=$2 AND NOT h.halted`,
+       WHERE s.domain=$1 AND s.merkle_tree_hook=$2 AND NOT h.halted
+         AND (h.indexed_height<>h.confirmed_height OR h.indexed_hash=s.block_hash)`,
       merkleTreeScope(args),
     );
     return row ?? null;
