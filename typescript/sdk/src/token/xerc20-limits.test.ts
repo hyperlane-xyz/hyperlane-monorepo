@@ -1,14 +1,19 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
+import sinon from 'sinon';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { test1 } from '../consts/testChains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { blockAt, stubAevoChainThatMoves } from '../test/aevoChainStubs.js';
 import {
   aevoRaw,
   aevoUnauthorized,
   aevoUnlimited,
 } from '../test/aevoTokenFixture.js';
 
+import { AevoMintAuthority } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import {
   AevoXERC20Limits,
@@ -18,6 +23,7 @@ import {
   aevoCapToUint256,
   limitsAreZero,
   limitsMatch,
+  readXERC20Limits,
   toAevoLimits,
 } from './xerc20-limits.js';
 
@@ -331,6 +337,86 @@ describe('aevoCapToUint256', () => {
       const limits = toAevoLimits({ authorized: true, cap });
       assert(limits.authorized, 'Expected an authorized minter');
       expect(aevoCapToUint256(limits.cap)).to.equal(cap);
+    });
+  }
+});
+
+describe('readXERC20Limits for an Aevo token', () => {
+  const TOKEN = '0x1111111111111111111111111111111111111111';
+  const MINTER = '0x4444444444444444444444444444444444444444';
+  const HEAD = 100;
+
+  let sandbox: sinon.SinonSandbox;
+  let multiProtocolProvider: MultiProtocolProvider;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    multiProtocolProvider =
+      MultiProtocolProvider.createTestMultiProtocolProvider();
+    sandbox
+      .stub(multiProtocolProvider.getEthersV5Provider(test1.name), 'getBlock')
+      .resolves(blockAt(HEAD));
+  });
+
+  afterEach(() => sandbox.restore());
+
+  interface Case {
+    name: string;
+    atHead: AevoMintAuthority;
+    afterHead: AevoMintAuthority;
+    unpinnedHeights: number[];
+    // What the limits of the minter are at the head.
+    expected: AevoXERC20Limits;
+    // What an unpinned read would report, which the token never held.
+    torn: AevoXERC20Limits;
+  }
+
+  // A concurrent apply sets the cap and then authorizes the minter. A read that
+  // pairs the cap before the first with the authority after the second reports
+  // a minter without a bound, which a deploy config of an unlimited minter would
+  // take for what it declares, and skip the update it needs.
+  const cases: Case[] = [
+    {
+      name: 'a minter authorized after its cap is set',
+      atHead: { authorized: false, cap: 0n },
+      afterHead: { authorized: true, cap: 5_000_000n },
+      unpinnedHeights: [HEAD + 1, HEAD],
+      expected: aevoUnauthorized(),
+      torn: aevoUnlimited(),
+    },
+    {
+      name: 'a minter revoked along with its cap changed',
+      atHead: { authorized: true, cap: 5_000_000n },
+      afterHead: { authorized: false, cap: 7_000_000n },
+      unpinnedHeights: [HEAD, HEAD + 1],
+      expected: aevoRaw('5000000'),
+      torn: aevoRaw('7000000'),
+    },
+  ];
+
+  for (const c of cases) {
+    it(`reports the authority and the cap of one block, for ${c.name}`, async () => {
+      const chain = stubAevoChainThatMoves({
+        sandbox,
+        provider: multiProtocolProvider.getEthersV5Provider(test1.name),
+        stateAt: { [HEAD]: c.atHead, [HEAD + 1]: c.afterHead },
+        unpinnedHeights: c.unpinnedHeights,
+      });
+
+      const limits = await readXERC20Limits({
+        multiProtocolProvider,
+        chain: test1.name,
+        xERC20Address: TOKEN,
+        bridges: [MINTER],
+        type: XERC20Type.Aevo,
+      });
+
+      expect(limits).to.deep.equal({ [MINTER]: c.expected });
+      expect(limits[MINTER]).to.not.deep.equal(c.torn);
+      expect(chain.calls.map((call) => call.height)).to.deep.equal([
+        HEAD,
+        HEAD,
+      ]);
     });
   }
 });

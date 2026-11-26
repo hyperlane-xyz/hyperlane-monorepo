@@ -1564,10 +1564,21 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
     super(chainName, multiProvider, addresses);
   }
 
-  async getMintAuthority(minter: Address): Promise<AevoMintAuthority> {
+  /**
+   * What the token holds for the minter, its authority and its cap read at one
+   * block: the block asked for, or the latest one when none is. Two reads of the
+   * latest state may straddle the block that sets the cap and authorizes the
+   * minter, and pair the old cap with the new authority. A named tag that moves,
+   * latest or pending, pins nothing.
+   */
+  async getMintAuthority(
+    minter: Address,
+    blockTag?: number | EthJsonRpcBlockParameterTag,
+  ): Promise<AevoMintAuthority> {
+    const block = blockTag ?? (await this.getLatestBlockNumber());
     const [authorized, cap] = await Promise.all([
-      this.readAuthority(toEvmAddress(minter)),
-      this.readCap(toEvmAddress(minter)),
+      this.readAuthority(toEvmAddress(minter), block),
+      this.readCap(toEvmAddress(minter), block),
     ]);
 
     return { authorized, cap };
@@ -1599,12 +1610,25 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
     };
   }
 
-  private async readAuthority(minter: Address): Promise<boolean> {
+  // Not getBlockNumber, which a provider never reports below the highest block
+  // it has seen, so that a node that reverted to an earlier block is not asked
+  // for one it no longer has.
+  private async getLatestBlockNumber(): Promise<number> {
+    const block = await this.getProvider().getBlock('latest');
+    assert(block, `Missing the latest block of ${this.chainName}`);
+    return block.number;
+  }
+
+  private async readAuthority(
+    minter: Address,
+    blockTag: number | EthJsonRpcBlockParameterTag,
+  ): Promise<boolean> {
     const [authorized]: readonly unknown[] =
       AEVO_INTERFACE.decodeFunctionResult(
         'authorities',
         await this.call(
           AEVO_INTERFACE.encodeFunctionData('authorities', [minter]),
+          blockTag,
         ),
       );
     assert(
@@ -1614,10 +1638,16 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
     return authorized;
   }
 
-  private async readCap(minter: Address): Promise<bigint> {
+  private async readCap(
+    minter: Address,
+    blockTag: number | EthJsonRpcBlockParameterTag,
+  ): Promise<bigint> {
     const [cap]: readonly unknown[] = AEVO_INTERFACE.decodeFunctionResult(
       'caps',
-      await this.call(AEVO_INTERFACE.encodeFunctionData('caps', [minter])),
+      await this.call(
+        AEVO_INTERFACE.encodeFunctionData('caps', [minter]),
+        blockTag,
+      ),
     );
     assert(
       BigNumber.isBigNumber(cap),
@@ -1626,7 +1656,13 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
     return cap.toBigInt();
   }
 
-  private call(data: string): Promise<string> {
-    return this.getProvider().call({ to: this.addresses.token, data });
+  private call(
+    data: string,
+    blockTag?: number | EthJsonRpcBlockParameterTag,
+  ): Promise<string> {
+    return this.getProvider().call(
+      { to: this.addresses.token, data },
+      blockTag,
+    );
   }
 }

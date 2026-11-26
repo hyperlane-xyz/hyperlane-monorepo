@@ -5,13 +5,16 @@ import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { test1 } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { blockAt, stubAevoChainThatMoves } from '../../test/aevoChainStubs.js';
 import { AEVO_SELECTORS, abiWord } from '../../test/aevoTokenFixture.js';
 import { isMissingSelectorRevert } from '../../utils/contract.js';
 
 import { EvmXERC20AevoAdapter } from './EvmTokenAdapter.js';
+import { AevoMintAuthority } from './ITokenAdapter.js';
 
 const TOKEN = '0x1111111111111111111111111111111111111111';
 const MINTER = '0x4444444444444444444444444444444444444444';
+const HEAD = 100;
 
 const word = abiWord;
 
@@ -24,6 +27,7 @@ describe('EvmXERC20AevoAdapter', () => {
   let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProtocolProvider;
   let adapter: EvmXERC20AevoAdapter;
+  let getBlock: sinon.SinonStub;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
@@ -31,6 +35,9 @@ describe('EvmXERC20AevoAdapter', () => {
     adapter = new EvmXERC20AevoAdapter(test1.name, multiProvider, {
       token: TOKEN,
     });
+    getBlock = sandbox
+      .stub(adapter.getProvider(), 'getBlock')
+      .resolves(blockAt(HEAD));
   });
 
   afterEach(() => sandbox.restore());
@@ -158,6 +165,141 @@ describe('EvmXERC20AevoAdapter', () => {
     }
 
     expect(thrown).to.equal(failure);
+  });
+
+  // Two reads of the latest state may straddle the block that sets the cap of
+  // a minter and authorizes it, and pair the old cap with the new authority, or
+  // the other way round. The token is read at one block instead.
+  describe('the block it reads at', () => {
+    interface MovingCase {
+      name: string;
+      // What the token holds at the head, and at the block after it.
+      atHead: AevoMintAuthority;
+      afterHead: AevoMintAuthority;
+      // The height each unpinned call would be answered at: the first is the
+      // authority, the second the cap.
+      unpinnedHeights: number[];
+      // What an unpinned read would have reported, which is no state of the
+      // token at any height.
+      torn: AevoMintAuthority;
+    }
+
+    const movingCases: MovingCase[] = [
+      {
+        // The cap is read before the block that sets it, the authority after
+        // the block that grants it: a minter without a bound that never was.
+        name: 'a cap set before a minter is authorized',
+        atHead: { authorized: false, cap: 0n },
+        afterHead: { authorized: true, cap: 5_000_000n },
+        unpinnedHeights: [HEAD + 1, HEAD],
+        torn: { authorized: true, cap: 0n },
+      },
+      {
+        // The authority is read before the block that revokes it, the cap after
+        // the block that sets it: a minter bounded by a cap that never was.
+        name: 'a minter revoked along with its cap changed',
+        atHead: { authorized: true, cap: 5_000_000n },
+        afterHead: { authorized: false, cap: 7_000_000n },
+        unpinnedHeights: [HEAD, HEAD + 1],
+        torn: { authorized: true, cap: 7_000_000n },
+      },
+    ];
+
+    for (const c of movingCases) {
+      const stub = () =>
+        stubAevoChainThatMoves({
+          sandbox,
+          provider: adapter.getProvider(),
+          stateAt: { [HEAD]: c.atHead, [HEAD + 1]: c.afterHead },
+          unpinnedHeights: c.unpinnedHeights,
+        });
+
+      it(`reads the authority and the cap at the head it found, for ${c.name}`, async () => {
+        const chain = stub();
+
+        const result = await adapter.getMintAuthority(MINTER);
+
+        expect(result).to.deep.equal(c.atHead);
+        expect(result).to.not.deep.equal(c.torn);
+        expect(getBlock.calledOnceWithExactly('latest')).to.equal(true);
+        expect(chain.calls.map((call) => call.selector)).to.have.members([
+          AUTHORITIES,
+          CAPS,
+        ]);
+        expect(chain.calls.map((call) => call.blockTag)).to.deep.equal([
+          HEAD,
+          HEAD,
+        ]);
+      });
+
+      it(`reads the authority and the cap at the block it is asked for, without looking for the head, for ${c.name}`, async () => {
+        const chain = stub();
+
+        const result = await adapter.getMintAuthority(MINTER, HEAD + 1);
+
+        expect(result).to.deep.equal(c.afterHead);
+        expect(getBlock.notCalled).to.equal(true);
+        expect(chain.calls.map((call) => call.blockTag)).to.deep.equal([
+          HEAD + 1,
+          HEAD + 1,
+        ]);
+      });
+    }
+
+    it('fails when a read at the block fails, without reading the latest state instead', async () => {
+      const failure = new Error('header not found');
+      const call = sandbox.stub(adapter.getProvider(), 'call').rejects(failure);
+
+      let thrown: unknown;
+      try {
+        await adapter.getMintAuthority(MINTER);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.equal(failure);
+      expect(call.args.map(([, blockTag]) => blockTag)).to.deep.equal([
+        HEAD,
+        HEAD,
+      ]);
+    });
+
+    it('fails when the head cannot be read, without reading the latest state instead', async () => {
+      const failure = new Error('Invalid response from provider');
+      getBlock.rejects(failure);
+      const call = sandbox.stub(adapter.getProvider(), 'call');
+
+      let thrown: unknown;
+      try {
+        await adapter.getMintAuthority(MINTER);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.equal(failure);
+      expect(call.notCalled).to.equal(true);
+    });
+
+    it('fails when the provider reports no latest block', async () => {
+      getBlock.resolves(null);
+      const call = sandbox
+        .stub(adapter.getProvider(), 'call')
+        .resolves(ensure0x(word(0)));
+
+      let thrown: unknown;
+      try {
+        await adapter.getMintAuthority(MINTER);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      expect(thrown).to.have.property(
+        'message',
+        `Missing the latest block of ${test1.name}`,
+      );
+      expect(call.notCalled).to.equal(true);
+    });
   });
 
   it('populates updateAuthority against the token', async () => {

@@ -24,6 +24,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { blockAt } from '../test/aevoChainStubs.js';
 import {
   errorStringRevertError,
   ethersCallExceptionWithNestedError,
@@ -915,6 +916,10 @@ describe('EvmWarpRouteReader', () => {
                   : setLimitsSelector,
               ),
         );
+      // An Aevo token is read at the block that was the latest.
+      if (type === XERC20Type.Aevo) {
+        sandbox.stub(reader.provider, 'getBlock').resolves(blockAt(100));
+      }
       sandbox.stub(provider, 'call').callsFake(async (transaction) => {
         const data = await transaction.data;
         assert(typeof data === 'string', 'Expected call data');
@@ -1117,6 +1122,7 @@ describe('EvmWarpRouteReader', () => {
       sandbox
         .stub(provider, 'getCode')
         .resolves(aevoTokenCode(AEVO_USDC_IMPLEMENTATION));
+      sandbox.stub(reader.provider, 'getBlock').resolves(blockAt(100));
       sandbox
         .stub(provider, 'call')
         .rejects(new Error('Invalid response from provider'));
