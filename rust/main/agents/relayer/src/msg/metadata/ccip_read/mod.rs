@@ -835,20 +835,6 @@ async fn fetch_offchain_data(
     origin_tx_hash: Option<&[u8]>,
 ) -> Result<Metadata, FetchOutcome> {
     let message_id = activity.message.id();
-    // CCS refuses a reveal without the transaction that dispatched it or for
-    // another message, so such a reveal POST is neither signed nor sent.
-    // GET-style lookups are never signed and go ahead.
-    if !url.contains("{data}") && is_ccs_reveal_lookup(info) {
-        reveal_post_origin_tx_hash(info, message_id, origin_tx_hash).map_err(|refusal| {
-            // A missing origin transaction hash is already reported for the message.
-            if refusal == RevealPostRefusal::NotForMessage {
-                activity.report(OffchainReadState::RevealNotForMessage, None);
-            }
-            FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
-                refusal.reason().to_owned(),
-            ))
-        })?;
-    }
     let ism_builder = activity.builder;
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
@@ -868,6 +854,21 @@ async fn fetch_offchain_data(
         activity.report(OffchainReadState::ClientFailed, None);
         FetchOutcome::from(*e)
     })?;
+    // CCS refuses a reveal without the transaction that dispatched it or for
+    // another message, so such a reveal POST is neither signed nor sent.
+    // GET-style lookups are never signed and go ahead. This runs after URL
+    // validation so a host outside the allowlist is still reported as such.
+    if !url.contains("{data}") && is_ccs_reveal_lookup(info) {
+        reveal_post_origin_tx_hash(info, message_id, origin_tx_hash).map_err(|refusal| {
+            // A missing origin transaction hash is already reported for the message.
+            if refusal == RevealPostRefusal::NotForMessage {
+                activity.report(OffchainReadState::RevealNotForMessage, None);
+            }
+            FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+                refusal.reason().to_owned(),
+            ))
+        })?;
+    }
 
     // Validate the destination before invoking a remote signer.
     // The message id is the delivered message's, never taken from the lookup's
@@ -1751,6 +1752,12 @@ mod test {
         ]
     }
 
+    /// The only host [`lookup_with_call_data`] allows. It resolves to a loopback
+    /// address, so a request to it fails without leaving the machine.
+    const ALLOWED_LOOKUP_HOST: &str = "localhost";
+    const ALLOWED_LOOKUP_URL: &str = "https://localhost/lookup";
+    const DISALLOWED_LOOKUP_URL: &str = "https://ccs.example/lookup";
+
     /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
     /// `sender`, `urls` and `call_data`, and returns its error and read states.
     async fn lookup_with_call_data(
@@ -1765,7 +1772,9 @@ mod test {
         use crate::test_utils::mock_base_builder::build_mock_base_builder;
         use ethers::abi::AbiEncode;
 
-        let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
+        let mut base = build_mock_base_builder(domain.clone(), domain.clone());
+        base.responses.ccip_read_allowed_domains = vec![ALLOWED_LOOKUP_HOST.to_owned()];
+        let base = Arc::new(base);
         *base.responses.origin_tx_hash.lock().expect("lock") = origin_tx_hash;
         let lookup = OffchainLookup {
             sender,
@@ -1827,13 +1836,13 @@ mod test {
                 format_revert,
                 ism,
                 sender,
-                vec!["https://127.0.0.1/lookup".to_owned()],
+                vec![ALLOWED_LOOKUP_URL.to_owned()],
                 [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
                 None,
             )
             .await;
 
-            // Refused before URL validation, signing and the request.
+            // Refused after URL validation, before signing and the request.
             assert_eq!(error, MetadataBuildError::CouldNotFetch, "{name}");
             assert_eq!(states, vec!["\"origin_transaction_missing\""], "{name}");
         }
@@ -1847,7 +1856,7 @@ mod test {
             .next()
             .expect("an EVM destination");
         let delivered = RawHyperlaneMessage::from(&HyperlaneMessage::default());
-        let urls = vec!["https://127.0.0.1/lookup".to_owned()];
+        let urls = vec![ALLOWED_LOOKUP_URL.to_owned()];
         let origin_tx_hash = Some(hyperlane_core::H512::repeat_byte(0x88));
 
         // The lookups are read for `HyperlaneMessage::default()`.
@@ -1862,7 +1871,7 @@ mod test {
         )
         .await;
         assert_eq!(error, MetadataBuildError::CouldNotFetch);
-        // Refused before URL validation, signing and the request.
+        // Refused after URL validation, before signing and the request.
         assert_eq!(states, vec!["\"reveal_not_for_message\""]);
 
         let (_, states) = lookup_with_call_data(
@@ -1875,8 +1884,46 @@ mod test {
             origin_tx_hash,
         )
         .await;
-        // The delivered message's reveal goes on to URL validation.
-        assert_eq!(states, vec!["\"url_rejected\""]);
+        // The delivered message's reveal goes on to the request, which fails
+        // because the allowed host resolves to a loopback address.
+        assert_eq!(states, vec!["\"request_failed\""]);
+    }
+
+    #[tokio::test]
+    async fn refused_reveal_post_to_a_disallowed_host_is_not_allowed() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        let cases = [
+            (
+                None,
+                vec!["\"origin_transaction_missing\"", "\"domain_not_allowed\""],
+            ),
+            (
+                Some(hyperlane_core::H512::repeat_byte(0x88)),
+                vec!["\"domain_not_allowed\""],
+            ),
+        ];
+        for (origin_tx_hash, expected_states) in cases {
+            // The lookups are read for `HyperlaneMessage::default()`.
+            let (error, states) = lookup_with_call_data(
+                domain.clone(),
+                format_revert,
+                ism,
+                sender,
+                vec![DISALLOWED_LOOKUP_URL.to_owned()],
+                reveal_call_data(REVEAL_MESSAGE),
+                origin_tx_hash,
+            )
+            .await;
+
+            // The allowlist rejects the host before the reveal is checked, so
+            // the message is not retried.
+            assert_eq!(error, MetadataBuildError::CcipReadNotAllowed);
+            assert_eq!(states, expected_states);
+        }
     }
 
     #[tokio::test]
@@ -1893,7 +1940,7 @@ mod test {
             ism,
             sender,
             vec![
-                "https://127.0.0.1/lookup".to_owned(),
+                ALLOWED_LOOKUP_URL.to_owned(),
                 "https://127.0.0.1/lookup/{data}".to_owned(),
             ],
             [&CCS_REVEAL_LOOKUP_SELECTOR[..], &[0x99; 64]].concat(),
