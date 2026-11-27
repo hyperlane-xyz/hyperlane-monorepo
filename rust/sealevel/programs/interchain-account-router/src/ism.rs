@@ -42,10 +42,11 @@ pub(crate) fn process_instruction(
     if message.recipient != H256::from(program_id.to_bytes()) {
         return Err(ProgramError::InvalidInstructionData);
     }
-    let body = InterchainAccountMessage::decode(&message.body)?;
+    // The selected ISM authenticates the full message; Handle validates calls.
+    let message_ism = InterchainAccountMessage::decode_ism(&message.body)?;
     let config_info = accounts.first().ok_or(ProgramError::NotEnoughAccountKeys)?;
-    let config = RouterConfig::load(program_id, config_info)?;
-    let inbox_key = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &config.mailbox).0;
+    let mailbox = RouterConfig::load_mailbox(program_id, config_info)?;
+    let inbox_key = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox).0;
     let mut prefix = vec![
         AccountMeta::new_readonly(config_address(program_id).0, false),
         AccountMeta::new_readonly(inbox_key, false),
@@ -55,13 +56,13 @@ pub(crate) fn process_instruction(
     }
     // Read the authenticated account directly; a CPI back into Mailbox would
     // be indirect reentrancy. Mailbox passes this account read-only during Verify.
-    let inbox = Inbox::verify_account_and_fetch_inner(&config.mailbox, &accounts[1])?;
-    let ism = if body.ism == H256::zero() {
+    let inbox = Inbox::verify_account_and_fetch_inner(&mailbox, &accounts[1])?;
+    let ism = if message_ism == H256::zero() {
         inbox.default_ism
     } else {
-        Pubkey::new_from_array(body.ism.0)
+        Pubkey::new_from_array(message_ism.0)
     };
-    if ism == Pubkey::default() || ism == *program_id || ism == config.mailbox {
+    if ism == Pubkey::default() || ism == *program_id || ism == mailbox {
         return Err(ProgramError::InvalidArgument);
     }
     let vam = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism).0;

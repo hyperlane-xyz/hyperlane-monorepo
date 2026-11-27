@@ -1,13 +1,16 @@
 use account_utils::SizedData;
+use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_composite_ism::accounts::{
     derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
     DomainIsmStorage, IsmNode,
 };
 use hyperlane_sealevel_interchain_account_router::{
-    accounts::{config_address, interchain_account_address, RouterConfigAccount},
+    accounts::{config_address, interchain_account_address, RouterConfig, RouterConfigAccount},
     instruction::{
-        call_remote_with_overrides_instruction, init_instruction, CallRemoteWithOverrides,
+        call_remote_instruction, call_remote_with_overrides_instruction, init_instruction,
+        router_config_instruction, CallRemote, CallRemoteWithOverrides,
+        Instruction as RouterInstruction, RemoteRouterAndIsm,
     },
     message::{Call, InterchainAccountMessage, SealevelCallData},
     processor::{handle_account_metas, process_instruction as router_processor},
@@ -184,6 +187,13 @@ impl TestContext {
                 ..Account::default()
             },
         );
+        test.add_account(
+            upgrade_authority.pubkey(),
+            Account {
+                lamports: 1_000_000_000,
+                ..Account::default()
+            },
+        );
         let mut context = test.start_with_context().await;
         let mailbox = initialize_mailbox(
             &mut context.banks_client,
@@ -280,6 +290,50 @@ impl TestContext {
         )
         .await
         .map(|_| ())
+    }
+
+    async fn configure(&mut self, instruction: RouterInstruction) -> Result<(), BanksClientError> {
+        process_instruction(
+            &mut self.context.banks_client,
+            router_config_instruction(ROUTER, self.upgrade_authority.pubkey(), instruction)
+                .unwrap(),
+            &self.context.payer,
+            &[&self.context.payer, &self.upgrade_authority],
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn router_config(&mut self) -> RouterConfig {
+        let account = self
+            .context
+            .banks_client
+            .get_account(config_address(&ROUTER).0)
+            .await
+            .unwrap()
+            .unwrap();
+        *RouterConfigAccount::fetch(&mut account.data.as_slice())
+            .unwrap()
+            .into_inner()
+    }
+
+    async fn query<T: BorshSerialize + BorshDeserialize>(
+        &mut self,
+        instruction: RouterInstruction,
+    ) -> T {
+        simulate_instruction::<SimulationReturnData<T>>(
+            &mut self.context.banks_client,
+            &self.context.payer,
+            Instruction::new_with_bytes(
+                ROUTER,
+                &borsh::to_vec(&instruction).unwrap(),
+                vec![AccountMeta::new_readonly(config_address(&ROUTER).0, false)],
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap()
+        .return_data
     }
 
     async fn token_state(&mut self) -> HyperlaneToken<NativePlugin> {
@@ -1027,6 +1081,450 @@ async fn does_not_inherit_the_relayer_signature() {
         .await
         .unwrap()
         .is_none());
+}
+
+#[tokio::test]
+async fn enrollment_matches_evm_immutability_and_unenrollment() {
+    let mut test = TestContext::new().await;
+    assert_eq!(
+        test.query::<Option<Pubkey>>(RouterInstruction::GetOwner)
+            .await,
+        Some(test.upgrade_authority.pubkey())
+    );
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Routers(1)).await,
+        H256::zero()
+    );
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Isms(1)).await,
+        H256::zero()
+    );
+    let remote = RemoteRouterAndIsm {
+        domain: 1,
+        router: [31; 32].into(),
+        ism: [32; 32].into(),
+    };
+    test.configure(RouterInstruction::EnrollRemoteRouterAndIsm(remote.clone()))
+        .await
+        .unwrap();
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Routers(1)).await,
+        remote.router
+    );
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Isms(1)).await,
+        remote.ism
+    );
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouter(1, H256::zero()))
+        .await
+        .is_err());
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouterAndIsm(remote.clone()))
+        .await
+        .is_err());
+    test.configure(RouterInstruction::EnrollRemoteRouters(vec![
+        (3, [33; 32].into()),
+        (2, [34; 32].into()),
+    ]))
+    .await
+    .unwrap();
+    test.configure(RouterInstruction::EnrollRemoteRouterAndIsms(vec![
+        RemoteRouterAndIsm {
+            domain: 4,
+            router: [35; 32].into(),
+            ism: H256::zero(),
+        },
+        RemoteRouterAndIsm {
+            domain: 5,
+            router: [36; 32].into(),
+            ism: [37; 32].into(),
+        },
+    ]))
+    .await
+    .unwrap();
+    assert_eq!(
+        test.query::<Vec<u32>>(RouterInstruction::Domains).await,
+        vec![1, 2, 3, 4, 5]
+    );
+    let config = test
+        .context
+        .banks_client
+        .get_account(config_address(&ROUTER).0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(Rent::default().is_exempt(config.lamports, config.data.len()));
+    assert!(config.data.len() >= RouterConfigAccount::from(test.router_config().await).size());
+
+    // Duplicate domains and late failures roll back the entire batch.
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouterAndIsms(vec![
+            RemoteRouterAndIsm {
+                domain: 6,
+                router: [38; 32].into(),
+                ism: H256::zero()
+            },
+            remote.clone(),
+        ]))
+        .await
+        .is_err());
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouters(vec![
+            (6, [38; 32].into()),
+            (6, [39; 32].into())
+        ]))
+        .await
+        .is_err());
+    assert!(test
+        .configure(RouterInstruction::UnenrollRemoteRouters(vec![2, 99]))
+        .await
+        .is_err());
+    assert_eq!(
+        test.context
+            .banks_client
+            .get_account(config_address(&ROUTER).0)
+            .await
+            .unwrap()
+            .unwrap(),
+        config
+    );
+
+    test.configure(RouterInstruction::UnenrollRemoteRouters(vec![2, 3]))
+        .await
+        .unwrap();
+    test.configure(RouterInstruction::EnrollRemoteRouter(2, [40; 32].into()))
+        .await
+        .unwrap();
+    test.configure(RouterInstruction::UnenrollRemoteRouter(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Routers(1)).await,
+        H256::zero()
+    );
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Isms(1)).await,
+        remote.ism
+    );
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouterAndIsm(
+            RemoteRouterAndIsm {
+                router: [41; 32].into(),
+                ..remote
+            }
+        ))
+        .await
+        .is_err());
+    assert!(test
+        .configure(RouterInstruction::UnenrollRemoteRouter(99))
+        .await
+        .is_err());
+    assert_eq!(
+        test.query::<Vec<u32>>(RouterInstruction::Domains).await,
+        vec![2, 4, 5]
+    );
+
+    // EVM's guard compares values, not presence: an all-zero pair remains replaceable.
+    test.configure(RouterInstruction::EnrollRemoteRouterAndIsms(vec![
+        RemoteRouterAndIsm {
+            domain: 7,
+            router: H256::zero(),
+            ism: H256::zero(),
+        },
+        RemoteRouterAndIsm {
+            domain: 7,
+            router: [42; 32].into(),
+            ism: H256::zero(),
+        },
+    ]))
+    .await
+    .unwrap();
+    assert_eq!(
+        test.query::<H256>(RouterInstruction::Routers(7)).await,
+        [42; 32].into()
+    );
+}
+
+#[tokio::test]
+async fn configuration_requires_owner_signature_and_supports_ownership_transfer() {
+    let mut test = TestContext::new().await;
+    for instruction in [
+        RouterInstruction::EnrollRemoteRouter(1, [1; 32].into()),
+        RouterInstruction::EnrollRemoteRouters(vec![]),
+        RouterInstruction::EnrollRemoteRouterAndIsm(RemoteRouterAndIsm {
+            domain: 2,
+            router: [2; 32].into(),
+            ism: [3; 32].into(),
+        }),
+        RouterInstruction::EnrollRemoteRouterAndIsms(vec![]),
+        RouterInstruction::UnenrollRemoteRouter(1),
+        RouterInstruction::UnenrollRemoteRouters(vec![]),
+        RouterInstruction::TransferOwnership(None),
+    ] {
+        let mut unsigned =
+            router_config_instruction(ROUTER, test.upgrade_authority.pubkey(), instruction)
+                .unwrap();
+        unsigned.accounts[2].is_signer = false;
+        assert!(test.submit(unsigned.clone()).await.is_err());
+        unsigned.accounts[2] = AccountMeta::new(test.context.payer.pubkey(), true);
+        assert!(test.submit(unsigned).await.is_err());
+    }
+    assert!(test.router_config().await.routers.is_empty());
+    let mut wrong_config = router_config_instruction(
+        ROUTER,
+        test.upgrade_authority.pubkey(),
+        RouterInstruction::EnrollRemoteRouter(1, [1; 32].into()),
+    )
+    .unwrap();
+    wrong_config.accounts[1].pubkey = test.token;
+    assert!(process_instruction(
+        &mut test.context.banks_client,
+        wrong_config,
+        &test.context.payer,
+        &[&test.context.payer, &test.upgrade_authority]
+    )
+    .await
+    .is_err());
+
+    let new_owner = test.context.payer.pubkey();
+    test.configure(RouterInstruction::TransferOwnership(Some(new_owner)))
+        .await
+        .unwrap();
+    assert_eq!(
+        test.query::<Option<Pubkey>>(RouterInstruction::GetOwner)
+            .await,
+        Some(new_owner)
+    );
+    assert!(test
+        .configure(RouterInstruction::EnrollRemoteRouter(1, [1; 32].into()))
+        .await
+        .is_err());
+    let enroll = router_config_instruction(
+        ROUTER,
+        new_owner,
+        RouterInstruction::EnrollRemoteRouter(1, [2; 32].into()),
+    )
+    .unwrap();
+    test.submit(enroll).await.unwrap();
+    test.submit(
+        router_config_instruction(
+            ROUTER,
+            new_owner,
+            RouterInstruction::TransferOwnership(None),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        test.query::<Option<Pubkey>>(RouterInstruction::GetOwner)
+            .await,
+        None
+    );
+    assert!(test
+        .submit(
+            router_config_instruction(
+                ROUTER,
+                new_owner,
+                RouterInstruction::UnenrollRemoteRouter(1)
+            )
+            .unwrap()
+        )
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn dispatch_and_delivery_with_many_enrolled_domains() {
+    let mut test = TestContext::new().await;
+    // Regression: loading both maps twice exhausted the default SBF heap at 64
+    // domains, even with empty calls. Enroll individually within the CU budget.
+    for domain in 1..=64 {
+        test.configure(RouterInstruction::EnrollRemoteRouterAndIsm(
+            RemoteRouterAndIsm {
+                domain,
+                router: H256::repeat_byte(61),
+                ism: H256::repeat_byte(62),
+            },
+        ))
+        .await
+        .unwrap();
+    }
+    let unique = Keypair::new();
+    let instruction = call_remote_instruction(
+        ROUTER,
+        mailbox_id(),
+        test.context.payer.pubkey(),
+        test.context.payer.pubkey(),
+        unique.pubkey(),
+        CallRemote {
+            destination: ORIGIN,
+            calls: vec![],
+        },
+    )
+    .unwrap();
+    process_instruction(
+        &mut test.context.banks_client,
+        instruction,
+        &test.context.payer,
+        &[&test.context.payer, &unique],
+    )
+    .await
+    .unwrap();
+
+    // Incoming verification and execution need only the mailbox, not the maps.
+    let new_owner = Pubkey::new_unique();
+    let call = transfer_ownership_instruction(WARP, ica(), Some(new_owner)).unwrap();
+    let incoming = message(body(vec![native_call(call)]));
+    let delivery = test.buffered_delivery_instruction(&incoming).await;
+    test.submit(delivery).await.unwrap();
+    assert!(test.delivered(&incoming).await);
+    assert_eq!(test.token_state().await.owner, Some(new_owner));
+}
+
+#[tokio::test]
+async fn call_remote_uses_enrolled_defaults_and_overrides_remain_explicit() {
+    let mut test = TestContext::new().await;
+    let caller = Keypair::new();
+    let calls = vec![Call {
+        to: [55; 32].into(),
+        value: 123.into(),
+        data: vec![1, 2, 3],
+    }];
+    test.configure(RouterInstruction::EnrollRemoteRouterAndIsms(vec![
+        RemoteRouterAndIsm {
+            domain: ORIGIN,
+            router: [61; 32].into(),
+            ism: [62; 32].into(),
+        },
+        RemoteRouterAndIsm {
+            domain: 2,
+            router: [63; 32].into(),
+            ism: H256::zero(),
+        },
+        RemoteRouterAndIsm {
+            domain: 3,
+            router: H256::zero(),
+            ism: H256::zero(),
+        },
+    ]))
+    .await
+    .unwrap();
+    for (destination, overrides, expected_router, expected_ism) in [
+        (ORIGIN, false, H256::repeat_byte(61), H256::repeat_byte(62)),
+        (2, false, H256::repeat_byte(63), H256::zero()),
+        (ORIGIN, true, H256::repeat_byte(64), H256::zero()),
+        (99, true, H256::repeat_byte(65), H256::repeat_byte(66)),
+    ] {
+        let unique = Keypair::new();
+        let instruction = if overrides {
+            call_remote_with_overrides_instruction(
+                ROUTER,
+                mailbox_id(),
+                caller.pubkey(),
+                test.context.payer.pubkey(),
+                unique.pubkey(),
+                CallRemoteWithOverrides {
+                    destination,
+                    router: expected_router,
+                    ism: expected_ism,
+                    calls: calls.clone(),
+                    salt: [67; 32].into(),
+                },
+            )
+            .unwrap()
+        } else {
+            call_remote_instruction(
+                ROUTER,
+                mailbox_id(),
+                caller.pubkey(),
+                test.context.payer.pubkey(),
+                unique.pubkey(),
+                CallRemote {
+                    destination,
+                    calls: calls.clone(),
+                },
+            )
+            .unwrap()
+        };
+        let dispatched_key = instruction.accounts[9].pubkey;
+        process_instruction(
+            &mut test.context.banks_client,
+            instruction,
+            &test.context.payer,
+            &[&test.context.payer, &caller, &unique],
+        )
+        .await
+        .unwrap();
+        let account = test
+            .context
+            .banks_client
+            .get_account(dispatched_key)
+            .await
+            .unwrap()
+            .unwrap();
+        let dispatched = DispatchedMessageAccount::fetch(&mut account.data.as_slice())
+            .unwrap()
+            .into_inner();
+        let message =
+            HyperlaneMessage::read_from(&mut dispatched.encoded_message.as_slice()).unwrap();
+        assert_eq!(message.sender, ROUTER.to_bytes().into());
+        assert_eq!(message.destination, destination);
+        assert_eq!(message.recipient, expected_router);
+        assert_eq!(
+            InterchainAccountMessage::decode(&message.body).unwrap(),
+            InterchainAccountMessage {
+                owner: caller.pubkey().to_bytes().into(),
+                ism: expected_ism,
+                salt: if overrides {
+                    [67; 32].into()
+                } else {
+                    H256::zero()
+                },
+                calls: calls.clone(),
+            }
+        );
+    }
+    test.configure(RouterInstruction::UnenrollRemoteRouter(ORIGIN))
+        .await
+        .unwrap();
+    for destination in [ORIGIN, 3, 99] {
+        let unique = Keypair::new();
+        let instruction = call_remote_instruction(
+            ROUTER,
+            mailbox_id(),
+            caller.pubkey(),
+            test.context.payer.pubkey(),
+            unique.pubkey(),
+            CallRemote {
+                destination,
+                calls: vec![],
+            },
+        )
+        .unwrap();
+        let dispatched = instruction.accounts[9].pubkey;
+        assert!(process_instruction(
+            &mut test.context.banks_client,
+            instruction,
+            &test.context.payer,
+            &[&test.context.payer, &caller, &unique]
+        )
+        .await
+        .is_err());
+        assert!(test
+            .context
+            .banks_client
+            .get_account(dispatched)
+            .await
+            .unwrap()
+            .is_none());
+    }
+    // Outgoing enrollment never becomes an incoming allowlist or incoming ISM override.
+    let incoming = message(body(vec![]));
+    let delivery = test.buffered_delivery_instruction(&incoming).await;
+    test.submit(delivery).await.unwrap();
+    assert!(test.delivered(&incoming).await);
 }
 
 #[tokio::test]

@@ -3620,6 +3620,7 @@ dependencies = [
 name = "hyperlane-sealevel-interchain-account-router"
 version = "0.1.0"
 dependencies = [
+ "access-control",
  "account-utils",
  "bincode",
  "borsh 1.6.0",
@@ -3627,6 +3628,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-composite-ism",
+ "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",

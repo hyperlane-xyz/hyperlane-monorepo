@@ -1,5 +1,6 @@
 //! Mailbox-authenticated execution and outbound dispatch.
 
+use access_control::AccessControl;
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 use borsh::BorshDeserialize;
 use hyperlane_core::H256;
@@ -30,7 +31,9 @@ use crate::{
     accounts::{
         config_address, interchain_account_address, RouterConfig, RouterConfigAccount, CONFIG_SEEDS,
     },
-    instruction::{CallRemoteWithOverrides, Instruction as RouterInstruction},
+    instruction::{
+        CallRemote, CallRemoteWithOverrides, Instruction as RouterInstruction, RemoteRouterAndIsm,
+    },
     interchain_account_seeds,
     message::{Call, InterchainAccountMessage, SealevelCallData},
 };
@@ -75,7 +78,35 @@ pub fn process_instruction(
         .map_err(|_| ProgramError::InvalidInstructionData)?
     {
         RouterInstruction::Init => initialize(program_id, accounts),
-        RouterInstruction::CallRemoteWithOverrides(call) => call_remote(program_id, accounts, call),
+        RouterInstruction::CallRemote(call) => call_remote(program_id, accounts, call),
+        RouterInstruction::CallRemoteWithOverrides(call) => {
+            call_remote_with_overrides(program_id, accounts, call)
+        }
+        RouterInstruction::EnrollRemoteRouter(domain, router) => {
+            enroll_remote_router(program_id, accounts, domain, router)
+        }
+        RouterInstruction::EnrollRemoteRouters(routers) => {
+            enroll_remote_routers(program_id, accounts, routers)
+        }
+        RouterInstruction::EnrollRemoteRouterAndIsm(remote) => {
+            enroll_remote_router_and_ism(program_id, accounts, remote)
+        }
+        RouterInstruction::EnrollRemoteRouterAndIsms(remotes) => {
+            enroll_remote_router_and_isms(program_id, accounts, remotes)
+        }
+        RouterInstruction::UnenrollRemoteRouter(domain) => {
+            unenroll_remote_router(program_id, accounts, domain)
+        }
+        RouterInstruction::UnenrollRemoteRouters(domains) => {
+            unenroll_remote_routers(program_id, accounts, domains)
+        }
+        RouterInstruction::TransferOwnership(new_owner) => {
+            transfer_ownership(program_id, accounts, new_owner)
+        }
+        instruction @ (RouterInstruction::GetOwner
+        | RouterInstruction::Routers(_)
+        | RouterInstruction::Isms(_)
+        | RouterInstruction::Domains) => query_router(program_id, accounts, instruction),
     }
 }
 
@@ -108,6 +139,8 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     verify_account_uninitialized(config)?;
     let state = RouterConfigAccount::from(RouterConfig {
         mailbox: *mailbox.key,
+        owner: Some(*authority.key),
+        ..RouterConfig::default()
     });
     let bump_seed = [bump];
     let mut seeds = CONFIG_SEEDS.to_vec();
@@ -123,6 +156,163 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     )?;
     state.store(config, false)?;
     msg!("Initialized ICA router with mailbox {}", mailbox.key);
+    Ok(())
+}
+
+/// Enrolls a remote router with a zero ISM, matching EVM.
+/// Accounts: system, writable config, signer/writable owner.
+fn enroll_remote_router(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domain: u32,
+    router: H256,
+) -> ProgramResult {
+    enroll_remote_router_and_ism(
+        program_id,
+        accounts,
+        RemoteRouterAndIsm {
+            domain,
+            router,
+            ism: H256::zero(),
+        },
+    )
+}
+
+/// Enrolls remote routers with zero ISMs. Same accounts as `enroll_remote_router`.
+fn enroll_remote_routers(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    routers: Vec<(u32, H256)>,
+) -> ProgramResult {
+    let remotes = routers
+        .into_iter()
+        .map(|(domain, router)| RemoteRouterAndIsm {
+            domain,
+            router,
+            ism: H256::zero(),
+        })
+        .collect();
+    enroll_remote_router_and_isms(program_id, accounts, remotes)
+}
+
+/// Enrolls a router/ISM pair. Same accounts as `enroll_remote_router`.
+fn enroll_remote_router_and_ism(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    remote: RemoteRouterAndIsm,
+) -> ProgramResult {
+    enroll_remote_router_and_isms(program_id, accounts, vec![remote])
+}
+
+/// Enrolls router/ISM pairs atomically, following the Hyp token enrollment pattern.
+/// Accounts: system, writable config, signer/writable owner (funds additional rent).
+fn enroll_remote_router_and_isms(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    remotes: Vec<RemoteRouterAndIsm>,
+) -> ProgramResult {
+    let [system, config_info, owner] = accounts else {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+    if system.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let mut config = RouterConfig::load(program_id, config_info)?;
+    config.ensure_owner_signer(owner)?;
+    for remote in remotes {
+        config.enroll(remote.domain, remote.router, remote.ism)?;
+    }
+    RouterConfigAccount::from(config).store_with_rent_exempt_realloc(
+        config_info,
+        &Rent::get()?,
+        owner,
+        system,
+    )
+}
+
+/// Removes one router while retaining its ISM. Same accounts as `enroll_remote_router`.
+fn unenroll_remote_router(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domain: u32,
+) -> ProgramResult {
+    unenroll_remote_routers(program_id, accounts, vec![domain])
+}
+
+/// Removes routers atomically. Accounts: system, writable config, signer/writable owner.
+fn unenroll_remote_routers(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domains: Vec<u32>,
+) -> ProgramResult {
+    let [system, config_info, owner] = accounts else {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+    if system.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let mut config = RouterConfig::load(program_id, config_info)?;
+    config.ensure_owner_signer(owner)?;
+    for domain in domains {
+        config.unenroll(domain)?;
+    }
+    RouterConfigAccount::from(config).store_with_rent_exempt_realloc(
+        config_info,
+        &Rent::get()?,
+        owner,
+        system,
+    )
+}
+
+/// Transfers or renounces router ownership using shared access control.
+/// Accounts: system, writable config, signer/writable current owner.
+fn transfer_ownership(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
+    let [system, config_info, owner] = accounts else {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+    if system.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let mut config = RouterConfig::load(program_id, config_info)?;
+    config.transfer_ownership(owner, new_owner)?;
+    RouterConfigAccount::from(config).store_with_rent_exempt_realloc(
+        config_info,
+        &Rent::get()?,
+        owner,
+        system,
+    )
+}
+
+/// Getters take only the canonical config account, read-only.
+fn query_router(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction: RouterInstruction,
+) -> ProgramResult {
+    let [config_info] = accounts else {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+    let config = RouterConfig::load(program_id, config_info)?;
+    let data = match instruction {
+        RouterInstruction::GetOwner => borsh::to_vec(&SimulationReturnData::new(config.owner))?,
+        RouterInstruction::Routers(domain) => {
+            borsh::to_vec(&SimulationReturnData::new(config.router(domain)))?
+        }
+        RouterInstruction::Isms(domain) => {
+            borsh::to_vec(&SimulationReturnData::new(config.ism(domain)))?
+        }
+        RouterInstruction::Domains => {
+            let mut domains: Vec<_> = config.routers.keys().copied().collect();
+            domains.sort_unstable();
+            borsh::to_vec(&SimulationReturnData::new(domains))?
+        }
+        _ => return Err(ProgramError::InvalidInstructionData),
+    };
+    set_return_data(&data);
     Ok(())
 }
 
@@ -204,11 +394,9 @@ fn handle_message(
     let [process_authority, config, authority, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
-    let config = RouterConfig::load(program_id, config)?;
-    let (expected, _) = Pubkey::find_program_address(
-        mailbox_process_authority_pda_seeds!(program_id),
-        &config.mailbox,
-    );
+    let mailbox = RouterConfig::load_mailbox(program_id, config)?;
+    let (expected, _) =
+        Pubkey::find_program_address(mailbox_process_authority_pda_seeds!(program_id), &mailbox);
     if process_authority.key != &expected {
         return Err(ProgramError::InvalidArgument);
     }
@@ -245,9 +433,26 @@ fn handle_message(
     Ok(())
 }
 
+/// Resolves enrolled defaults and delegates to the explicit-override path, as on EVM.
+fn call_remote(program_id: &Pubkey, accounts: &[AccountInfo], call: CallRemote) -> ProgramResult {
+    let config_info = accounts.first().ok_or(ProgramError::NotEnoughAccountKeys)?;
+    let config = RouterConfig::load(program_id, config_info)?;
+    call_remote_with_overrides(
+        program_id,
+        accounts,
+        CallRemoteWithOverrides {
+            destination: call.destination,
+            router: config.router(call.destination),
+            ism: config.ism(call.destination),
+            calls: call.calls,
+            salt: H256::zero(),
+        },
+    )
+}
+
 /// Accounts: config, owner (signer), mailbox, followed by the seven mailbox
-/// dispatch accounts. There is no remote-router allowlist, matching EVM overrides.
-fn call_remote(
+/// dispatch accounts. Explicit overrides bypass enrollment, matching EVM.
+fn call_remote_with_overrides(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     call: CallRemoteWithOverrides,
@@ -257,14 +462,14 @@ fn call_remote(
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
-    let config = RouterConfig::load(program_id, config)?;
+    let configured_mailbox = RouterConfig::load_mailbox(program_id, config)?;
     if call.router == H256::zero() {
         return Err(ProgramError::InvalidArgument);
     }
     if !owner.is_signer || !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    if mailbox.key != &config.mailbox || !mailbox.executable {
+    if mailbox.key != &configured_mailbox || !mailbox.executable {
         return Err(ProgramError::IncorrectProgramId);
     }
     let (authority, bump) =
@@ -298,7 +503,7 @@ fn call_remote(
     // and message-storage PDA, matching Hyp token dispatch.
     invoke_signed(
         &Instruction {
-            program_id: config.mailbox,
+            program_id: configured_mailbox,
             accounts: metas,
             data,
         },

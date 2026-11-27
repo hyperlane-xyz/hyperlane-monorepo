@@ -15,6 +15,26 @@ use solana_system_interface::program as system_program;
 
 use crate::{accounts::config_address, message::Call};
 
+/// Outbound convenience call using the enrolled router and ISM, with zero salt.
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
+pub struct CallRemote {
+    /// Destination Hyperlane domain.
+    pub destination: u32,
+    /// Calls executed on the destination.
+    pub calls: Vec<Call>,
+}
+
+/// A destination's router and ISM defaults, enrolled together as on EVM.
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone)]
+pub struct RemoteRouterAndIsm {
+    /// Destination Hyperlane domain.
+    pub domain: u32,
+    /// Destination ICA router.
+    pub router: H256,
+    /// Destination ISM; zero selects the destination mailbox default.
+    pub ism: H256,
+}
+
 /// Outbound call parameters, equivalent to EVM `callRemoteWithOverrides`.
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct CallRemoteWithOverrides {
@@ -37,6 +57,48 @@ pub enum Instruction {
     Init,
     /// Dispatches calls. The owner comes from the signer account, never instruction data.
     CallRemoteWithOverrides(CallRemoteWithOverrides),
+    /// Dispatches through the enrolled router/ISM with zero salt, matching EVM `callRemote`.
+    CallRemote(CallRemote),
+    /// Enrolls a router with a zero ISM. Owner only.
+    EnrollRemoteRouter(u32, H256),
+    /// Batch router enrollment with zero ISMs. Owner only.
+    EnrollRemoteRouters(Vec<(u32, H256)>),
+    /// Enrolls router and ISM defaults together. Owner only.
+    EnrollRemoteRouterAndIsm(RemoteRouterAndIsm),
+    /// Batch enrollment of router and ISM defaults. Owner only.
+    EnrollRemoteRouterAndIsms(Vec<RemoteRouterAndIsm>),
+    /// Removes an enrolled router without clearing its ISM. Owner only.
+    UnenrollRemoteRouter(u32),
+    /// Batch router removal. Owner only.
+    UnenrollRemoteRouters(Vec<u32>),
+    /// Transfers or renounces ownership (`None`), following the Hyp token pattern.
+    TransferOwnership(Option<Pubkey>),
+    /// Returns the owner as `SimulationReturnData<Option<Pubkey>>`.
+    GetOwner,
+    /// Returns the enrolled router or zero as `SimulationReturnData<H256>`.
+    Routers(u32),
+    /// Returns the outgoing ISM or zero as `SimulationReturnData<H256>`.
+    Isms(u32),
+    /// Returns enrolled domains in ascending order as `SimulationReturnData<Vec<u32>>`.
+    Domains,
+}
+
+/// Builds an owner-only configuration instruction: system, config, owner/payer.
+/// The owner funds rent increases, matching Hyp token enrollment.
+pub fn router_config_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    instruction: Instruction,
+) -> Result<SolanaInstruction, ProgramError> {
+    Ok(SolanaInstruction::new_with_bytes(
+        program_id,
+        &borsh::to_vec(&instruction)?,
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(config_address(&program_id).0, false),
+            AccountMeta::new(owner, true),
+        ],
+    ))
 }
 
 /// Builds the router initialization instruction.
@@ -74,9 +136,46 @@ pub fn call_remote_with_overrides_instruction(
     unique_message: Pubkey,
     call: CallRemoteWithOverrides,
 ) -> Result<SolanaInstruction, ProgramError> {
+    dispatch_instruction(
+        program_id,
+        mailbox,
+        owner,
+        payer,
+        unique_message,
+        Instruction::CallRemoteWithOverrides(call),
+    )
+}
+
+/// Builds `callRemote` using enrolled defaults and the same accounts/signers as overrides.
+pub fn call_remote_instruction(
+    program_id: Pubkey,
+    mailbox: Pubkey,
+    owner: Pubkey,
+    payer: Pubkey,
+    unique_message: Pubkey,
+    call: CallRemote,
+) -> Result<SolanaInstruction, ProgramError> {
+    dispatch_instruction(
+        program_id,
+        mailbox,
+        owner,
+        payer,
+        unique_message,
+        Instruction::CallRemote(call),
+    )
+}
+
+fn dispatch_instruction(
+    program_id: Pubkey,
+    mailbox: Pubkey,
+    owner: Pubkey,
+    payer: Pubkey,
+    unique_message: Pubkey,
+    instruction: Instruction,
+) -> Result<SolanaInstruction, ProgramError> {
     Ok(SolanaInstruction::new_with_bytes(
         program_id,
-        &borsh::to_vec(&Instruction::CallRemoteWithOverrides(call))?,
+        &borsh::to_vec(&instruction)?,
         vec![
             AccountMeta::new_readonly(config_address(&program_id).0, false),
             AccountMeta::new_readonly(owner, true),

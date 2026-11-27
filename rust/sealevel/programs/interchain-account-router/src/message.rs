@@ -63,11 +63,17 @@ impl InterchainAccountMessage {
         body
     }
 
-    /// Decodes EVM CALLS messages. Commitment/reveal messages are not supported.
-    pub fn decode(body: &[u8]) -> Result<Self, ProgramError> {
+    /// Reads the ISM from a CALLS header without decoding or allocating calls.
+    pub(crate) fn decode_ism(body: &[u8]) -> Result<H256, ProgramError> {
         if body.len() < 97 || body[0] != 0 {
             return Err(ProgramError::InvalidInstructionData);
         }
+        Ok(H256::from_slice(&body[33..65]))
+    }
+
+    /// Decodes EVM CALLS messages. Commitment/reveal messages are not supported.
+    pub fn decode(body: &[u8]) -> Result<Self, ProgramError> {
+        let ism = Self::decode_ism(body)?;
         let call_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
             ParamType::Uint(256),
@@ -110,7 +116,7 @@ impl InterchainAccountMessage {
             .collect::<Result<Vec<_>, ProgramError>>()?;
         Ok(Self {
             owner: H256::from_slice(&body[1..33]),
-            ism: H256::from_slice(&body[33..65]),
+            ism,
             salt: H256::from_slice(&body[65..97]),
             calls,
         })
@@ -120,6 +126,30 @@ impl InterchainAccountMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ism_header_does_not_decode_calls() {
+        let expected = H256::repeat_byte(42);
+        let mut bytes = InterchainAccountMessage {
+            owner: H256::zero(),
+            ism: expected,
+            salt: H256::zero(),
+            calls: vec![],
+        }
+        .encode();
+        assert_eq!(InterchainAccountMessage::decode_ism(&bytes), Ok(expected));
+        // Call validation belongs to Handle, not ISM selection.
+        bytes[97..].fill(255);
+        assert_eq!(InterchainAccountMessage::decode_ism(&bytes), Ok(expected));
+        assert!(InterchainAccountMessage::decode(&bytes).is_err());
+        for len in 0..97 {
+            assert!(InterchainAccountMessage::decode_ism(&bytes[..len]).is_err());
+        }
+        for kind in [1, 2, 255] {
+            bytes[0] = kind;
+            assert!(InterchainAccountMessage::decode_ism(&bytes).is_err());
+        }
+    }
 
     #[test]
     fn solidity_wire_format() {

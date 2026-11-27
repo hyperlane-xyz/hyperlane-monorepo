@@ -30,9 +30,10 @@ system-program instructions signed by that authority.
 Initialize the router with `init_instruction`, signed by its current upgrade
 authority. Initialization checks the canonical upgradeable-loader ProgramData
 account, its owner, its state variant, and the authority signature. Initialize
-before revoking upgrade authority. Configuration is immutable and stored at the
+before revoking upgrade authority. The mailbox address is immutable; the initial
+router administrator is the upgrade authority. Configuration is stored at the
 standard ISM `VERIFY_ACCOUNT_METAS_PDA_SEEDS` PDA, which also serves account discovery.
-This replaces the initial PoC's `ica_router` config seed; reinitialize fresh PoC deployments.
+Earlier PoC config layouts are not migrated; use a fresh deployment and initialization.
 
 The router accepts `Handle` only from the configured mailbox's signed process
 authority. As on EVM, the origin router need not be enrolled: its identity is part
@@ -114,9 +115,15 @@ mailbox are supported.
 
 ## Outgoing calls
 
+Use `call_remote_instruction` with `CallRemote { destination, calls }` to use
+`routers[destination]` as the recipient and `isms[destination]` in the message body.
+The salt is zero, matching EVM `callRemote`. A zero ISM is preserved, selecting the
+destination mailbox default; an absent or zero router rejects dispatch.
+
 Use `call_remote_with_overrides_instruction` with
 `CallRemoteWithOverrides { destination, router, ism, calls, salt }`. The
 destination router and ISM are explicit, matching EVM's `callRemoteWithOverrides`.
+Overrides bypass enrollment, including when the explicit ISM is zero.
 A zero destination router is rejected, as on EVM.
 The owner comes from the signer account (wallet or calling program's PDA), never
 from caller-controlled instruction data. `Call` and the cross-chain wire format
@@ -135,13 +142,40 @@ The Hyperlane message sender is the router program; the ICA message owner is the
 The payer funds the normal mailbox fee and message storage. Return data is the
 mailbox's message ID.
 
+### Router administration
+
+Owner-only instructions mirror the EVM ICA enrollment methods:
+
+- `EnrollRemoteRouter` / `EnrollRemoteRouters`: enroll routers with zero ISMs.
+- `EnrollRemoteRouterAndIsm` / `EnrollRemoteRouterAndIsms`: enroll both defaults.
+- `UnenrollRemoteRouter` / `UnenrollRemoteRouters`: remove existing routers.
+- `TransferOwnership(Some(pubkey))` / `TransferOwnership(None)`: transfer or
+  renounce administration, following the Hyp token ownership interface.
+
+Use `router_config_instruction` to build these transactions. Accounts are system,
+writable config, and signer/writable owner. The owner funds additional rent when
+maps grow, using the same `store_with_rent_exempt_realloc` helper as Hyp tokens.
+Router insertions/removals use the shared connection-client `HyperlaneRouter`
+implementation for `HashMap<u32, H256>`; owner checks use shared `AccessControl`.
+
+ICA adds EVM's stricter semantics around those primitives: enrollment requires
+both existing values to be zero. Unenrollment fails for an absent router and
+retains its ISM. Consequently, a nonzero retained ISM blocks re-enrollment, exactly
+as on EVM. Batches are atomic. There is no standalone ISM setter on EVM ICA or here.
+The mappings never restrict incoming messages or override their ISM selection.
+
+`Routers(domain)`, `Isms(domain)`, `Domains`, and `GetOwner` take only the read-only
+config account and return Borsh `SimulationReturnData` wrapping `H256`, `H256`,
+`Vec<u32>` (sorted), and `Option<Pubkey>` respectively. Batch inputs use paired
+entries instead of EVM's parallel arrays.
+
 ## Initial scope
 
 - Incoming messages select a custom ISM or the live mailbox default as above.
   Outgoing messages preserve the requested ISM.
 - Only CALLS messages are supported; no commitments, reveals, or delegatecalls.
 - Outbound calls are inline. No outbound buffer loading, automatic callbacks,
-  router enrollment, gas-payment integration, or CLI/relayer changes.
+  gas-payment integration, custom hooks, or CLI/relayer changes.
 - Existing transaction, CPI, account-meta return-data, heap, and compute limits apply.
 
 ## Validation
