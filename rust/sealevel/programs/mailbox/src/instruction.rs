@@ -41,6 +41,9 @@ pub enum Instruction {
     ClaimProtocolFees,
     /// Sets the protocol fee configuration.
     SetProtocolFeeConfig(ProtocolFee),
+    /// Processes a message stored in the first account; metadata remains inline.
+    /// The remaining accounts are identical to InboxProcess, in the same order.
+    InboxProcessFromAccount(InboxProcessFromAccount),
 }
 
 impl Instruction {
@@ -92,6 +95,19 @@ pub struct InboxProcess {
     pub metadata: Vec<u8>,
     /// The encoded message.
     pub message: Vec<u8>,
+}
+
+/// Instruction data for processing a buffered message.
+///
+/// Account 0 is a read-only buffer (which may be a PDA). Its entire data must be
+/// the encoded Hyperlane message, without a discriminator, length prefix, or padding.
+/// The buffer need not be owned by the Mailbox: the recipient's ISM authenticates
+/// its contents. Uploading and closing the buffer are the caller's responsibility.
+/// Existing ISM and recipient CPI data limits still apply.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct InboxProcessFromAccount {
+    /// The metadata required by the ISM to process the message.
+    pub metadata: Vec<u8>,
 }
 
 /// Creates an Init instruction.

@@ -2,15 +2,22 @@ use std::thread::sleep;
 
 use borsh::BorshDeserialize;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle as MerkleTree, HyperlaneMessage, H256,
+    accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
+    H256,
 };
+use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_sealevel_mailbox::{
     accounts::{Inbox, InboxAccount, Outbox},
     error::Error as MailboxError,
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
-    mailbox_dispatched_message_pda_seeds,
+    instruction::{
+        init_instruction, InboxProcess, InboxProcessFromAccount, Instruction as MailboxInstruction,
+        OutboxDispatch,
+    },
+    mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
     protocol_fee::ProtocolFee,
 };
+use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
 use hyperlane_sealevel_test_send_receiver::{
     program::{HandleMode, IsmReturnDataMode, TestSendReceiverError},
@@ -21,12 +28,17 @@ use hyperlane_test_utils::{
     mailbox_id, new_funded_keypair, process, process_instruction, process_with_accounts,
 };
 use solana_program::{
+    account_info::AccountInfo,
+    entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
+    program::set_return_data,
+    program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
 };
 use solana_program_test::*;
 use solana_sdk::{
+    account::Account,
     instruction::InstructionError,
     message::Message,
     signature::Signer,
@@ -1014,6 +1026,211 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
             TransactionError::InstructionError(_, InstructionError::BorshIoError)
         ))
     ));
+}
+
+#[tokio::test]
+async fn test_process_from_account_verifies_delivers_and_prevents_replay() {
+    const ISM: Pubkey = Pubkey::new_from_array([11; 32]);
+    const RECIPIENT: Pubkey = Pubkey::new_from_array([12; 32]);
+
+    // Test-only ISM: metadata commits to the exact message bytes. This checks forwarding
+    // and tamper rejection, not production signature verification.
+    fn verify(_id: &Pubkey, _accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+        let InterchainSecurityModuleInstruction::Verify(verify) =
+            InterchainSecurityModuleInstruction::decode(data)?
+        else {
+            return Err(ProgramError::InvalidInstructionData);
+        };
+        let message = HyperlaneMessage::read_from(&mut verify.message.as_slice()).unwrap();
+        if verify.metadata != message.id().as_bytes() {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Ok(())
+    }
+
+    fn receive(_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+        match MessageRecipientInstruction::decode(data)? {
+            MessageRecipientInstruction::InterchainSecurityModule => {
+                set_return_data(&borsh::to_vec(&Some(ISM)).unwrap());
+            }
+            MessageRecipientInstruction::Handle(handle) => {
+                let authority = Pubkey::find_program_address(
+                    mailbox_process_authority_pda_seeds!(&RECIPIENT),
+                    &mailbox_id(),
+                )
+                .0;
+                assert_eq!(*accounts[0].key, authority);
+                assert!(accounts[0].is_signer);
+                assert_eq!(handle.origin, 7);
+                assert_eq!(handle.sender, [13; 32].into());
+                assert!(handle.message.iter().all(|byte| *byte == 42));
+            }
+            _ => return Err(ProgramError::InvalidInstructionData),
+        }
+        Ok(())
+    }
+
+    // Exercise a normal-sized message and one too large to fit in a legacy/v0 tx.
+    for body_size in [32, 2048] {
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: 7,
+            sender: [13; 32].into(),
+            destination: 9,
+            recipient: RECIPIENT.to_bytes().into(),
+            body: vec![42; body_size],
+        };
+        let buffer_owner = Pubkey::new_unique();
+        let buffer = Pubkey::find_program_address(&[b"message"], &buffer_owner).0;
+        let mut test = ProgramTest::new(
+            "hyperlane_sealevel_mailbox",
+            mailbox_id(),
+            processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
+        );
+        test.add_program("buffer_test_ism", ISM, processor!(verify));
+        test.add_program("buffer_test_recipient", RECIPIENT, processor!(receive));
+        test.add_account(
+            buffer,
+            Account {
+                lamports: Rent::default().minimum_balance(message.to_vec().len()),
+                data: message.to_vec(),
+                owner: buffer_owner,
+                executable: false,
+                rent_epoch: 0,
+            },
+        );
+        let (mut client, payer, _) = test.start().await;
+        let init = init_instruction(
+            mailbox_id(),
+            9,
+            ISM,
+            0,
+            ProtocolFee {
+                fee: 0,
+                beneficiary: payer.pubkey(),
+            },
+            payer.pubkey(),
+        )
+        .unwrap();
+        process_instruction(&mut client, init, &payer, &[&payer])
+            .await
+            .unwrap();
+
+        let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox_id()).0;
+        let authority = Pubkey::find_program_address(
+            mailbox_process_authority_pda_seeds!(&RECIPIENT),
+            &mailbox_id(),
+        )
+        .0;
+        let processed = Pubkey::find_program_address(
+            mailbox_processed_message_pda_seeds!(message.id()),
+            &mailbox_id(),
+        )
+        .0;
+        let process_accounts = vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(inbox, false),
+            AccountMeta::new_readonly(authority, false),
+            AccountMeta::new(processed, false),
+            AccountMeta::new_readonly(RECIPIENT, false),
+            AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+            AccountMeta::new_readonly(ISM, false),
+            AccountMeta::new_readonly(RECIPIENT, false),
+        ];
+        let mut accounts = vec![AccountMeta::new_readonly(buffer, false)];
+        accounts.extend(process_accounts.clone());
+        let buffered_instruction = |metadata| Instruction {
+            program_id: mailbox_id(),
+            accounts: accounts.clone(),
+            data: MailboxInstruction::InboxProcessFromAccount(InboxProcessFromAccount { metadata })
+                .into_instruction_data()
+                .unwrap(),
+        };
+
+        // Metadata for different bytes must fail, leaving the message undelivered.
+        let mut different_message = message.clone();
+        different_message.body[0] ^= 1;
+        assert_transaction_error(
+            process_instruction(
+                &mut client,
+                buffered_instruction(different_message.id().as_bytes().to_vec()),
+                &payer,
+                &[&payer],
+            )
+            .await,
+            TransactionError::InstructionError(0, InstructionError::InvalidInstructionData),
+        );
+        assert!(client.get_account(processed).await.unwrap().is_none());
+
+        let metadata = message.id().as_bytes().to_vec();
+        let signature = process_instruction(
+            &mut client,
+            buffered_instruction(metadata.clone()),
+            &payer,
+            &[&payer],
+        )
+        .await
+        .unwrap();
+        assert_processed_message(&mut client, signature, processed, &message, 0).await;
+        assert_eq!(
+            client.get_account(buffer).await.unwrap().unwrap().data,
+            message.to_vec()
+        );
+
+        // Different instruction bytes avoid transaction deduplication. Replay is
+        // rejected before the ISM is called, regardless of the supplied metadata.
+        assert_transaction_error(
+            process_instruction(&mut client, buffered_instruction(vec![]), &payer, &[&payer]).await,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(MailboxError::MessageAlreadyProcessed as u32),
+            ),
+        );
+        if body_size == 32 {
+            let inline = Instruction {
+                program_id: mailbox_id(),
+                accounts: process_accounts,
+                data: MailboxInstruction::InboxProcess(InboxProcess {
+                    metadata,
+                    message: message.to_vec(),
+                })
+                .into_instruction_data()
+                .unwrap(),
+            };
+            assert_transaction_error(
+                process_instruction(&mut client, inline, &payer, &[&payer]).await,
+                TransactionError::InstructionError(
+                    0,
+                    InstructionError::Custom(MailboxError::MessageAlreadyProcessed as u32),
+                ),
+            );
+        }
+    }
+}
+
+#[test]
+fn test_process_from_account_missing_or_malformed_buffer() {
+    let instruction =
+        MailboxInstruction::InboxProcessFromAccount(InboxProcessFromAccount { metadata: vec![] })
+            .into_instruction_data()
+            .unwrap();
+    let process = hyperlane_sealevel_mailbox::processor::process_instruction;
+    assert_eq!(
+        process(&mailbox_id(), &[], &instruction),
+        Err(ProgramError::NotEnoughAccountKeys)
+    );
+
+    let key = Pubkey::new_unique();
+    let owner = Pubkey::new_unique();
+    let mut lamports = 1;
+    let mut data = [0; 76]; // Shorter than a Hyperlane message header.
+    let buffer = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
+    assert_eq!(
+        process(&mailbox_id(), &[buffer], &instruction),
+        Err(MailboxError::DecodeError.into())
+    );
 }
 
 #[tokio::test]

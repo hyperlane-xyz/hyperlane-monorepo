@@ -1,0 +1,38 @@
+[package]
+name = "hyperlane-sealevel-interchain-account-router"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh.workspace = true
+bincode.workspace = true
+ethabi = { version = "18.0", default-features = false }
+solana-program.workspace = true
+solana-system-interface.workspace = true
+solana-loader-v3-interface.workspace = true
+solana-sdk-ids.workspace = true
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+package-versioned = { path = "../../libraries/package-versioned" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+
+[dev-dependencies]
+hex.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["test-client"] }
+hyperlane-sealevel-token-native = { path = "../hyperlane-sealevel-token-native", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[lints]
+workspace = true

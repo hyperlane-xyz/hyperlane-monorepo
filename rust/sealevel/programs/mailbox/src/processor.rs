@@ -36,7 +36,10 @@ use crate::{
         ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
-    instruction::{InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, VERSION},
+    instruction::{
+        InboxProcess, InboxProcessFromAccount, Init, Instruction as MailboxIxn, OutboxDispatch,
+        VERSION,
+    },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -64,6 +67,9 @@ pub fn process_instruction(
     match MailboxIxn::from_instruction_data(instruction_data)? {
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
+        MailboxIxn::InboxProcessFromAccount(process) => {
+            inbox_process_from_account(program_id, accounts, process)
+        }
         MailboxIxn::InboxSetDefaultIsm(ism) => inbox_set_default_ism(program_id, accounts, ism),
         MailboxIxn::InboxGetRecipientIsm(recipient) => {
             inbox_get_recipient_ism(program_id, accounts, recipient)
@@ -176,6 +182,28 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     outbox_account.store(outbox_info, false)?;
 
     Ok(())
+}
+
+/// Reads the message from the first account, then uses the normal processing path.
+/// All remaining accounts have the same order and permissions as `inbox_process`.
+fn inbox_process_from_account(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    process: InboxProcessFromAccount,
+) -> ProgramResult {
+    let (buffer, process_accounts) = accounts
+        .split_first()
+        .ok_or(ProgramError::NotEnoughAccountKeys)?;
+    // Snapshot the untrusted bytes and release the borrow before any CPIs.
+    let message = buffer.try_borrow_data()?.to_vec();
+    inbox_process(
+        program_id,
+        process_accounts,
+        InboxProcess {
+            metadata: process.metadata,
+            message,
+        },
+    )
 }
 
 /// Process a message. Non-reentrant through the use of a RefMut.

@@ -16,6 +16,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/toolchain.env"
 # The paths to the programs
 CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/composite-ism" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp")
 TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collateral" "hyperlane-sealevel-token-cross-collateral" "hyperlane-sealevel-token-native" "hyperlane-sealevel-fee")
+ICA_PROGRAM_PATHS=("interchain-account-router")
 
 build_program () {
     PROGRAM_PATH=$1
@@ -43,6 +44,10 @@ build_programs () {
 
     if [ $PROGRAM_TYPE == "core" ] || [ $BUILD_ALL == "true" ] ; then
         PROGRAM_PATH_LIST+=("${CORE_PROGRAM_PATHS[@]}")
+    fi
+
+    if [ $PROGRAM_TYPE == "ica" ] || [ $BUILD_ALL == "true" ] ; then
+        PROGRAM_PATH_LIST+=("${ICA_PROGRAM_PATHS[@]}")
     fi
 
     log "Building programs: ${PROGRAM_PATH_LIST[@]}"
