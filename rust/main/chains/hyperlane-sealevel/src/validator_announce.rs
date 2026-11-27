@@ -14,13 +14,12 @@ use hyperlane_sealevel_validator_announce::{
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::Signer as _,
 };
 use solana_system_interface::program as system_program;
 use tracing::{info, instrument};
 
 use crate::{
-    ConnectionConf, SealevelKeypair, SealevelProvider, SealevelTransactionFormat,
+    ConnectionConf, SealevelProvider, SealevelSigner, SealevelTransactionFormat,
     TransactionSubmitter,
 };
 
@@ -31,7 +30,7 @@ pub struct SealevelValidatorAnnounce {
     program_id: Pubkey,
     domain: HyperlaneDomain,
     conn: ConnectionConf,
-    signer: Option<SealevelKeypair>,
+    signer: Option<SealevelSigner>,
 }
 
 impl std::fmt::Debug for SealevelValidatorAnnounce {
@@ -54,7 +53,7 @@ impl SealevelValidatorAnnounce {
         tx_submitter: Arc<dyn TransactionSubmitter>,
         conn: ConnectionConf,
         locator: &ContractLocator,
-        signer: Option<SealevelKeypair>,
+        signer: Option<SealevelSigner>,
     ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
@@ -67,7 +66,7 @@ impl SealevelValidatorAnnounce {
         }
     }
 
-    fn get_signer(&self) -> ChainResult<&SealevelKeypair> {
+    fn get_signer(&self) -> ChainResult<&SealevelSigner> {
         self.signer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)

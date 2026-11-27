@@ -1,8 +1,7 @@
-use eyre::{bail, ContextCompat};
+use eyre::ContextCompat;
 
-use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
-use hyperlane_sealevel::{create_keypair as create_raw_keypair, ConnectionConf, SealevelKeypair};
-use solana_sdk::signature::Signer;
+use hyperlane_base::settings::{ChainConf, ChainConnectionConf};
+use hyperlane_sealevel::{ConnectionConf, SealevelSigner};
 
 #[allow(clippy::panic)]
 pub fn get_connection_conf(conf: &ChainConf) -> &ConnectionConf {
@@ -12,39 +11,25 @@ pub fn get_connection_conf(conf: &ChainConf) -> &ConnectionConf {
     }
 }
 
-pub fn create_keypair(conf: &ChainConf) -> eyre::Result<SealevelKeypair> {
-    let signer = conf.signer.as_ref().wrap_err("Signer is missing")?;
-    let key = match signer {
-        SignerConf::HexKey { key } => key,
-        _ => bail!("Sealevel supports only hex key"),
-    };
-    let keypair = create_raw_keypair(key.expose_secret())?;
-    Ok(SealevelKeypair(keypair))
+pub async fn create_signer(conf: &ChainConf) -> eyre::Result<SealevelSigner> {
+    conf.signer
+        .as_ref()
+        .wrap_err("Signer is missing")?
+        .build()
+        .await
 }
 
-/// Returns the identity keypair if configured and distinct from the payer, otherwise `None`.
-/// Used as a co-signer for TrustedRelayer ISMs.
-///
-/// Semantics mirror `ChainConf::sealevel_identity_signer` in `hyperlane-base`: when `identity`
-/// is absent both functions return `None`; when present both derive the key from `SignerConf`.
-/// Any change to supported `SignerConf` variants here must be mirrored there, and vice versa.
-pub fn create_identity_keypair(
+/// Returns a distinct configured identity signer, or None when absent or equal
+/// to the payer. Legacy delivery deduplicates the same keys in SealevelMailbox.
+pub async fn create_identity_signer(
     conf: &ChainConf,
-    payer: &SealevelKeypair,
-) -> eyre::Result<Option<SealevelKeypair>> {
-    let identity_conf = match &conf.identity {
-        Some(c) => c,
-        None => return Ok(None),
-    };
-    let key = match identity_conf {
-        SignerConf::HexKey { key } => key,
-        _ => bail!("Sealevel supports only hex key for identity"),
-    };
-    let keypair = SealevelKeypair(create_raw_keypair(key.expose_secret())?);
-    if keypair.pubkey() == payer.pubkey() {
+    payer: &SealevelSigner,
+) -> eyre::Result<Option<SealevelSigner>> {
+    let Some(identity_conf) = &conf.identity else {
         return Ok(None);
-    }
-    Ok(Some(keypair))
+    };
+    let identity: SealevelSigner = identity_conf.build().await?;
+    Ok((identity.pubkey() != payer.pubkey()).then_some(identity))
 }
 
 #[cfg(test)]
@@ -57,11 +42,12 @@ mod tests {
         SubmitterType, H256,
     };
     use hyperlane_sealevel::{
-        create_keypair as create_raw_keypair, SealevelKeypair, SealevelTransactionFormat,
+        create_keypair as create_raw_keypair, SealevelKeypair, SealevelSigner,
+        SealevelTransactionFormat,
     };
     use solana_sdk::signature::Signer;
 
-    use super::create_identity_keypair;
+    use super::create_identity_signer;
 
     fn sealevel_conf(identity: Option<SignerConf>) -> ChainConf {
         ChainConf {
@@ -95,43 +81,49 @@ mod tests {
         }
     }
 
-    fn make_payer(seed: u8) -> SealevelKeypair {
+    fn make_payer(seed: u8) -> SealevelSigner {
         let mut key = [0u8; 32];
         key[0] = seed;
-        SealevelKeypair(create_raw_keypair(&H256::from(key)).unwrap())
+        SealevelKeypair(create_raw_keypair(&H256::from(key)).unwrap()).into()
     }
 
     /// When `identity` is absent, returns `None` — matches `sealevel_identity_signer` behavior.
-    #[test]
-    fn identity_absent_returns_none() {
+    #[tokio::test]
+    async fn identity_absent_returns_none() {
         let payer = make_payer(1);
         let conf = sealevel_conf(None);
-        let result = create_identity_keypair(&conf, &payer).unwrap();
+        let result = create_identity_signer(&conf, &payer).await.unwrap();
         assert!(result.is_none());
     }
 
     /// When `identity` key matches the payer, returns `None` (no extra co-signer needed).
-    #[test]
-    fn identity_same_as_payer_returns_none() {
+    #[tokio::test]
+    async fn identity_same_as_payer_returns_none() {
         let payer = make_payer(1);
         let key = H256::from([1u8; 32]);
         let conf = sealevel_conf(Some(SignerConf::HexKey { key: key.into() }));
         // payer seed=1 means key[0]=1; identity key is all-1s — they are different raw bytes
         // so build a payer that IS all-1s to trigger the dedup path
-        let payer_all_ones = SealevelKeypair(create_raw_keypair(&key).unwrap());
-        let result = create_identity_keypair(&conf, &payer_all_ones).unwrap();
+        let payer_all_ones: SealevelSigner =
+            SealevelKeypair(create_raw_keypair(&key).unwrap()).into();
+        let result = create_identity_signer(&conf, &payer_all_ones)
+            .await
+            .unwrap();
         assert!(result.is_none());
     }
 
     /// When `identity` differs from payer, returns `Some` with the correct pubkey.
-    #[test]
-    fn identity_distinct_returns_keypair() {
+    #[tokio::test]
+    async fn identity_distinct_returns_signer() {
         let payer = make_payer(1);
         let identity_key = H256::from([2u8; 32]);
         let conf = sealevel_conf(Some(SignerConf::HexKey {
             key: identity_key.into(),
         }));
-        let result = create_identity_keypair(&conf, &payer).unwrap().unwrap();
+        let result = create_identity_signer(&conf, &payer)
+            .await
+            .unwrap()
+            .unwrap();
         let expected_pubkey = SealevelKeypair(create_raw_keypair(&identity_key).unwrap()).pubkey();
         assert_eq!(result.pubkey(), expected_pubkey);
         assert_ne!(result.pubkey(), payer.pubkey());

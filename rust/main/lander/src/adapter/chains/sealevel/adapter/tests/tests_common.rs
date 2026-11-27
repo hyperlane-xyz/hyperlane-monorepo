@@ -10,7 +10,7 @@ use solana_sdk::{
     instruction::Instruction as SealevelInstruction,
     message::Message,
     pubkey::Pubkey,
-    signature::{Signature, Signer},
+    signature::Signature,
     transaction::{
         Transaction as SealevelLegacyTransaction,
         VersionedTransaction as SealevelVersionedTransaction,
@@ -25,7 +25,7 @@ use solana_transaction_status::{
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::{
-    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
+    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelProviderForLander, SealevelSigner,
     SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
@@ -108,17 +108,17 @@ mock! {
             compute_unit_limit: u32,
             compute_unit_price_micro_lamports: u64,
             instruction: SealevelInstruction,
-            payer: &'a SealevelKeypair,
+            payer: &'a SealevelSigner,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
             alt_addresses: &SealevelTransactionFormat,
-            additional_signers: &'a [&'a SealevelKeypair],
+            additional_signers: &'a [&'a SealevelSigner],
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
             instruction: SealevelInstruction,
-            payer: &SealevelKeypair,
+            payer: &SealevelSigner,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
             alt_addresses: &SealevelTransactionFormat,
@@ -158,7 +158,7 @@ pub fn adapter() -> SealevelAdapter {
     )
 }
 
-pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
+pub async fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     let raw_conf = RawChainConf::default();
     let client = mock_client();
     let oracle = MockOracle::new();
@@ -173,6 +173,7 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
         Arc::new(oracle),
         Arc::new(submitter),
     )
+    .await
     .unwrap()
 }
 

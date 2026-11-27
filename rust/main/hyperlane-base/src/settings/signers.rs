@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -86,6 +86,28 @@ async fn build_gcp_signer(key_version_name: &str) -> Result<hyperlane_ethereum::
                 .await
                 .map_err(|err| eyre::eyre!(err.to_string()))?;
             hyperlane_ethereum::GcpSigner::new(client, key_version_name.to_owned())
+                .await
+                .map_err(Report::from)
+        })
+        .await
+        .map_err(|arc_err| eyre::eyre!("{arc_err}"))
+}
+
+type GcpSealevelSignerCache = Cache<String, hyperlane_sealevel::GcpSealevelSigner>;
+
+static GCP_SEALEVEL_SIGNER_CACHE: OnceLock<GcpSealevelSignerCache> = OnceLock::new();
+
+async fn build_gcp_sealevel_signer(
+    key_version_name: &str,
+) -> Result<hyperlane_sealevel::GcpSealevelSigner, Report> {
+    GCP_SEALEVEL_SIGNER_CACHE
+        .get_or_init(|| Cache::builder().max_capacity(100).build())
+        .try_get_with(key_version_name.to_owned(), async {
+            let client = google_cloud_kms_v1::client::KeyManagementService::builder()
+                .build()
+                .await
+                .map_err(|err| eyre::eyre!(err.to_string()))?;
+            hyperlane_sealevel::GcpSealevelSigner::new(client, key_version_name.to_owned())
                 .await
                 .map_err(Report::from)
         })
@@ -264,25 +286,30 @@ impl ChainSigner for hyperlane_tron::TronSigner {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
+impl BuildableWithSignerConf for hyperlane_sealevel::SealevelSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            hyperlane_sealevel::create_keypair(key.expose_secret())
-        } else {
-            bail!(
+        match conf {
+            SignerConf::HexKey { key } => Ok(hyperlane_sealevel::SealevelKeypair::new(
+                hyperlane_sealevel::create_keypair(key.expose_secret())?,
+            )
+            .into()),
+            SignerConf::Gcp { key_version_name } => Ok(Self::Gcp(Arc::new(
+                build_gcp_sealevel_signer(key_version_name).await?,
+            ))),
+            _ => bail!(
                 "{} signer is not supported by sealevel",
                 conf.variant_name()
-            );
+            ),
         }
     }
 }
 
-impl ChainSigner for hyperlane_sealevel::Keypair {
+impl ChainSigner for hyperlane_sealevel::SealevelSigner {
     fn address_string(&self) -> String {
-        solana_sdk::signer::Signer::pubkey(self).to_string()
+        self.pubkey().to_string()
     }
     fn address_h256(&self) -> H256 {
-        H256::from_slice(&solana_sdk::signer::Signer::pubkey(self).to_bytes())
+        H256::from(self.pubkey().to_bytes())
     }
 }
 
@@ -518,6 +545,8 @@ mod tests {
                 .as_slice(),
         )
         .expect("Failed to decode keypair");
+        let chain_signer: hyperlane_sealevel::SealevelSigner =
+            hyperlane_sealevel::SealevelKeypair::new(chain_signer).into();
 
         let address_h256 = H256::from_slice(
             hex::decode(ADDRESS)
@@ -625,5 +654,35 @@ mod tests {
         let err = format!("{err:?}");
         assert!(!err.contains("deadbeef"), "key leaked: {err}");
         assert!(err.contains("hexKey signer is not supported by cosmos"));
+    }
+
+    #[tokio::test]
+    async fn sealevel_hex_key_config_still_signs_exact_messages() {
+        let key = H256::from([7; 32]);
+        let conf = SignerConf::HexKey { key: key.into() };
+        let signer = conf
+            .build::<hyperlane_sealevel::SealevelSigner>()
+            .await
+            .unwrap();
+        let expected = hyperlane_sealevel::create_keypair(&key).unwrap();
+        assert_eq!(
+            signer.pubkey(),
+            solana_sdk::signer::Signer::pubkey(&expected)
+        );
+        let message = b"Sealevel local signer configuration remains supported";
+        let signature = signer.sign_message(message).await.unwrap();
+        assert!(signature.verify(&signer.pubkey().to_bytes(), message));
+    }
+
+    #[tokio::test]
+    async fn unsupported_sealevel_signer_does_not_fall_back_to_a_local_key() {
+        let conf = SignerConf::Node;
+        let error = conf
+            .build::<hyperlane_sealevel::SealevelSigner>()
+            .await
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("node signer is not supported by sealevel"));
     }
 }
