@@ -167,13 +167,19 @@ describe('Aevo xERC20 token', async () => {
   // its own.
   let snapshotId: string | undefined;
   beforeEach(async () => {
+    snapshotId = undefined;
     snapshotId = await snapshot(hre.ethers.provider);
   });
   afterEach(async () => {
-    assert(!isNullish(snapshotId), 'Missing snapshot of the setup');
+    // No snapshot is held when this test's own could not be taken, and the id of
+    // an earlier test is consumed.
+    const id = snapshotId;
+    snapshotId = undefined;
+    if (isNullish(id)) return;
+
     assert(
-      await revertToSnapshot(hre.ethers.provider, snapshotId),
-      `Failed to revert to the snapshot ${snapshotId} of the setup`,
+      await revertToSnapshot(hre.ethers.provider, id),
+      `Failed to revert to the snapshot ${id} of the setup`,
     );
   });
 
@@ -223,18 +229,38 @@ describe('Aevo xERC20 token', async () => {
 
     const FUNDS = 2n * 10n ** 18n;
 
+    // What the transactions that the address sent in the latest block cost it.
+    // The hand-over of the token is the last block that is mined, and an owner
+    // that is not given funds pays for it with what it holds.
+    async function gasPaidBy(address: string): Promise<bigint> {
+      const block =
+        await hre.ethers.provider.getBlockWithTransactions('latest');
+      let paid = 0n;
+      for (const tx of block.transactions) {
+        if (!eqAddress(tx.from, address)) continue;
+        const receipt = await hre.ethers.provider.getTransactionReceipt(
+          tx.hash,
+        );
+        paid += receipt.gasUsed.mul(receipt.effectiveGasPrice).toBigInt();
+      }
+      return paid;
+    }
+
     // Taking the token back is done as its owner, which is impersonated for it,
-    // gets the funds to pay for it only when it holds too little, and is left
-    // with the balance it had, as a node that keeps its state, or a fork, has it
-    // as it left it.
+    // gets the funds to pay for it only when it holds too little, and has its
+    // balance set back only then: it is left with the balance it had, as a node
+    // that keeps its state, or a fork, has it as it left it. An owner that holds
+    // enough is not touched, and keeps what it holds after paying for the
+    // hand-over.
     const balanceCases: BalanceCase[] = [
       { name: 'more than it needs', balance: 10n * 10n ** 18n, funded: false },
+      { name: 'exactly what it needs', balance: FUNDS, funded: false },
       { name: 'less than it needs', balance: 10n ** 15n, funded: true },
       { name: 'nothing', balance: 0n, funded: true },
     ];
 
     for (const c of balanceCases) {
-      it(`takes the token back from an owner with ${c.name}, and leaves its balance as it found it`, async () => {
+      it(`takes the token back from an owner with ${c.name}, and leaves its balance ${c.funded ? 'as it found it' : 'as the hand-over left it'}`, async () => {
         const previousOwner = randomAddress();
         await (await aevoToken.setOwner(previousOwner)).wait();
         await hre.network.provider.send('hardhat_setBalance', [
@@ -255,7 +281,9 @@ describe('Aevo xERC20 token', async () => {
         expect(await aevoToken.owner()).to.equal(signer.address);
         expect(
           (await hre.ethers.provider.getBalance(previousOwner)).toBigInt(),
-        ).to.equal(c.balance);
+        ).to.equal(
+          c.funded ? c.balance : c.balance - (await gasPaidBy(previousOwner)),
+        );
         // What it asked of the node for the previous owner, in order.
         expect(
           send.args
@@ -268,19 +296,54 @@ describe('Aevo xERC20 token', async () => {
         ).to.deep.equal([
           ['hardhat_impersonateAccount', undefined],
           ...(c.funded
-            ? [['hardhat_setBalance', ethers.utils.hexValue(FUNDS)]]
+            ? [
+                ['hardhat_setBalance', ethers.utils.hexValue(FUNDS)],
+                ['hardhat_setBalance', ethers.utils.hexValue(c.balance)],
+              ]
             : []),
-          ['hardhat_setBalance', ethers.utils.hexValue(c.balance)],
           ['hardhat_stopImpersonatingAccount', undefined],
         ]);
       });
     }
 
+    it('sends no balance change for an owner that already holds enough', async () => {
+      const previousOwner = randomAddress();
+      await (await aevoToken.setOwner(previousOwner)).wait();
+      await hre.network.provider.send('hardhat_setBalance', [
+        previousOwner,
+        ethers.utils.hexValue(FUNDS),
+      ]);
+      const provider = new ethers.providers.Web3Provider((method, params) =>
+        hre.network.provider.send(method, params),
+      );
+      const send = sinon.spy(provider, 'send');
+
+      await deployAevoXERC20Token({
+        deployer: provider.getSigner(signer.address),
+      });
+
+      expect(
+        send.args.filter(
+          ([method, [address]]) =>
+            method === 'hardhat_setBalance' &&
+            eqAddress(address, previousOwner),
+        ),
+      ).to.deep.equal([]);
+      expect(await aevoToken.owner()).to.equal(signer.address);
+    });
+
     interface FailureCase {
       name: string;
-      // The requests for the previous owner that the node fails.
+      // What the previous owner holds, which decides whether it is funded for
+      // the hand-over and so has a balance to restore.
+      balance: bigint;
+      // The requests for the previous owner that the node fails. Of the
+      // balance changes, the one that fails is the restoring of the balance.
       failing: string[];
     }
+
+    const HOLDS_TOO_LITTLE = 10n ** 15n;
+    const HOLDS_ENOUGH = 10n * 10n ** 18n;
 
     // The hand-over, the restoring of the balance and the end of the
     // impersonation each run whichever of the others failed, and every one that
@@ -288,35 +351,55 @@ describe('Aevo xERC20 token', async () => {
     const failureCases: FailureCase[] = [
       {
         name: 'the balance cannot be restored',
+        balance: HOLDS_TOO_LITTLE,
         failing: ['hardhat_setBalance'],
       },
       {
         name: 'the impersonation cannot be ended',
+        balance: HOLDS_TOO_LITTLE,
         failing: ['hardhat_stopImpersonatingAccount'],
       },
       {
         name: 'neither the balance can be restored nor the impersonation ended',
+        balance: HOLDS_TOO_LITTLE,
         failing: ['hardhat_setBalance', 'hardhat_stopImpersonatingAccount'],
       },
-      { name: 'the hand-over fails', failing: ['eth_sendTransaction'] },
+      {
+        name: 'the hand-over fails',
+        balance: HOLDS_TOO_LITTLE,
+        failing: ['eth_sendTransaction'],
+      },
       {
         name: 'the hand-over fails and the balance cannot be restored',
+        balance: HOLDS_TOO_LITTLE,
         failing: ['eth_sendTransaction', 'hardhat_setBalance'],
       },
       {
         name: 'nothing succeeds after the impersonation starts',
+        balance: HOLDS_TOO_LITTLE,
         failing: [
           'eth_sendTransaction',
           'hardhat_setBalance',
           'hardhat_stopImpersonatingAccount',
         ],
       },
+      {
+        name: 'the impersonation cannot be ended, for an owner that holds enough',
+        balance: HOLDS_ENOUGH,
+        failing: ['hardhat_stopImpersonatingAccount'],
+      },
+      {
+        name: 'the hand-over fails, for an owner that holds enough',
+        balance: HOLDS_ENOUGH,
+        failing: ['eth_sendTransaction'],
+      },
     ];
 
     for (const c of failureCases) {
       it(`ends the impersonation and restores the balance of the previous owner, as far as the node lets it, when ${c.name}`, async () => {
         const previousOwner = randomAddress();
-        const balance = 10n * 10n ** 18n;
+        const balance = c.balance;
+        const funded = balance < FUNDS;
         await (await aevoToken.setOwner(previousOwner)).wait();
         await hre.network.provider.send('hardhat_setBalance', [
           previousOwner,
@@ -329,11 +412,13 @@ describe('Aevo xERC20 token', async () => {
         const send = sinon
           .stub(provider, 'send')
           .callsFake(async (method, params) => {
-            const [first] = params;
+            const [first, value] = params;
             const address = typeof first === 'string' ? first : first?.from;
             if (
               c.failing.includes(method) &&
-              eqAddress(address, previousOwner)
+              eqAddress(address, previousOwner) &&
+              (method !== 'hardhat_setBalance' ||
+                value === ethers.utils.hexValue(balance))
             ) {
               throw new Error(`injected ${method} failure`);
             }
@@ -365,13 +450,15 @@ describe('Aevo xERC20 token', async () => {
             .map(([method]) => method),
         ).to.deep.equal([
           'hardhat_impersonateAccount',
-          'hardhat_setBalance',
+          ...(funded ? ['hardhat_setBalance', 'hardhat_setBalance'] : []),
           'hardhat_stopImpersonatingAccount',
         ]);
-        if (!c.failing.includes('hardhat_setBalance')) {
+        if (!(funded && c.failing.includes('hardhat_setBalance'))) {
           expect(
             (await hre.ethers.provider.getBalance(previousOwner)).toBigInt(),
-          ).to.equal(balance);
+          ).to.equal(
+            funded ? balance : balance - (await gasPaidBy(previousOwner)),
+          );
         }
       });
     }

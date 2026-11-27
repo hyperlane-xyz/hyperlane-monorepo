@@ -53,7 +53,9 @@ export interface DeployedAevoXERC20Token {
  * the token is etched again, the stand-in is not, an initialized token is not
  * initialized twice, and a token another account owns is taken back for
  * `deployer`, by impersonating that account. That account gets the funds to pay
- * for it only when it holds too little, and has the balance it had afterwards.
+ * for it only when it holds too little, and then has the balance it had
+ * afterwards; one that holds enough is not touched and pays for the hand-over
+ * with what it holds.
  */
 export async function deployAevoXERC20Token({
   deployer,
@@ -93,10 +95,11 @@ export async function deployAevoXERC20Token({
     await (await token.initialize(deployerAddress, name, symbol)).wait();
   } else if (!eqAddress(owner, deployerAddress)) {
     const balance = await provider.getBalance(owner);
+    const raisesBalance = balance.lt(PREVIOUS_OWNER_FUNDS);
     await provider.send('hardhat_impersonateAccount', [owner]);
     const failures: unknown[] = [];
     try {
-      if (balance.lt(PREVIOUS_OWNER_FUNDS)) {
+      if (raisesBalance) {
         await provider.send('hardhat_setBalance', [
           owner,
           utils.hexValue(PREVIOUS_OWNER_FUNDS),
@@ -109,9 +112,17 @@ export async function deployAevoXERC20Token({
       failures.push(error);
     }
     // Both steps that undo it run whether or not the hand-over worked and
-    // whether or not the other failed, and every failure is reported.
+    // whether or not the other failed, and every failure is reported. An owner
+    // that already held PREVIOUS_OWNER_FUNDS keeps what it holds.
     const undone = await Promise.allSettled([
-      provider.send('hardhat_setBalance', [owner, utils.hexValue(balance)]),
+      ...(raisesBalance
+        ? [
+            provider.send('hardhat_setBalance', [
+              owner,
+              utils.hexValue(balance),
+            ]),
+          ]
+        : []),
       provider.send('hardhat_stopImpersonatingAccount', [owner]),
     ]);
     for (const result of undone) {

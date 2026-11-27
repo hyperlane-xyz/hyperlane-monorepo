@@ -324,6 +324,35 @@ describe('aevoCapToUint256', () => {
     });
   }
 
+  it('keeps the smallest raw cap', () => {
+    const limits = aevoRaw('1');
+    assert(limits.authorized, 'Expected an authorized minter');
+    expect(aevoCapToUint256(limits.cap)).to.equal(1n);
+  });
+
+  // The token binds a minter to a cap of zero as no cap at all, so a raw value
+  // that is not a positive uint256 must not reach it, also for a caller that
+  // does not parse its config with the schema.
+  const rejectedRawCaps = [
+    { name: 'zero', value: '0' },
+    { name: 'zero spelled with leading zeros', value: '000' },
+    { name: 'a negative value', value: '-1' },
+    {
+      name: 'a value above the largest uint256',
+      value: constants.MaxUint256.add(1).toString(),
+    },
+  ];
+
+  for (const c of rejectedRawCaps) {
+    it(`rejects a raw cap of ${c.name}`, () => {
+      const limits = aevoRaw(c.value);
+      assert(limits.authorized, 'Expected an authorized minter');
+      expect(() => aevoCapToUint256(limits.cap)).to.throw(
+        `A raw Aevo cap must be a positive uint256, got ${c.value}`,
+      );
+    });
+  }
+
   const onChainCaps = [
     0n,
     1n,

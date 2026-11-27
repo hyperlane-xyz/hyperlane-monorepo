@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { UIN256_MAX_VALUE } from '../consts/numbers.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';
 
@@ -102,14 +103,22 @@ export function toAevoLimits(authority: AevoMintAuthority): AevoXERC20Limits {
 
 /**
  * The cap the token keeps for a minter, from the cap a config declares for it.
- * The inverse of what toAevoLimits reads from an authorized minter.
+ * The inverse of what toAevoLimits reads from an authorized minter. A raw cap
+ * has to be a positive uint256: the token reads a cap of zero as no cap, which
+ * only an unlimited cap declares.
  */
 export function aevoCapToUint256(cap: XERC20AevoCapConfig): bigint {
   switch (cap.type) {
     case XERC20AevoCapType.Unlimited:
       return 0n;
-    case XERC20AevoCapType.Raw:
-      return BigInt(cap.value);
+    case XERC20AevoCapType.Raw: {
+      const value = BigInt(cap.value);
+      assert(
+        value > 0n && value <= UIN256_MAX_VALUE,
+        `A raw Aevo cap must be a positive uint256, got ${cap.value}`,
+      );
+      return value;
+    }
     default: {
       const exhaustiveCheck: never = cap;
       throw new Error(
