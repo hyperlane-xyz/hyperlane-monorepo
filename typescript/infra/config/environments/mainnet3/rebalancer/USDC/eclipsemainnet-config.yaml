@@ -26,12 +26,13 @@ externalBridges:
   elysiumNative:
     maxNativeValueWei: '10000000000000000'
 strategy:
-  rebalanceStrategy: weighted
+  rebalanceStrategy: minAmount
   chains:
     ethereum:
-      weighted:
-        weight: 155
-        tolerance: 5
+      minAmount:
+        type: absolute
+        min: 74000
+        target: 105000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
@@ -48,9 +49,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     base:
-      weighted:
-        weight: 137
-        tolerance: 5
+      minAmount:
+        type: absolute
+        min: 100000
+        target: 120000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -67,9 +69,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     arbitrum:
-      weighted:
-        weight: 94
-        tolerance: 5
+      minAmount:
+        type: absolute
+        min: 24000
+        target: 50000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
@@ -86,9 +89,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     optimism:
-      weighted:
-        weight: 75
-        tolerance: 5
+      minAmount:
+        type: absolute
+        min: 25000
+        target: 40000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -105,9 +109,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     polygon:
-      weighted:
-        weight: 5
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -124,9 +129,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     unichain:
-      weighted:
-        weight: 5
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -143,9 +149,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     arc:
-      weighted:
-        weight: 51
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 30000
+        target: 40000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x16BF93e259ee7f7074453a2948379C35C6851b71'
@@ -162,9 +169,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     ink:
-      weighted:
-        weight: 51
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 15000
+        target: 25000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x92dFEB6f7Daa532de0F3c75c2091e1607c6593b7'
@@ -181,9 +189,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     avalanche:
-      weighted:
-        weight: 4
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -200,9 +209,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     linea:
-      weighted:
-        weight: 4
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -219,9 +229,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     worldchain:
-      weighted:
-        weight: 4
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
@@ -238,9 +249,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     hyperevm:
-      weighted:
-        weight: 3
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 1000
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0xDdf252a063f8c5C399B9ccDBbaDBA55225F53Da1'
@@ -257,9 +269,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     monad:
-      weighted:
-        weight: 4
-        tolerance: 3
+      minAmount:
+        type: absolute
+        min: 2500
+        target: 6000
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
       bridge: '0xD73673Aa8d8f68ac90B4Df03393c77492f8Cb4Ec'
@@ -276,9 +289,10 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     bsc:
-      weighted:
-        weight: 25
-        tolerance: 10
+      minAmount:
+        type: absolute
+        min: 10000
+        target: 18000
       executionType: inventory
       externalBridge: swapsxyz
       override:
@@ -288,19 +302,21 @@ strategy:
           bridgeMinAcceptedAmount: 2500
 
     solanamainnet:
-      weighted:
-        weight: 47
-        tolerance: 10
+      minAmount:
+        type: absolute
+        min: 12000
+        target: 20000
       executionType: inventory
       externalBridge: swapsxyz
       override:
         elysium:
           enabled: false
     elysium:
-      enabled: false
-      weighted:
-        weight: 3
-        tolerance: 3
+      enabled: true
+      minAmount:
+        type: absolute
+        min: 45000
+        target: 55000
       executionType: inventory
       externalBridge: relay
       override:
@@ -355,46 +371,46 @@ inventoryRoutes:
       enabled: false
   elysium:
     ethereum:
-      enabled: false
+      enabled: true
       externalBridge: relay
     base:
-      enabled: false
+      enabled: true
       externalBridge: relay
     arbitrum:
-      enabled: false
+      enabled: true
       externalBridge: relay
     optimism:
-      enabled: false
+      enabled: true
       externalBridge: relay
     polygon:
-      enabled: false
+      enabled: true
       externalBridge: relay
     unichain:
-      enabled: false
+      enabled: true
       externalBridge: relay
     arc:
-      enabled: false
+      enabled: true
       externalBridge: relay
     ink:
-      enabled: false
+      enabled: true
       externalBridge: relay
     avalanche:
-      enabled: false
+      enabled: true
       externalBridge: relay
     linea:
-      enabled: false
+      enabled: true
       externalBridge: relay
     worldchain:
-      enabled: false
+      enabled: true
       externalBridge: relay
     hyperevm:
-      enabled: false
+      enabled: true
       externalBridge: relay
     monad:
-      enabled: false
+      enabled: true
       externalBridge: relay
     bsc:
-      enabled: false
+      enabled: true
       externalBridge: relay
     solanamainnet:
       enabled: false

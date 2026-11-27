@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ExecutionType,
   ExternalBridgeType,
+  RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/rebalancer';
 import { assert } from '@hyperlane-xyz/utils';
@@ -26,21 +27,17 @@ describe('Elysium USDC inventory policy', () => {
     const { config } = readRebalancerConfig(configPath);
     const strategy = config.strategy[0];
     assert(
-      strategy?.rebalanceStrategy === RebalancerStrategyOptions.Weighted,
-      'Expected the existing weighted strategy',
+      strategy?.rebalanceStrategy === RebalancerStrategyOptions.MinAmount,
+      'Expected the minimum amount strategy',
     );
     expect(Object.keys(strategy.chains)).to.have.length(16);
-    expect(strategy.chains.elysium.weighted).to.deep.equal({
-      weight: 3n,
-      tolerance: 3n,
+    expect(strategy.chains.elysium.minAmount).to.deep.equal({
+      type: RebalancerMinAmountType.Absolute,
+      min: 45000,
+      target: 55000,
     });
     expect(strategy.chains.elysium.bridgeMinAcceptedAmount).to.equal(undefined);
-    expect(strategy.chains.elysium.enabled).to.equal(false);
-    for (const override of Object.values(
-      strategy.chains.elysium.override ?? {},
-    )) {
-      expect(override.enabled).not.to.equal(true);
-    }
+    expect(strategy.chains.elysium.enabled).to.equal(true);
     expect(strategy.chains.elysium.executionType).to.equal(
       ExecutionType.Inventory,
     );
@@ -59,6 +56,10 @@ describe('Elysium USDC inventory policy', () => {
     );
     for (const [chain, settings] of Object.entries(strategy.chains)) {
       if (chain === 'elysium' || chain === 'solanamainnet') continue;
+      expect(
+        strategy.chains.elysium.override?.[chain]?.enabled,
+        chain,
+      ).not.to.equal(false);
       expect(settings.override?.elysium.executionType, chain).to.equal(
         ExecutionType.Inventory,
       );
@@ -69,7 +70,7 @@ describe('Elysium USDC inventory policy', () => {
     }
   });
 
-  it('prefers native deposits and disables all inventory exports from Elysium', () => {
+  it('prefers native deposits and enables Elysium inventory exports to EVM peers', () => {
     const { config } = readRebalancerConfig(configPath);
     const routes = config.inventoryRoutes;
     assert(routes, 'Expected physical inventory routes');
@@ -93,12 +94,7 @@ describe('Elysium USDC inventory policy', () => {
       expect(routes.elysium[chain].externalBridge, chain).to.equal(
         ExternalBridgeType.Relay,
       );
-    }
-    for (const route of Object.values(routes.elysium)) {
-      expect(route.enabled).to.equal(false);
-      expect(route.externalBridge).not.to.equal(
-        ExternalBridgeType.ElysiumNative,
-      );
+      expect(routes.elysium[chain].enabled, chain).to.equal(true);
     }
     expect(routes.solanamainnet.elysium.enabled).to.equal(false);
     expect(routes.elysium.solanamainnet.enabled).to.equal(false);
