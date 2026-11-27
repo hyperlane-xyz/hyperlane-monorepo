@@ -22,9 +22,7 @@
     "./warp": "./dist/warp.js",
     "./fee": "./dist/fee.js",
     "./quote": "./dist/quote.js",
-    "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
-    "./registry": "./dist/registry.js",
     "./artifact": "./dist/artifact.js"
   },
   "scripts": {
