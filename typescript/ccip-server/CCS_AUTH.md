@@ -154,8 +154,14 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
    above. Its upload-only usage is unaffected.
 3. Before deployment, confirm partner-operated reader identities and existing per-record
    relayer lists against the intended service whitelist. Include every intended reader in
-   both applicable lists. Deploy CCS with the audited whitelist. EVM POST clients must
-   sign v2; relayers that sign reveal lookups with v1 get 401 until they are updated.
+   both applicable lists. Deploy CCS with the audited whitelist.
+
+The reveal lookup (POST) switches from v1 to v2 with no overlap, so CCS and the EVM
+relayers roll out together. Mixed versions fail in either order: this CCS returns 401 to
+a relayer that still signs v1, and the previous CCS refuses v2 reveal lookups. Until both
+sides run the new version, reveal lookups fail and are retried, so ICA reveals are
+delayed, not lost. Coordinate the cutover across CCS and every allowlisted relayer
+context (primary, RC, and fastpath).
 
 ## Local HTTP integration tests
 
