@@ -263,14 +263,25 @@ pub async fn get_ism_verify_account_metas(
         message,
     });
 
-    get_account_metas_with_instruction_bytes(
-        banks_client,
-        payer,
-        ism,
-        &instruction.encode().unwrap(),
-        VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-    )
-    .await
+    let vam = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism).0;
+    let data = instruction.encode().unwrap();
+    let mut accounts = vec![AccountMeta::new_readonly(vam, false)];
+    // Match the relayer's discovery loop for routing/composite ISMs.
+    for _ in 0..10 {
+        let next = get_account_metas(
+            banks_client,
+            payer,
+            Instruction::new_with_bytes(ism, &data, accounts.clone()),
+        )
+        .await?;
+        if next == accounts {
+            return Ok(next);
+        }
+        accounts = next;
+    }
+    Err(BanksClientError::ClientError(
+        "ISM account discovery did not converge",
+    ))
 }
 
 /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.

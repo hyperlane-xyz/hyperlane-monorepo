@@ -3617,6 +3617,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interchain-account-router"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "bincode",
+ "borsh 1.6.0",
+ "ethabi",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-composite-ism",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
+ "hyperlane-test-utils",
+ "package-versioned",
+ "serializable-account-meta",
+ "solana-loader-v3-interface 6.1.0",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+]
+
+[[package]]
 name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
