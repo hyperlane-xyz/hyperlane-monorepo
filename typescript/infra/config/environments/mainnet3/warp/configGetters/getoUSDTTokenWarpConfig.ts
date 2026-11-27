@@ -230,18 +230,17 @@ function isActiveBridge({ limits }: XERC20TokenExtraBridgesLimits): boolean {
   );
 }
 
+// Chainlink CCIP token pools that were registered as xERC20 minters. Chainlink
+// confirmed these minters can be removed, so each is now deactivated by zeroing
+// its limits on chain (filtered out of the generated config via isActiveBridge,
+// and emitting a removeBridge on warp apply). Kept here as a record of what was
+// once registered.
 const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   ethereum: '0xa3532633401AbFfbd15e6be825a45FB7F141469B',
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
-};
-
-const productionCCIPTokenPoolLimits: XERC20VSLimitConfig = {
-  type: XERC20Type.Velo,
-  bufferCap: upperBufferCap,
-  rateLimitPerSecond: productionDefaultRateLimitPerSecond,
 };
 
 const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
@@ -256,13 +255,13 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     },
     {
       lockbox: productionCCIPTokenPoolAddresses.ethereum,
-      limits: productionCCIPTokenPoolLimits,
+      limits: zeroLimits,
     },
   ],
   celo: [
     {
       lockbox: productionCCIPTokenPoolAddresses.celo,
-      limits: productionCCIPTokenPoolLimits,
+      limits: zeroLimits,
     },
   ],
   base: [
@@ -278,7 +277,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     },
     {
       lockbox: productionCCIPTokenPoolAddresses.base,
-      limits: productionCCIPTokenPoolLimits,
+      limits: zeroLimits,
     },
   ],
   optimism: [
@@ -294,13 +293,13 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     },
     {
       lockbox: productionCCIPTokenPoolAddresses.optimism,
-      limits: productionCCIPTokenPoolLimits,
+      limits: zeroLimits,
     },
   ],
   zerogravity: [
     {
       lockbox: productionCCIPTokenPoolAddresses.zerogravity,
-      limits: productionCCIPTokenPoolLimits,
+      limits: zeroLimits,
     },
   ],
 };
