@@ -643,6 +643,7 @@ export {
   randomIsmConfig,
   randomDeployableIsmConfig,
 } from './test/testUtils.js';
+export { contractDouble } from './test/contractDouble.js';
 export {
   DeployedAevoXERC20Token,
   deployAevoXERC20Token,

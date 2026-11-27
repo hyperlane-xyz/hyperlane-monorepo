@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  type HypERC20,
   type IPostDispatchHook,
   IPostDispatchHook__factory,
   type Mailbox,
@@ -37,6 +38,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WormholeConsistencyType,
+  contractDouble,
   testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
@@ -414,6 +416,9 @@ describe('the standards of the routers of a route', () => {
   });
 
   describe('extendWarpRoute', () => {
+    type DeployedContracts = Awaited<
+      ReturnType<HypERC20Deployer['deploy']>
+    >[string];
     const ROUTER = '0x7777777777777777777777777777777777777777';
     const AEVO_CODE = '0x91223d6966d97b216cd22eaf80ad2cf3963aee20';
     const VELO_CODE = `0x${ethers.utils
@@ -436,12 +441,11 @@ describe('the standards of the routers of a route', () => {
       sinon
         .stub(multiProvider, 'getSigner')
         .returns(ethers.Wallet.createRandom());
-      sinon.stub(HypERC20Deployer.prototype, 'deploy').resolves(
-        // CAST: the deployment answers the router of the chain it deployed, the only part of its contracts the extension reads.
-        {
-          [TestChainName.test2]: { synthetic: { address: ROUTER } },
-        } as unknown as Awaited<ReturnType<HypERC20Deployer['deploy']>>,
-      );
+      sinon.stub(HypERC20Deployer.prototype, 'deploy').resolves({
+        [TestChainName.test2]: contractDouble<DeployedContracts>({
+          synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+        }),
+      });
       getCodes[0].resolves(AEVO_CODE);
       getCodes[1].resolves(VELO_CODE);
 
