@@ -69,6 +69,8 @@ describe('OffchainLookupMetadataBuilder', () => {
     callData: (deliveredMessage: string) => string;
     urls: string[];
     request: ExpectedRequest;
+    /** Whether the first fetch rejects, so the builder tries the next URL. */
+    firstFetchRejects?: boolean;
   }
 
   const cases: Case[] = [
@@ -77,6 +79,13 @@ describe('OffchainLookupMetadataBuilder', () => {
       callData: revealCallData,
       urls: [POST_URL],
       request: ExpectedRequest.SignedPost,
+    },
+    {
+      name: 'tries the next URL when the signed reveal POST rejects',
+      callData: revealCallData,
+      urls: [POST_URL, GET_URL],
+      request: ExpectedRequest.SignedPost,
+      firstFetchRejects: true,
     },
     {
       name: 'neither signs nor fetches a reveal lookup for another message',
@@ -169,6 +178,10 @@ describe('OffchainLookupMetadataBuilder', () => {
           async () =>
             new Response(JSON.stringify({ data: METADATA }), { status: 200 }),
         );
+      if (c.firstFetchRejects) {
+        // What fetch throws for a redirect under `redirect: 'error'`.
+        fetchStub.onFirstCall().rejects(new TypeError('fetch failed'));
+      }
 
       const ism: WithAddress<OffchainLookupIsmConfig> = {
         type: IsmType.OFFCHAIN_LOOKUP,
@@ -205,21 +218,21 @@ describe('OffchainLookupMetadataBuilder', () => {
       });
       const signed = c.request === ExpectedRequest.SignedPost;
       sinon.assert.callCount(signMessage, signed ? 1 : 0);
-      sinon.assert.calledOnce(fetchStub);
+      sinon.assert.callCount(fetchStub, c.firstFetchRejects ? 2 : 1);
+      const getUrl = GET_URL.replace(
+        '{sender}',
+        utils.getAddress(ISM_ADDRESS),
+      ).replace('{data}', callData);
       const [url, init] = fetchStub.firstCall.args;
       if (c.request === ExpectedRequest.Get) {
-        expect(url).to.equal(
-          GET_URL.replace('{sender}', utils.getAddress(ISM_ADDRESS)).replace(
-            '{data}',
-            callData,
-          ),
-        );
+        expect(url).to.equal(getUrl);
         expect(init).to.equal(undefined);
         return;
       }
 
       expect(url).to.equal(POST_URL);
       expect(init?.method).to.equal('POST');
+      expect(init?.redirect).to.equal(signed ? 'error' : undefined);
       const body = JSON.parse(String(init?.body));
       expect(body).to.have.all.keys(
         signed
@@ -239,6 +252,9 @@ describe('OffchainLookupMetadataBuilder', () => {
         origin_tx_hash: testTransactionReceipt().transactionHash,
       });
       if (signed) expect(body.message_id).to.equal(message.id);
+      if (c.firstFetchRejects) {
+        expect(fetchStub.secondCall.args).to.deep.equal([getUrl]);
+      }
     });
   }
 });

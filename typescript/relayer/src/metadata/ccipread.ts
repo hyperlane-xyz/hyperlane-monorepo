@@ -197,6 +197,8 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
           res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // Keeps the signed body at the URL it was signed for.
+            redirect: 'error',
             body: JSON.stringify({
               sender,
               data: callDataHex,
