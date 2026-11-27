@@ -8,6 +8,7 @@ import {
   eqAddressEvm,
   formatStandardHookMetadata,
   isNullish,
+  isValidAddressEvm,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
@@ -91,6 +92,13 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     const refundAddress = isNullish(config.refundAddress)
       ? undefined
       : normalizeAddressEvm(config.refundAddress);
+    // normalizeAddressEvm returns malformed input unchanged, and a refundAddress
+    // that is not 20 bytes would be packed into hookMetadata that the hook
+    // decodes with msg.sender as the refund recipient.
+    assert(
+      isNullish(refundAddress) || isValidAddressEvm(refundAddress),
+      `Interchain account refundAddress ${config.refundAddress} on ${config.chain} must be a valid EVM address`,
+    );
     const originInterchainAccountRouter = normalizeAddressEvm(
       interchainAccountRouterAddress,
     );

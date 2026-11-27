@@ -8,6 +8,7 @@ import {
   assert,
   eqAddress,
   isNullish,
+  isValidAddressEvm,
   normalizeAddressEvm,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -101,6 +102,14 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
     const caller = isNullish(config.caller)
       ? undefined
       : normalizeAddressEvm(config.caller);
+    assert(
+      isValidAddressEvm(accessManagerAddress),
+      `AccessManager address ${config.accessManagerAddress} on ${config.chain} must be a valid EVM address`,
+    );
+    assert(
+      isNullish(caller) || isValidAddressEvm(caller),
+      `AccessManager caller ${config.caller} on ${config.chain} must be a valid EVM address`,
+    );
 
     const accessManager = IAccessManager__factory.connect(
       accessManagerAddress,
@@ -295,7 +304,7 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
 
       const readyAt = isNullish(resolution.delay)
         ? `after the caller's execution delay`
-        : `from ${toIsoTime(timestamp + resolution.delay)}`;
+        : `no earlier than ${resolution.delay}s after the schedule tx is included (${toIsoTime(timestamp + resolution.delay)} at the earliest)`;
       this.logger.info(
         `Scheduling ${call.label} via AccessManager ${accessManagerAddress}; execute ${readyAt} and within ${expiration}s of it becoming ready`,
       );

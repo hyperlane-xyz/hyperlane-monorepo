@@ -213,6 +213,8 @@ describe('EvmIcaTxSubmitter.fromConfig with an AccessManager internal submitter'
   const accessManagerAddress: Address =
     '0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863';
   const refundAddress: Address = '0x00000000000000000000000000000000000000AA';
+  const HASH_16_BYTES_MOCK: Address = '0x12345678901234567890123456789012';
+  const originRouter = randomAddress();
 
   function buildIcaConfig(fields: {
     owner: Address;
@@ -224,7 +226,7 @@ describe('EvmIcaTxSubmitter.fromConfig with an AccessManager internal submitter'
       destinationChain: destination,
       owner: fields.owner,
       refundAddress: fields.refundAddress,
-      originInterchainAccountRouter: randomAddress(),
+      originInterchainAccountRouter: originRouter,
       internalSubmitter: {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: origin,
@@ -260,6 +262,14 @@ describe('EvmIcaTxSubmitter.fromConfig with an AccessManager internal submitter'
       expectedError: `must be AccessManager ${accessManagerAddress}`,
     },
     {
+      name: 'the refundAddress is a 16-byte value',
+      metadata: buildIcaConfig({
+        owner: accessManagerAddress,
+        refundAddress: HASH_16_BYTES_MOCK,
+      }),
+      expectedError: `Interchain account refundAddress ${HASH_16_BYTES_MOCK} on ${origin} must be a valid EVM address`,
+    },
+    {
       name: 'the refundAddress is missing on an interchain account nested as an AccessManager proposer',
       metadata: {
         type: TxSubmitterType.ACCESS_MANAGER,
@@ -282,4 +292,25 @@ describe('EvmIcaTxSubmitter.fromConfig with an AccessManager internal submitter'
       ).to.be.rejectedWith(expectedError);
     });
   }
+
+  it('should accept a refundAddress with a bad EIP-55 checksum', async () => {
+    // Mixed-case casing of 0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b with a wrong checksum
+    const badChecksumRefundAddress: Address =
+      '0x32E02dDB233958834fcB5E93b11E254F8D1EAd1b';
+
+    // The registry router matching originInterchainAccountRouter avoids
+    // reading remote routers on-chain
+    const submitter = await getSubmitter<ProtocolType.Ethereum>(
+      MultiProvider.createTestMultiProvider(),
+      buildIcaConfig({
+        owner: accessManagerAddress,
+        refundAddress: badChecksumRefundAddress,
+      }),
+      { [origin]: { interchainAccountRouter: originRouter } },
+    );
+
+    expect(submitter.txSubmitterType).to.equal(
+      TxSubmitterType.INTERCHAIN_ACCOUNT,
+    );
+  });
 });
