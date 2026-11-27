@@ -3,6 +3,7 @@
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 use borsh::BorshDeserialize;
 use hyperlane_core::H256;
+use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
@@ -27,7 +28,7 @@ use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{
-        config_address, interchain_account_address, RouterConfig, RouterConfigAccount, CONFIG_SEED,
+        config_address, interchain_account_address, RouterConfig, RouterConfigAccount, CONFIG_SEEDS,
     },
     instruction::{CallRemoteWithOverrides, Instruction as RouterInstruction},
     interchain_account_seeds,
@@ -53,8 +54,7 @@ pub fn process_instruction(
     if let Ok(instruction) = MessageRecipientInstruction::decode(data) {
         return match instruction {
             MessageRecipientInstruction::InterchainSecurityModule => {
-                // Dynamic, message-selected ISMs are deliberately unsupported for now.
-                set_return_data(&borsh::to_vec(&Option::<Pubkey>::None)?);
+                set_return_data(&borsh::to_vec(&Some(*program_id))?);
                 Ok(())
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
@@ -67,6 +67,9 @@ pub fn process_instruction(
                 return_metas(handle_account_metas(program_id, &handle)?)
             }
         };
+    }
+    if let Ok(instruction) = InterchainSecurityModuleInstruction::decode(data) {
+        return crate::ism::process_instruction(program_id, accounts, instruction);
     }
     match RouterInstruction::try_from_slice(data)
         .map_err(|_| ProgramError::InvalidInstructionData)?
@@ -106,6 +109,9 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let state = RouterConfigAccount::from(RouterConfig {
         mailbox: *mailbox.key,
     });
+    let bump_seed = [bump];
+    let mut seeds = CONFIG_SEEDS.to_vec();
+    seeds.push(&bump_seed);
     create_pda_account(
         payer,
         &Rent::get()?,
@@ -113,19 +119,11 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         program_id,
         system,
         config,
-        &[CONFIG_SEED, &[bump]],
+        &seeds,
     )?;
     state.store(config, false)?;
     msg!("Initialized ICA router with mailbox {}", mailbox.key);
     Ok(())
-}
-
-fn incoming_message(data: &[u8]) -> Result<InterchainAccountMessage, ProgramError> {
-    let message = InterchainAccountMessage::decode(data)?;
-    if message.ism != H256::zero() {
-        return Err(ProgramError::InvalidInstructionData);
-    }
-    Ok(message)
 }
 
 fn native_instruction(call: Call, ica: &Pubkey) -> Result<Instruction, ProgramError> {
@@ -157,7 +155,7 @@ pub fn handle_account_metas(
     program_id: &Pubkey,
     handle: &HandleInstruction,
 ) -> Result<Vec<AccountMeta>, ProgramError> {
-    let body = incoming_message(&handle.message)?;
+    let body = InterchainAccountMessage::decode(&handle.message)?;
     let (ica, _) = interchain_account_address(
         program_id,
         handle.origin,
@@ -217,7 +215,7 @@ fn handle_message(
     if !process_authority.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    let body = incoming_message(&handle.message)?;
+    let body = InterchainAccountMessage::decode(&handle.message)?;
     let (ica, bump) = interchain_account_address(
         program_id,
         handle.origin,

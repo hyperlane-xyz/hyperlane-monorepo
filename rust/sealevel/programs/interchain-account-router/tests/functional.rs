@@ -1,5 +1,9 @@
 use account_utils::SizedData;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
+use hyperlane_sealevel_composite_ism::accounts::{
+    derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
+    DomainIsmStorage, IsmNode,
+};
 use hyperlane_sealevel_interchain_account_router::{
     accounts::{config_address, interchain_account_address, RouterConfigAccount},
     instruction::{
@@ -7,6 +11,10 @@ use hyperlane_sealevel_interchain_account_router::{
     },
     message::{Call, InterchainAccountMessage, SealevelCallData},
     processor::{handle_account_metas, process_instruction as router_processor},
+};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, MetadataSpec, MetadataSpecResult, VerifyInstruction,
+    VerifyMetadataSpecInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use hyperlane_sealevel_mailbox::{
     accounts::DispatchedMessageAccount,
@@ -26,8 +34,10 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use hyperlane_test_utils::{
-    get_process_account_metas, initialize_mailbox, mailbox_id, process_instruction, MailboxAccounts,
+    get_ism_verify_account_metas, get_process_account_metas, get_recipient_ism, initialize_mailbox,
+    mailbox_id, process_instruction, simulate_instruction, MailboxAccounts,
 };
+use serializable_account_meta::SimulationReturnData;
 use solana_loader_v3_interface::{get_program_data_address, state::UpgradeableLoaderState};
 use solana_program::{
     instruction::{AccountMeta, Instruction, InstructionError},
@@ -44,6 +54,7 @@ use solana_sdk::{
 
 const ROUTER: Pubkey = Pubkey::new_from_array([41; 32]);
 const WARP: Pubkey = Pubkey::new_from_array([42; 32]);
+const CUSTOM_ISM: Pubkey = Pubkey::new_from_array([43; 32]);
 const ORIGIN: u32 = 1;
 const DESTINATION: u32 = 1399811149;
 
@@ -130,6 +141,11 @@ impl TestContext {
             "hyperlane_sealevel_test_ism",
             hyperlane_sealevel_test_ism::id(),
             processor!(hyperlane_sealevel_test_ism::program::process_instruction),
+        );
+        test.add_program(
+            "hyperlane_sealevel_composite_ism",
+            CUSTOM_ISM,
+            processor!(hyperlane_sealevel_composite_ism::processor::process_instruction),
         );
         test.add_program(
             "hyperlane_sealevel_token_native",
@@ -291,6 +307,97 @@ impl TestContext {
             .await
             .unwrap()
             .is_some()
+    }
+
+    fn set_custom_ism(&mut self, node: IsmNode) {
+        let (vam, bump_seed) =
+            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &CUSTOM_ISM);
+        let storage = CompositeIsmAccount::from(CompositeIsmStorage {
+            bump_seed,
+            owner: None,
+            root: Some(IsmNode::Routing),
+        });
+        let mut data = vec![0; storage.size()];
+        storage.store_in_slice(&mut data).unwrap();
+        self.context.set_account(
+            &vam,
+            &Account {
+                lamports: Rent::default().minimum_balance(data.len()),
+                data,
+                owner: CUSTOM_ISM,
+                ..Account::default()
+            }
+            .into(),
+        );
+        let (domain, bump_seed) = derive_domain_pda(&CUSTOM_ISM, ORIGIN);
+        let storage = DomainIsmAccount::from(DomainIsmStorage {
+            bump_seed,
+            domain: ORIGIN,
+            ism: Some(node),
+        });
+        let mut data = vec![0; storage.size()];
+        storage.store_in_slice(&mut data).unwrap();
+        self.context.set_account(
+            &domain,
+            &Account {
+                lamports: Rent::default().minimum_balance(data.len()),
+                data,
+                owner: CUSTOM_ISM,
+                ..Account::default()
+            }
+            .into(),
+        );
+    }
+
+    async fn set_default_ism(&mut self, ism: Pubkey) {
+        self.submit(Instruction {
+            program_id: mailbox_id(),
+            accounts: vec![
+                AccountMeta::new(self.mailbox.inbox, false),
+                AccountMeta::new_readonly(self.mailbox.outbox, false),
+                AccountMeta::new_readonly(self.context.payer.pubkey(), true),
+            ],
+            data: MailboxInstruction::InboxSetDefaultIsm(ism)
+                .into_instruction_data()
+                .unwrap(),
+        })
+        .await
+        .unwrap();
+    }
+
+    async fn metadata_spec(&mut self, message: &HyperlaneMessage) -> MetadataSpec {
+        // Match the relayer: a fixed root VAM plus replaceable extra accounts.
+        let mut keys = vec![
+            config_address(&ROUTER).0,
+            derive_domain_pda(&ROUTER, ORIGIN).0,
+        ];
+        for _ in 0..10 {
+            let result = simulate_instruction::<SimulationReturnData<MetadataSpecResult>>(
+                &mut self.context.banks_client,
+                &self.context.payer,
+                Instruction::new_with_bytes(
+                    ROUTER,
+                    &InterchainSecurityModuleInstruction::VerifyMetadataSpec(
+                        VerifyMetadataSpecInstruction::new(message.to_vec()),
+                    )
+                    .encode()
+                    .unwrap(),
+                    keys.into_iter()
+                        .map(|key| AccountMeta::new_readonly(key, false))
+                        .collect(),
+                ),
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .return_data;
+            if let Some(spec) = result.spec {
+                return spec;
+            }
+            assert_eq!(result.accounts[0], config_address(&ROUTER).0);
+            keys = result.accounts;
+        }
+        panic!("metadata discovery did not converge");
     }
 }
 
@@ -531,6 +638,249 @@ async fn failed_handle_rolls_back_calls_and_mailbox_delivery() {
         );
         assert!(!test.delivered(&message).await);
     }
+}
+
+#[tokio::test]
+async fn custom_ism_overrides_default_without_failure_fallback() {
+    for buffered in [false, true] {
+        let mut test = TestContext::new().await;
+        test.set_custom_ism(IsmNode::Test { accept: true });
+        let mut default = TestIsmTestClient::new(
+            test.context.banks_client.clone(),
+            test.context.payer.insecure_clone(),
+        );
+        default.set_accept(false).await.unwrap();
+        let mut custom_body = body(vec![]);
+        custom_body.ism = CUSTOM_ISM.to_bytes().into();
+        let custom_ica = interchain_account_address(
+            &ROUTER,
+            ORIGIN,
+            &custom_body.owner,
+            &[22; 32].into(),
+            &custom_body.ism,
+            &custom_body.salt,
+        )
+        .0;
+        assert_ne!(custom_ica, ica());
+        test.context.set_account(
+            &custom_ica,
+            &Account {
+                lamports: 1_000_000_000,
+                owner: solana_system_interface::program::ID,
+                ..Account::default()
+            }
+            .into(),
+        );
+        let recipient = Pubkey::new_unique();
+        custom_body
+            .calls
+            .push(native_call(solana_system_interface::instruction::transfer(
+                &custom_ica,
+                &recipient,
+                1_000_000,
+            )));
+        let custom_message = message(custom_body.clone());
+        assert_eq!(
+            get_recipient_ism(
+                &mut test.context.banks_client,
+                &test.context.payer,
+                &test.mailbox,
+                ROUTER,
+            )
+            .await
+            .unwrap(),
+            ROUTER
+        );
+        assert_eq!(
+            test.metadata_spec(&custom_message).await,
+            MetadataSpec::Null
+        );
+        let delivery = if buffered {
+            test.buffered_delivery_instruction(&custom_message).await
+        } else {
+            test.delivery_instruction(&custom_message).await
+        };
+        test.submit(delivery).await.unwrap();
+        assert!(test.delivered(&custom_message).await);
+        assert_eq!(
+            test.context
+                .banks_client
+                .get_balance(recipient)
+                .await
+                .unwrap(),
+            1_000_000
+        );
+
+        // A rejecting custom ISM must not fall back to an accepting default.
+        default.set_accept(true).await.unwrap();
+        test.set_custom_ism(IsmNode::Test { accept: false });
+        let mut rejected = message(custom_body);
+        rejected.nonce = 1;
+        assert_eq!(
+            test.metadata_spec(&rejected).await,
+            MetadataSpec::CannotVerify
+        );
+        let delivery = test.buffered_delivery_instruction(&rejected).await;
+        assert!(test.submit(delivery).await.is_err());
+        assert!(!test.delivered(&rejected).await);
+        assert_eq!(
+            test.context
+                .banks_client
+                .get_balance(recipient)
+                .await
+                .unwrap(),
+            1_000_000
+        );
+    }
+}
+
+#[tokio::test]
+async fn zero_ism_tracks_mailbox_default_and_rejects_stale_accounts() {
+    let mut test = TestContext::new().await;
+    let message = message(body(vec![native_call(
+        transfer_ownership_instruction(WARP, ica(), None).unwrap(),
+    )]));
+    assert_eq!(test.metadata_spec(&message).await, MetadataSpec::Null);
+    let stale = test.delivery_instruction(&message).await;
+    test.set_custom_ism(IsmNode::Test { accept: false });
+    test.set_default_ism(CUSTOM_ISM).await;
+    assert!(test.submit(stale).await.is_err());
+    assert!(!test.delivered(&message).await);
+    assert_eq!(
+        test.metadata_spec(&message).await,
+        MetadataSpec::CannotVerify
+    );
+    let rejected = test.buffered_delivery_instruction(&message).await;
+    assert!(test.submit(rejected).await.is_err());
+    assert_eq!(test.token_state().await.owner, Some(ica()));
+    test.set_custom_ism(IsmNode::Test { accept: true });
+    let accepted = test.buffered_delivery_instruction(&message).await;
+    test.submit(accepted).await.unwrap();
+    assert!(test.delivered(&message).await);
+    // Changing the default ISM doesn't change the zero-ISM ICA authority.
+    assert_eq!(test.token_state().await.owner, None);
+}
+
+#[tokio::test]
+async fn forwards_metadata_and_discovers_nested_ism_accounts() {
+    let mut test = TestContext::new().await;
+    test.set_custom_ism(IsmNode::Aggregation {
+        threshold: 1,
+        sub_isms: vec![IsmNode::Test { accept: true }],
+    });
+    let mut custom = body(vec![]);
+    custom.ism = CUSTOM_ISM.to_bytes().into();
+    let message = message(custom);
+    assert_eq!(
+        test.metadata_spec(&message).await,
+        MetadataSpec::Aggregation {
+            threshold: 1,
+            sub_specs: vec![MetadataSpec::Null],
+        }
+    );
+    // Discover with valid aggregation metadata; malformed metadata can itself
+    // prevent the child's account discovery from succeeding.
+    let metadata = vec![0, 0, 0, 8, 0, 0, 0, 8];
+    let mut delivery = Instruction {
+        program_id: mailbox_id(),
+        accounts: get_process_account_metas(
+            &mut test.context.banks_client,
+            &test.context.payer,
+            &test.mailbox,
+            metadata.clone(),
+            &message,
+        )
+        .await
+        .unwrap(),
+        data: MailboxInstruction::InboxProcess(InboxProcess {
+            metadata: vec![],
+            message: message.to_vec(),
+        })
+        .into_instruction_data()
+        .unwrap(),
+    };
+    // Routing discovery must resolve the composite's domain PDA.
+    assert!(delivery
+        .accounts
+        .iter()
+        .any(|meta| meta.pubkey == derive_domain_pda(&CUSTOM_ISM, ORIGIN).0));
+    assert!(test.submit(delivery.clone()).await.is_err());
+    assert!(!test.delivered(&message).await);
+    // One empty sub-metadata entry: start=end=8, encoded big-endian.
+    delivery.data = MailboxInstruction::InboxProcess(InboxProcess {
+        metadata,
+        message: message.to_vec(),
+    })
+    .into_instruction_data()
+    .unwrap();
+    test.submit(delivery).await.unwrap();
+    assert!(test.delivered(&message).await);
+}
+
+#[tokio::test]
+async fn ism_rejects_substituted_accounts_and_recursive_routes() {
+    let mut test = TestContext::new().await;
+    test.set_custom_ism(IsmNode::Test { accept: true });
+    let mut custom = body(vec![]);
+    custom.ism = CUSTOM_ISM.to_bytes().into();
+    let message = message(custom.clone());
+    let accounts = get_ism_verify_account_metas(
+        &mut test.context.banks_client,
+        &test.context.payer,
+        ROUTER,
+        vec![],
+        message.to_vec(),
+    )
+    .await
+    .unwrap();
+    let verify = |accounts, message: &HyperlaneMessage| {
+        Instruction::new_with_bytes(
+            ROUTER,
+            &InterchainSecurityModuleInstruction::Verify(VerifyInstruction::new(
+                vec![],
+                message.to_vec(),
+            ))
+            .encode()
+            .unwrap(),
+            accounts,
+        )
+    };
+    for index in 0..4 {
+        let mut substituted = accounts.clone();
+        substituted[index].pubkey = test.context.payer.pubkey();
+        assert!(test.submit(verify(substituted, &message)).await.is_err());
+    }
+    let inbox = test
+        .context
+        .banks_client
+        .get_account(test.mailbox.inbox)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut forged = inbox.clone();
+    forged.owner = ROUTER;
+    test.context
+        .set_account(&test.mailbox.inbox, &forged.into());
+    assert!(test
+        .submit(verify(accounts.clone(), &message))
+        .await
+        .is_err());
+    test.context.set_account(&test.mailbox.inbox, &inbox.into());
+    for ism in [ROUTER, mailbox_id()] {
+        let mut recursive = custom.clone();
+        recursive.ism = ism.to_bytes().into();
+        let recursive = crate::message(recursive);
+        assert!(test
+            .submit(verify(accounts.clone(), &recursive))
+            .await
+            .is_err());
+    }
+    // The zero-body-ISM fallback must also reject a default pointing to self.
+    test.set_default_ism(ROUTER).await;
+    assert!(test
+        .submit(verify(accounts, &crate::message(body(vec![]))))
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -885,23 +1235,17 @@ async fn mailbox_callbacks_fail_and_roll_back_the_batch() {
 }
 
 #[tokio::test]
-async fn rejects_unsupported_ism_value_and_foreign_signers() {
+async fn rejects_value_and_foreign_signers() {
     let mut test = TestContext::new().await;
     let call = native_call(
         transfer_ownership_instruction(WARP, ica(), Some(Pubkey::new_unique())).unwrap(),
     );
     let valid = message(body(vec![call.clone()]));
-    let mut custom_ism = body(vec![call.clone()]);
-    custom_ism.ism = [1; 32].into();
     let mut valued_call = call;
     valued_call.value = 1.into();
     let foreign_signer =
         native_call(transfer_ownership_instruction(WARP, Pubkey::new_unique(), None).unwrap());
-    for body in [
-        custom_ism,
-        body(vec![valued_call]),
-        body(vec![foreign_signer]),
-    ] {
+    for body in [body(vec![valued_call]), body(vec![foreign_signer])] {
         let message = message(body);
         assert!(handle_account_metas(&ROUTER, &handle(&message)).is_err());
         // Bypass metadata discovery to prove Handle itself enforces these checks.

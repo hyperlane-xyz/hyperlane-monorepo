@@ -3,10 +3,11 @@
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
-/// Router configuration PDA seed.
-pub const CONFIG_SEED: &[u8] = b"ica_router";
+/// Router configuration also serves as the standard ISM discovery PDA.
+pub const CONFIG_SEEDS: &[&[u8]] = VERIFY_ACCOUNT_METAS_PDA_SEEDS;
 /// Interchain account authority PDA seed prefix.
 pub const ICA_SEED: &[u8] = b"ica";
 
@@ -26,7 +27,7 @@ macro_rules! interchain_account_seeds {
     };
 }
 
-/// Immutable router configuration. Inbound verification uses the mailbox default ISM.
+/// Immutable router configuration. The mailbox supplies the fallback ISM.
 #[derive(BorshSerialize, BorshDeserialize, Default, Debug)]
 pub struct RouterConfig {
     /// Mailbox authorized to deliver messages and used for outgoing messages.
@@ -55,7 +56,7 @@ impl RouterConfig {
 
 /// Derives the router's configuration PDA.
 pub fn config_address(program_id: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[CONFIG_SEED], program_id)
+    Pubkey::find_program_address(CONFIG_SEEDS, program_id)
 }
 
 /// Derives an ICA authority using the same identity fields as EVM ICAs.

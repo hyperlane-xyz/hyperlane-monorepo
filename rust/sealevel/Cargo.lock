@@ -3626,6 +3626,8 @@ dependencies = [
  "ethabi",
  "hex",
  "hyperlane-core",
+ "hyperlane-sealevel-composite-ism",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",

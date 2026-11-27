@@ -31,7 +31,7 @@ pub struct SealevelCallData {
 pub struct InterchainAccountMessage {
     /// Account that initiated the call on the origin chain.
     pub owner: H256,
-    /// Destination ISM. Incoming Sealevel messages currently require zero.
+    /// Destination ISM; zero selects the mailbox's current default.
     pub ism: H256,
     /// User-selected salt separating accounts with otherwise equal identities.
     pub salt: H256,

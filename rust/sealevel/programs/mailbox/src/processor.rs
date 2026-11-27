@@ -206,7 +206,7 @@ fn inbox_process_from_account(
     )
 }
 
-/// Process a message. Non-reentrant through the use of a RefMut.
+/// Process a message. An Inbox data borrow guards against reentrancy.
 ///
 // Accounts:
 // 0.      `[signer]` Payer account. This pays for the creation of the processed message PDA.
@@ -252,10 +252,9 @@ fn inbox_process(
 
     // Account 2: Inbox PDA.
     let inbox_info = next_account_info(accounts_iter)?;
-    // By holding a refmut of the Inbox data, we effectively have a reentrancy guard
-    // that prevents any of the CPIs performed by this function to call back into
-    // this function.
-    let (mut inbox, mut inbox_data_refmut) =
+    // Keep the Inbox borrowed across CPIs as a reentrancy guard. During ISM
+    // verification only, switch to a shared borrow to allow read-only access.
+    let (mut inbox, inbox_data_refmut) =
         Inbox::verify_account_and_fetch_inner_with_data_refmut(program_id, inbox_info)?;
 
     // Verify the message's destination matches the inbox's local domain.
@@ -401,6 +400,11 @@ fn inbox_process(
         if meta.pubkey == process_authority_key {
             meta.is_signer = true;
         }
+        // Transaction-wide privileges make the Inbox writable even when the ISM
+        // requests it read-only. Restrict every occurrence in the verification CPI.
+        if meta.pubkey == *inbox_info.key {
+            meta.is_writable = false;
+        }
     }
 
     // Call into the ISM to verify the message.
@@ -410,6 +414,8 @@ fn inbox_process(
     });
     let verify =
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
+    drop(inbox_data_refmut);
+    let inbox_data_ref = inbox_info.try_borrow_data()?;
     invoke_signed(
         &verify,
         &ism_verify_infos,
@@ -419,6 +425,9 @@ fn inbox_process(
             &[process_authority_bump],
         ]],
     )?;
+    drop(inbox_data_ref);
+    // Restore the exclusive guard before updating state and calling Handle.
+    let mut inbox_data_refmut = inbox_info.try_borrow_mut_data()?;
 
     // Mark the message as delivered by creating the processed message account.
     let processed_message_account_data = ProcessedMessageAccount::from(ProcessedMessage::new(

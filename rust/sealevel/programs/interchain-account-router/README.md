@@ -30,7 +30,9 @@ system-program instructions signed by that authority.
 Initialize the router with `init_instruction`, signed by its current upgrade
 authority. Initialization checks the canonical upgradeable-loader ProgramData
 account, its owner, its state variant, and the authority signature. Initialize
-before revoking upgrade authority. Configuration is immutable.
+before revoking upgrade authority. Configuration is immutable and stored at the
+standard ISM `VERIFY_ACCOUNT_METAS_PDA_SEEDS` PDA, which also serves account discovery.
+This replaces the initial PoC's `ica_router` config seed; reinitialize fresh PoC deployments.
 
 The router accepts `Handle` only from the configured mailbox's signed process
 authority. As on EVM, the origin router need not be enrolled: its identity is part
@@ -50,7 +52,8 @@ Delivery executes the calls immediately, following the Hyp token recipient patte
 
 ```text
 Mailbox.process / InboxProcessFromAccount
-  -> ISM verifies the message
+  -> ICA.Verify selects body.ism, or Inbox.default_ism when body.ism is zero
+     -> selected ISM verifies the full message and metadata
   -> ICA.Handle authenticates the mailbox's process authority
   -> executes all calls, signing only for the derived ICA
   -> mailbox delivery completes
@@ -70,6 +73,27 @@ is needed. Larger messages can use `InboxProcessFromAccount`. In that case, buff
 creation, upload, and cleanup remain the caller's responsibility. Both entrypoints
 use the same ISM verification and `Handle` path; CPI, heap, and compute limits still
 apply.
+
+### Incoming ISM selection
+
+The router returns itself as the recipient ISM. A nonzero message-body ISM selects
+that program directly. Zero selects the configured mailbox's current default ISM,
+read from its canonical, mailbox-owned Inbox PDA. Failed custom verification never
+falls back to the default. Changing the default does not change a zero-ISM ICA's address.
+
+This requires the mailbox change that passes its Inbox read-only during ISM
+verification. The router never calls back into the mailbox. Self-referential ISMs
+and selecting the active mailbox as an ISM are rejected.
+
+The router exposes `Type = Composite`, `VerifyAccountMetas`, and
+`VerifyMetadataSpec` for the existing Sealevel relayer's iterative discovery.
+Verification accounts are config/VAM, Inbox, selected ISM program, selected ISM
+VAM, then the selected ISM's remaining accounts. The child's metadata is forwarded
+unchanged. Metadata discovery requires the selected ISM's `VerifyMetadataSpec`
+interface; older deployments lacking it need an upgrade or manually supplied metadata.
+
+ISMs requiring their own mailbox-signed process authority (such as composite
+`RateLimited`) cannot be nested here: the mailbox signs for the ICA router only.
 
 ### No callbacks into the active mailbox
 
@@ -113,8 +137,8 @@ mailbox's message ID.
 
 ## Initial scope
 
-- Incoming messages require `ism = 0` and use the mailbox default ISM. Nonzero ISMs
-  are rejected, rather than ignored. Outgoing messages preserve the requested ISM.
+- Incoming messages select a custom ISM or the live mailbox default as above.
+  Outgoing messages preserve the requested ISM.
 - Only CALLS messages are supported; no commitments, reveals, or delegatecalls.
 - Outbound calls are inline. No outbound buffer loading, automatic callbacks,
   router enrollment, gas-payment integration, or CLI/relayer changes.

@@ -31,7 +31,7 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::set_return_data,
+    program::{invoke, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -1026,6 +1026,232 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
             TransactionError::InstructionError(_, InstructionError::BorshIoError)
         ))
     ));
+}
+
+#[tokio::test]
+async fn test_process_ism_reads_current_default_ism() {
+    const ROUTER: Pubkey = Pubkey::new_from_array([21; 32]);
+    const FIRST_ISM: Pubkey = Pubkey::new_from_array([22; 32]);
+    const SECOND_ISM: Pubkey = Pubkey::new_from_array([23; 32]);
+
+    // Test-only recipient/ISM that routes verification to the live mailbox default.
+    fn router(_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+        if let Ok(instruction) = MessageRecipientInstruction::decode(data) {
+            return match instruction {
+                MessageRecipientInstruction::InterchainSecurityModule => {
+                    set_return_data(&borsh::to_vec(&Some(ROUTER))?);
+                    Ok(())
+                }
+                MessageRecipientInstruction::Handle(_) => {
+                    let authority = Pubkey::find_program_address(
+                        mailbox_process_authority_pda_seeds!(&ROUTER),
+                        &mailbox_id(),
+                    )
+                    .0;
+                    assert_eq!(*accounts[0].key, authority);
+                    assert!(accounts[0].is_signer);
+                    Ok(())
+                }
+                _ => Err(ProgramError::InvalidInstructionData),
+            };
+        }
+        let InterchainSecurityModuleInstruction::Verify(verify) =
+            InterchainSecurityModuleInstruction::decode(data)?
+        else {
+            return Err(ProgramError::InvalidInstructionData);
+        };
+        let inbox_info = &accounts[0];
+        assert!(!inbox_info.is_writable);
+        let inbox = Inbox::verify_account_and_fetch_inner(&mailbox_id(), inbox_info)?;
+        // A malicious ISM cannot pass the Inbox writable to a nested CPI.
+        let metas = if verify.metadata == b"write" {
+            vec![AccountMeta::new(*inbox_info.key, false)]
+        } else {
+            vec![]
+        };
+        invoke(
+            &Instruction::new_with_bytes(inbox.default_ism, data, metas),
+            accounts,
+        )
+    }
+
+    fn verify(id: &Pubkey, _accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+        let InterchainSecurityModuleInstruction::Verify(verify) =
+            InterchainSecurityModuleInstruction::decode(data)?
+        else {
+            return Err(ProgramError::InvalidInstructionData);
+        };
+        // Test-only verification proves which default ISM was actually invoked.
+        if verify.metadata != id.to_bytes() {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Ok(())
+    }
+
+    for buffered in [false, true] {
+        let mut test = ProgramTest::new(
+            "hyperlane_sealevel_mailbox",
+            mailbox_id(),
+            processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
+        );
+        // Allow the mailbox itself to run as SBF; these fixtures are native only.
+        test.prefer_bpf(false);
+        test.add_program("inbox_reader", ROUTER, processor!(router));
+        test.add_program("first_default_ism", FIRST_ISM, processor!(verify));
+        test.add_program("second_default_ism", SECOND_ISM, processor!(verify));
+        let mut messages = vec![];
+        for nonce in 0..2 {
+            let message = HyperlaneMessage {
+                version: 3,
+                nonce,
+                origin: REMOTE_DOMAIN,
+                sender: H256::zero(),
+                destination: LOCAL_DOMAIN,
+                recipient: ROUTER.to_bytes().into(),
+                body: vec![],
+            };
+            let buffer = Pubkey::new_unique();
+            test.add_account(
+                buffer,
+                Account {
+                    lamports: Rent::default().minimum_balance(message.to_vec().len()),
+                    data: message.to_vec(),
+                    owner: system_program::ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            );
+            messages.push((message, buffer));
+        }
+        let (mut client, payer, _) = test.start().await;
+        let init = init_instruction(
+            mailbox_id(),
+            LOCAL_DOMAIN,
+            FIRST_ISM,
+            0,
+            ProtocolFee {
+                fee: 0,
+                beneficiary: payer.pubkey(),
+            },
+            payer.pubkey(),
+        )
+        .unwrap();
+        process_instruction(&mut client, init, &payer, &[&payer])
+            .await
+            .unwrap();
+        let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox_id()).0;
+        let outbox = Pubkey::find_program_address(
+            hyperlane_sealevel_mailbox::mailbox_outbox_pda_seeds!(),
+            &mailbox_id(),
+        )
+        .0;
+        let authority = Pubkey::find_program_address(
+            mailbox_process_authority_pda_seeds!(&ROUTER),
+            &mailbox_id(),
+        )
+        .0;
+        for ((message, buffer), default_ism) in messages.into_iter().zip([FIRST_ISM, SECOND_ISM]) {
+            let set_default = Instruction {
+                program_id: mailbox_id(),
+                accounts: vec![
+                    AccountMeta::new(inbox, false),
+                    AccountMeta::new_readonly(outbox, false),
+                    AccountMeta::new_readonly(payer.pubkey(), true),
+                ],
+                data: MailboxInstruction::InboxSetDefaultIsm(default_ism)
+                    .into_instruction_data()
+                    .unwrap(),
+            };
+            process_instruction(&mut client, set_default, &payer, &[&payer])
+                .await
+                .unwrap();
+            let processed = Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(message.id()),
+                &mailbox_id(),
+            )
+            .0;
+            let mut accounts = vec![
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(inbox, false),
+                AccountMeta::new_readonly(authority, false),
+                AccountMeta::new(processed, false),
+                AccountMeta::new_readonly(ROUTER, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(ROUTER, false),
+                AccountMeta::new_readonly(inbox, false),
+                AccountMeta::new_readonly(default_ism, false),
+                AccountMeta::new_readonly(ROUTER, false),
+            ];
+            if buffered {
+                accounts.insert(0, AccountMeta::new_readonly(buffer, false));
+            }
+            let delivery = |metadata| Instruction {
+                program_id: mailbox_id(),
+                accounts: accounts.clone(),
+                data: if buffered {
+                    MailboxInstruction::InboxProcessFromAccount(InboxProcessFromAccount {
+                        metadata,
+                    })
+                } else {
+                    MailboxInstruction::InboxProcess(InboxProcess {
+                        metadata,
+                        message: message.to_vec(),
+                    })
+                }
+                .into_instruction_data()
+                .unwrap(),
+            };
+            for (metadata, error) in [
+                (vec![], InstructionError::InvalidInstructionData),
+                (b"write".to_vec(), InstructionError::PrivilegeEscalation),
+            ] {
+                let before = client.get_account(inbox).await.unwrap().unwrap();
+                let result =
+                    process_instruction(&mut client, delivery(metadata), &payer, &[&payer]).await;
+                // Native ProgramTest maps an unmappable CPI runtime error to
+                // ProgramFailedToComplete; SBF surfaces PrivilegeEscalation.
+                if error == InstructionError::PrivilegeEscalation {
+                    assert!(matches!(
+                        result,
+                        Err(BanksClientError::TransactionError(
+                            TransactionError::InstructionError(
+                                0,
+                                InstructionError::PrivilegeEscalation
+                                    | InstructionError::ProgramFailedToComplete
+                            )
+                        ))
+                    ));
+                } else {
+                    assert_transaction_error(result, TransactionError::InstructionError(0, error));
+                }
+                assert_eq!(client.get_account(inbox).await.unwrap().unwrap(), before);
+                assert!(client.get_account(processed).await.unwrap().is_none());
+            }
+            let signature = process_instruction(
+                &mut client,
+                delivery(default_ism.to_bytes().to_vec()),
+                &payer,
+                &[&payer],
+            )
+            .await
+            .unwrap();
+            assert_processed_message(
+                &mut client,
+                signature,
+                processed,
+                &message,
+                u64::from(message.nonce),
+            )
+            .await;
+            let account = client.get_account(inbox).await.unwrap().unwrap();
+            let state = InboxAccount::fetch(&mut account.data.as_slice())
+                .unwrap()
+                .into_inner();
+            assert_eq!(state.default_ism, default_ism);
+            assert_eq!(state.processed_count, u64::from(message.nonce) + 1);
+        }
+    }
 }
 
 #[tokio::test]
