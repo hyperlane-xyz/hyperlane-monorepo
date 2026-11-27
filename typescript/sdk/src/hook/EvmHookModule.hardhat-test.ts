@@ -2638,6 +2638,18 @@ describe('EvmHookModule', async () => {
             );
           }
 
+          // the fallback of the routing member of the nested aggregation of `outer`
+          async function nestedFallbackOf(outer: Address): Promise<Address> {
+            return fallbackOf(
+              memberOfType(
+                await membersOf(
+                  memberOfType(await membersOf(outer), HookType.AGGREGATION),
+                ),
+                HookType.FALLBACK_ROUTING,
+              ),
+            );
+          }
+
           for (const bound of boundHookCases) {
             it(`redeploys the outer aggregation when the ${bound.name} fallback of the routing member is bound to another mailbox`, async () => {
               const boundFallback = await bound.deploy(otherMailbox);
@@ -2655,17 +2667,7 @@ describe('EvmHookModule', async () => {
 
               const deployedHook = hook.serialize().deployedHook;
               expect(deployedHook).to.not.equal(initialHookAddress);
-              const fallback = await fallbackOf(
-                memberOfType(
-                  await membersOf(
-                    memberOfType(
-                      await membersOf(deployedHook),
-                      HookType.AGGREGATION,
-                    ),
-                  ),
-                  HookType.FALLBACK_ROUTING,
-                ),
-              );
+              const fallback = await nestedFallbackOf(deployedHook);
               expect(eqAddress(fallback, boundFallback)).to.be.false;
               expect(
                 eqAddress(await mailboxOf(fallback), coreAddresses.mailbox),
@@ -2699,6 +2701,81 @@ describe('EvmHookModule', async () => {
                 membersBefore,
               );
               expect(await hooksOf(nested)).to.deep.equal(nestedHooks);
+            });
+          }
+
+          it('redeploys the outer aggregation when the routing member is given the address of a fallback that is not its own', async () => {
+            const { initialHookAddress: nested } = await createHook(
+              aggregationOf(
+                fallbackRoutingOf({ type: HookType.MERKLE_TREE }),
+                pausableMember(signerAddress),
+              ),
+            );
+            const { hook, initialHookAddress } = await createHook(
+              aggregationOf(nested, pausableMember(signerAddress)),
+            );
+            const deployedFallback = await nestedFallbackOf(initialHookAddress);
+            // the same config, bound to the mailbox of the module as well
+            const given = (
+              await new MerkleTreeHook__factory(signer).deploy(
+                coreAddresses.mailbox,
+              )
+            ).address;
+
+            await expectTxsAndUpdate(hook, outerTarget(given), 0);
+
+            const deployedHook = hook.serialize().deployedHook;
+            expect(deployedHook).to.not.equal(initialHookAddress);
+            expect(
+              eqAddress(await nestedFallbackOf(deployedHook), deployedFallback),
+            ).to.be.false;
+          });
+
+          interface GivenFallbackCase {
+            name: string;
+            mailbox: () => Address;
+          }
+          const givenFallbackCases: GivenFallbackCase[] = [
+            {
+              name: 'the mailbox of the module',
+              mailbox: () => coreAddresses.mailbox,
+            },
+            { name: 'another mailbox', mailbox: () => otherMailbox },
+          ];
+          for (const c of givenFallbackCases) {
+            it(`keeps the outer aggregation when the routing member is given the address of its own fallback bound to ${c.name}`, async () => {
+              const given = (
+                await new MerkleTreeHook__factory(signer).deploy(c.mailbox())
+              ).address;
+              const { initialHookAddress: nested } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(given),
+                  pausableMember(signerAddress),
+                ),
+              );
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(nested, pausableMember(signerAddress)),
+              );
+              const membersBefore = await membersOf(initialHookAddress);
+              const nestedHooks = await hooksOf(nested);
+
+              const txs = await hook.update(outerTarget(given));
+              expect(txs).to.have.length(1);
+              expect(txs[0].to).to.equal(
+                memberOfType(membersBefore, HookType.PAUSABLE),
+              );
+              await sendTxs(txs);
+
+              expect(hook.serialize().deployedHook).to.equal(
+                initialHookAddress,
+              );
+              expect(await membersOf(initialHookAddress)).to.deep.equal(
+                membersBefore,
+              );
+              expect(await hooksOf(nested)).to.deep.equal(nestedHooks);
+              expect(
+                eqAddress(await nestedFallbackOf(initialHookAddress), given),
+              ).to.be.true;
             });
           }
         });

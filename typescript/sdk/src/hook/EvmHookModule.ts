@@ -166,13 +166,20 @@ function referencedHookAddress(hook: HookConfig): Address | undefined {
   }
 }
 
-// The addresses of the hooks that a target gives as an address, in its aggregations too.
+// The addresses of the hooks that a target gives as an address, in its aggregations and
+// the fallbacks of its fallback routing hooks too.
 function referencedHookAddresses(hook: HookConfig): Address[] {
   const address = referencedHookAddress(hook);
   if (address !== undefined) return [address];
-  return typeof hook !== 'string' && hook.type === HookType.AGGREGATION
-    ? hook.hooks.flatMap(referencedHookAddresses)
-    : [];
+  if (typeof hook === 'string') return [];
+  switch (hook.type) {
+    case HookType.AGGREGATION:
+      return hook.hooks.flatMap(referencedHookAddresses);
+    case HookType.FALLBACK_ROUTING:
+      return referencedHookAddresses(hook.fallback);
+    default:
+      return [];
+  }
 }
 
 type AggregationSubHook = {
@@ -487,8 +494,9 @@ export class EvmHookModule extends HyperlaneModule<
       return false;
     }
 
-    // The members that an aggregation is given as an address have to be members of it,
-    // which the equality of the configs, that omits the address, does not tell.
+    // The members that an aggregation is given as an address have to be members of it, and
+    // the fallbacks of its fallback routing members have to be the deployed ones, which the
+    // equality of the configs, that omits the address, does not tell.
     const hasReferencedMembers =
       current.type === HookType.AGGREGATION &&
       referencedHookAddresses(targetConfig).length > 0;
