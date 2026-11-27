@@ -10,6 +10,7 @@ import {
   isNullish,
   isZeroishAddressEvm,
   normalizeAddress,
+  objMap,
   rootLogger,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
@@ -114,6 +115,19 @@ function aevoLimitsFromConfig(config: AevoXERC20Limits): AevoXERC20Limits {
       );
     }
   }
+}
+
+/**
+ * The limits a config hands to the module, with the Aevo ones as the module
+ * expects them. Running it on limits it has already normalized changes nothing.
+ * Standard and Velodrome limits are kept as they are.
+ */
+function normalizedLimits(limits: XERC20LimitsMap): XERC20LimitsMap {
+  return objMap(limits, (_, bridgeLimits) =>
+    bridgeLimits.type === XERC20Type.Aevo
+      ? aevoLimitsFromConfig(bridgeLimits)
+      : bridgeLimits,
+  );
 }
 
 const AEVO_INTERFACE = new utils.Interface(XERC20_AEVO_ABI);
@@ -245,16 +259,24 @@ export class EvmXERC20Module extends HyperlaneModule<
    * Detects drift and generates correction transactions.
    *
    * Ownership transfers are opt-in via `includeOwnership`. They are only emitted
-   * by the dedicated `xerc20 apply` command, where `expectedConfig.owner` is an
+   * by the dedicated `xerc20 apply` command, where `config.owner` is an
    * intentional target for the XERC20 token's `Ownable` owner. The warp
    * deploy/apply path (EvmWarpModule) must NOT enable this: there the warp
    * config `owner` denotes the router owner, not the (often externally-governed)
    * XERC20 token owner, so reconciling it would emit a doomed transferOwnership.
    */
   async update(
-    expectedConfig: XERC20ModuleConfig,
+    config: XERC20ModuleConfig,
     { includeOwnership = false }: { includeOwnership?: boolean } = {},
   ): Promise<AnnotatedEV5Transaction[]> {
+    // A config handed in directly is not necessarily one `fromWarpRouteConfig`
+    // normalized.
+    const expectedConfig: XERC20ModuleConfig = {
+      type: config.type,
+      limits: normalizedLimits(config.limits),
+      owner: config.owner,
+      proxyAdmin: config.proxyAdmin,
+    };
     const actualConfig = await this.read();
 
     assert(

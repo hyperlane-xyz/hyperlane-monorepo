@@ -677,6 +677,35 @@ describe('EvmXERC20Module', () => {
         actual: aevoUnlimited(),
         txs: [updateAuthority(false)],
       },
+      // A config handed to update directly is not one the schema parsed, which
+      // writes a raw cap as the decimal string of its value: a cap is the value
+      // it is written as, however many zeros it starts with.
+      {
+        name: 'emits no tx when the cap the token holds is written with leading zeros',
+        expected: aevoRaw('001000'),
+        actual: aevoRaw('1000'),
+        txs: [],
+      },
+      {
+        name: 'changes the cap of an authorized minter to one written with leading zeros',
+        expected: aevoRaw('002000'),
+        actual: aevoRaw('1000'),
+        txs: [setCap(2000n)],
+      },
+      {
+        // The same digits plus one, which a comparison of the leading digits
+        // alone would not tell apart.
+        name: 'changes the cap of an authorized minter to a larger one that starts with the same digits',
+        expected: aevoRaw('01001'),
+        actual: aevoRaw('1000'),
+        txs: [setCap(1001n)],
+      },
+      {
+        name: 'authorizes a minter that is not authorized with a cap written with leading zeros',
+        expected: aevoRaw('001000'),
+        actual: aevoUnauthorized(),
+        txs: [setCap(1000n), updateAuthority(true)],
+      },
     ];
 
     for (const c of updateCases) {
@@ -690,6 +719,18 @@ describe('EvmXERC20Module', () => {
         expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal(c.txs);
       });
     }
+
+    it('leaves the config it is given as it is, whatever it does with a cap written with leading zeros', async () => {
+      const config = createAevoConfig(aevoRaw('001000'));
+      const module = createModule(config);
+      stubChain(module, { [WARP_ROUTE_ADDRESS]: aevoRaw('1000') });
+
+      await module.update(config);
+
+      expect(config.limits).to.deep.equal({
+        [WARP_ROUTE_ADDRESS]: aevoRaw('001000'),
+      });
+    });
 
     it('rejects an Aevo config for a token that is not Aevo', async () => {
       const config = createAevoConfig(aevoRaw('1000'));
