@@ -1072,10 +1072,16 @@ export async function extendWarpRoute(
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
   // Resolved before any router of the extension is deployed, so a failed
-  // lookup aborts it first, and reused for the registry config.
+  // lookup aborts it first, and reused for the registry config. The chains that
+  // are skipped keep the standard of their registry token, and are not looked up.
   const standards = await deriveOnChainStandards(
     context.multiProvider,
-    warpDeployConfig,
+    objFilter(
+      warpDeployConfig,
+      (chainName, _): _ is (typeof warpDeployConfig)[string] =>
+        chainName in filteredExistingConfigs ||
+        chainName in filteredExtendedConfigs,
+    ),
   );
 
   // Derive metadata once for all new chains

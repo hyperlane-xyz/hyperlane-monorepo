@@ -23,6 +23,7 @@ import {
   eqAddress,
   isNullish,
   normalizeAddressEvm,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { UIN256_MAX_VALUE } from '../consts/numbers.js';
@@ -65,7 +66,10 @@ import {
   XERC20TokenMetadata,
   XERC20Type,
 } from './types.js';
-import { AEVO_OUTSTANDING_SELECTOR } from './xerc20-abi.js';
+import {
+  AEVO_OUTSTANDING_SELECTOR,
+  AEVO_XERC20_SELECTORS,
+} from './xerc20-abi.js';
 import { deriveEvmXERC20Standard, deriveXERC20TokenType } from './xerc20.js';
 import { checkWarpRouteDeployConfig } from './warpCheck.js';
 
@@ -516,6 +520,25 @@ describe('Aevo xERC20 token', async () => {
     expect(
       await deriveEvmXERC20Standard(multiProvider, chain, AEVO_USDC_PROXY),
     ).to.equal(TokenStandard.EvmHypAevoXERC20);
+  });
+
+  // A token whose code carries the four selectors that identify an Aevo token
+  // and reverts every call, as it does the call of a getter it does not have.
+  it('is not exported with the standard of an Aevo router when it has no outstanding getter', async () => {
+    const token = randomAddress();
+    await hre.network.provider.send('hardhat_setCode', [
+      token,
+      `0x60006000fd${AEVO_XERC20_SELECTORS.map(strip0x).join('')}`,
+    ]);
+
+    expect(await deriveXERC20TokenType(multiProvider, chain, token)).to.equal(
+      XERC20Type.Aevo,
+    );
+    await expect(
+      deriveEvmXERC20Standard(multiProvider, chain, token),
+    ).to.be.rejectedWith(
+      `Unable to derive the standard of ${token}. It carries the Aevo XERC20 limit selectors but not the outstanding getter ${AEVO_OUTSTANDING_SELECTOR}`,
+    );
   });
 
   // The reading of the config rests on what the token does on a mint, which
@@ -1409,11 +1432,14 @@ describe('Aevo xERC20 token', async () => {
         await arrange({ authorized: true, cap: 105n, outstanding: 0n });
         const other = randomAddress();
         await authorize(other);
+        const supplyBefore = (await aevoToken.totalSupply()).toBigInt();
         await (
           await (await impersonate(other)).mint(randomAddress(), 1000)
         ).wait();
 
-        expect((await aevoToken.totalSupply()).toBigInt()).to.equal(1000n);
+        expect((await aevoToken.totalSupply()).toBigInt()).to.equal(
+          supplyBefore + 1000n,
+        );
         expect(await adapter.getBurnLimit()).to.equal(0n);
         expect(await adapter.getBridgedSupply()).to.equal(0n);
       });

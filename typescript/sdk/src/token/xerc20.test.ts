@@ -65,6 +65,13 @@ const aevoCodeWithOutstanding = ensure0x(
   `${aevoSelectorsCode}${strip0x(AEVO_OUTSTANDING_SELECTOR)}`,
 );
 
+// A node that is not reachable for a call is no answer to whether the token has
+// the getter, unlike a call that reverts without data.
+const TRANSPORT_FAILURE = Object.assign(new Error('429 Too Many Requests'), {
+  code: 'SERVER_ERROR',
+  status: 429,
+});
+
 interface Case {
   name: string;
   // The token the type is derived for, the proxy at PROXY_ADDRESS unless set.
@@ -75,9 +82,16 @@ interface Case {
   // slot is omitted the stub throws, proving the derivation never reads it.
   storage: Record<string, string>;
   expected: { type: XERC20Type } | { errorIncludes: string };
+  // What the token answers to the call of its outstanding getter, which only
+  // the derivation of the standard of an Aevo token makes. When it is omitted
+  // the stub throws, proving no such call is made.
+  outstanding?: 'answers' | 'reverts' | 'fails';
   // Set when the type is derived but the standard of the token is not.
   standardErrorIncludes?: string;
 }
+
+const NO_GETTER_ERROR = (token: string) =>
+  `Unable to derive the standard of ${token}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`;
 
 const cases: Case[] = [
   {
@@ -159,6 +173,7 @@ const cases: Case[] = [
     storage: {
       [EIP1967_IMPLEMENTATION_SLOT]: aevoUsdcImplementationSlotValue(),
     },
+    outstanding: 'answers',
     expected: { type: XERC20Type.Aevo },
   },
   {
@@ -170,6 +185,7 @@ const cases: Case[] = [
       [AEVO_WETH_IMPLEMENTATION]: aevoTokenCode(AEVO_WETH_IMPLEMENTATION),
     },
     storage: {},
+    outstanding: 'answers',
     expected: { type: XERC20Type.Aevo },
   },
   {
@@ -189,9 +205,10 @@ const cases: Case[] = [
     expected: { type: XERC20Type.Velo },
   },
   {
-    name: 'returns Aevo from the address bytecode of a token with the outstanding getter',
+    name: 'returns Aevo for a token whose getter answers',
     code: { [PROXY_ADDRESS]: aevoCodeWithOutstanding },
     storage: {},
+    outstanding: 'answers',
     expected: { type: XERC20Type.Aevo },
   },
   {
@@ -200,11 +217,22 @@ const cases: Case[] = [
     name: 'returns Aevo for a token without the outstanding getter, which has no Aevo standard',
     code: { [PROXY_ADDRESS]: aevoCodeWithoutOutstanding },
     storage: {},
+    outstanding: 'reverts',
     expected: { type: XERC20Type.Aevo },
-    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+    standardErrorIncludes: NO_GETTER_ERROR(PROXY_ADDRESS),
   },
   {
-    name: 'returns Aevo for a proxy whose implementation carries the outstanding getter',
+    // The bytecode of the proxy carries the management selectors, so the
+    // implementation is never inspected, and the getter is in the
+    // implementation: whether the token has it is what the token answers.
+    name: 'returns Aevo for a proxy that carries the management selectors itself and whose getter answers',
+    code: { [PROXY_ADDRESS]: aevoCodeWithoutOutstanding },
+    storage: {},
+    outstanding: 'answers',
+    expected: { type: XERC20Type.Aevo },
+  },
+  {
+    name: 'returns Aevo for a proxy whose implementation holds the getter',
     code: {
       [PROXY_ADDRESS]: '0xdead',
       [IMPLEMENTATION_ADDRESS]: aevoCodeWithOutstanding,
@@ -212,6 +240,7 @@ const cases: Case[] = [
     storage: {
       [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
     },
+    outstanding: 'answers',
     expected: { type: XERC20Type.Aevo },
   },
   {
@@ -223,22 +252,19 @@ const cases: Case[] = [
     storage: {
       [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
     },
+    outstanding: 'reverts',
     expected: { type: XERC20Type.Aevo },
-    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+    standardErrorIncludes: NO_GETTER_ERROR(PROXY_ADDRESS),
   },
   {
-    // The getter must be in the bytecode the type was read from: one in the
-    // proxy does not make the implementation, which holds the logic, have it.
-    name: 'returns Aevo for a proxy that carries the outstanding getter over an implementation without it, which has no Aevo standard',
-    code: {
-      [PROXY_ADDRESS]: ensure0x(`dead${strip0x(AEVO_OUTSTANDING_SELECTOR)}`),
-      [IMPLEMENTATION_ADDRESS]: aevoCodeWithoutOutstanding,
-    },
-    storage: {
-      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
-    },
+    // A call that cannot be made says nothing of the getter: it is thrown, and
+    // not read as a token without it.
+    name: 'returns Aevo for a token whose getter cannot be called, and fails its standard with the failure of the call',
+    code: { [PROXY_ADDRESS]: aevoCodeWithoutOutstanding },
+    storage: {},
+    outstanding: 'fails',
     expected: { type: XERC20Type.Aevo },
-    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+    standardErrorIncludes: '429 Too Many Requests',
   },
   {
     // Standard wins over Aevo, so the missing getter says nothing of it.
@@ -345,6 +371,26 @@ function stubChain(
       }
       return value;
     });
+  sandbox.stub(provider, 'call').callsFake(async (transaction) => {
+    const to = await transaction.to;
+    const data = await transaction.data;
+    if (
+      c.outstanding === undefined ||
+      to !== (c.address ?? PROXY_ADDRESS) ||
+      typeof data !== 'string' ||
+      !data.startsWith(AEVO_OUTSTANDING_SELECTOR)
+    ) {
+      throw new Error(`Unexpected call to ${to} with ${data}`);
+    }
+    if (c.outstanding === 'fails') throw TRANSPORT_FAILURE;
+    if (c.outstanding === 'reverts') {
+      throw Object.assign(new Error('call revert exception'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+    }
+    return ethers.utils.hexZeroPad('0x00', 32);
+  });
 }
 
 describe('deriveXERC20TokenType', () => {
@@ -427,6 +473,20 @@ describe('deriveEvmXERC20Standard', () => {
       ? standardOf[c.expected.type]
       : TokenStandard.EvmHypXERC20;
   }
+
+  it('rethrows a failure of the call of the getter as it is, not as a token without it', async () => {
+    const c = cases.find(({ outstanding }) => outstanding === 'fails');
+    assert(c, 'Expected a case whose getter cannot be called');
+    stubChain(sandbox, multiProvider, c);
+
+    await expect(
+      deriveEvmXERC20Standard(
+        multiProvider,
+        TestChainName.test1,
+        c.address ?? PROXY_ADDRESS,
+      ),
+    ).to.be.rejectedWith(TRANSPORT_FAILURE);
+  });
 
   for (const c of cases) {
     const rejected = rejection(c);

@@ -12,6 +12,7 @@ import {
 import {
   ProtocolType,
   addressToBytes32,
+  isNullish,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
@@ -55,6 +56,28 @@ import {
   transformDeployConfigForDisplay,
   withIntermediateWarpOwner,
 } from './warp.js';
+
+// The standard of an Aevo token is derived with a call of the getter of what a
+// minter has minted: a token that has it answers, and one that has not reverts
+// without data. Any other call to the provider is one that is not expected.
+function stubOutstandingGetter(
+  provider: ethers.providers.Provider,
+  getters: { answering: string[]; reverting: string[] },
+): void {
+  sinon.stub(provider, 'call').callsFake(async (transaction) => {
+    const to = await transaction.to;
+    if (!isNullish(to) && getters.answering.includes(to)) {
+      return ethers.utils.hexZeroPad('0x00', 32);
+    }
+    if (!isNullish(to) && getters.reverting.includes(to)) {
+      throw Object.assign(new Error('call revert exception'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+    }
+    throw new Error(`Unexpected call to ${to}`);
+  });
+}
 
 describe('generateTokenConfigs', () => {
   for (const scale of [1e12, undefined]) {
@@ -231,6 +254,10 @@ describe('deriveOnChainStandards', () => {
       TestChainName.test2,
       TestChainName.test3,
     ]) {
+      stubOutstandingGetter(multiProvider.getProvider(chain), {
+        answering: [aevoToken],
+        reverting: [aevoWithoutGetterToken],
+      });
       sinon
         .stub(multiProvider.getProvider(chain), 'getCode')
         .callsFake(async (addressOrName) => {
@@ -448,6 +475,10 @@ describe('the standards of the routers of a route', () => {
       });
       getCodes[0].resolves(AEVO_CODE);
       getCodes[1].resolves(VELO_CODE);
+      stubOutstandingGetter(multiProvider.getProvider(chains[0]), {
+        answering: [aevoToken],
+        reverting: [],
+      });
 
       await extendWarpRoute(
         {
@@ -492,6 +523,93 @@ describe('the standards of the routers of a route', () => {
       expect(getCodes[0].callCount).to.equal(1);
       expect(getCodes[1].callCount).to.equal(1);
       expect(getCodes[2].called).to.equal(false);
+    });
+
+    // A chain of a protocol the context does not support is left out of the
+    // extension, and its token is not looked up either: a lookup that failed for
+    // it would stop the extension of the chains that are supported.
+    it('does not look up the token of a chain it skips, and extends the supported chains', async () => {
+      const extendedMultiProvider = new MultiProvider({
+        ...testChainMetadata,
+        tron: {
+          name: 'tron',
+          protocol: ProtocolType.Tron,
+          chainId: 2494104990,
+          domainId: 728126428,
+          nativeToken: { name: 'Tron', symbol: 'TRX', decimals: 6 },
+          rpcUrls: [{ http: 'http://127.0.0.1:8090' }],
+        },
+      });
+      metadata.set('tron', { name: 'USD Coin', symbol: 'USDC', decimals: 6 });
+      const skippedGetCode = sinon
+        .stub(extendedMultiProvider.getProvider(TestChainName.test1), 'getCode')
+        .rejects(lookupError);
+      const skipped: WarpCoreConfig['tokens'][number] = {
+        chainName: TestChainName.test1,
+        standard: TokenStandard.EvmHypAevoXERC20,
+        tokenType: TokenType.XERC20,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MAILBOX,
+        collateralAddressOrDenom: failingToken,
+      };
+      const warpCoreConfig: WarpCoreConfig = { tokens: [skipped] };
+      const addWarpRoute = sinon.stub().resolves();
+      sinon
+        .stub(extendedMultiProvider, 'getSigner')
+        .returns(ethers.Wallet.createRandom());
+      const deploy = sinon.stub(HypERC20Deployer.prototype, 'deploy').resolves({
+        tron: contractDouble<DeployedContracts>({
+          synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+        }),
+      });
+
+      await extendWarpRoute(
+        {
+          context: {
+            altVmSigners: {},
+            multiProvider: extendedMultiProvider,
+            registry: {
+              addWarpRoute,
+              addWarpRouteConfig: sinon.stub().resolves(),
+              getAddresses: sinon.stub().resolves({ tron: {} }),
+            },
+            supportedProtocols: [ProtocolType.Tron],
+            // CAST: the extension reads only these members of the context.
+          } as unknown as Parameters<typeof extendWarpRoute>[0]['context'],
+          receiptsDir: '',
+          warpCoreConfig,
+          warpDeployConfig: {
+            [TestChainName.test1]: xerc20(failingToken),
+            tron: {
+              type: TokenType.synthetic,
+              owner: OWNER,
+              mailbox: MAILBOX,
+              name: 'USD Coin',
+              symbol: 'USDC',
+              decimals: 6,
+            },
+          },
+        },
+        {},
+        warpCoreConfig,
+        {},
+      );
+
+      expect(skippedGetCode.called).to.equal(false);
+      expect(deploy.calledOnce).to.equal(true);
+      expect(
+        addWarpRoute.firstCall.args[0].tokens.map(
+          (token: WarpCoreConfig['tokens'][number]) => [
+            token.chainName,
+            token.standard,
+          ],
+        ),
+      ).to.deep.equal([
+        ['tron', TokenStandard.TronHypSynthetic],
+        [TestChainName.test1, TokenStandard.EvmHypAevoXERC20],
+      ]);
     });
   });
 

@@ -20,9 +20,11 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EVM_TOKEN_TYPE_TO_STANDARD, TokenStandard } from './TokenStandard.js';
+import { EvmXERC20AevoAdapter } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
 import {
   WarpRouteDeployConfig,
@@ -560,8 +562,7 @@ export class UnknownXERC20TypeError extends Error {
 
 /**
  * The type whose limit interface the bytecode of the token, or of the EIP-1967
- * implementation behind it, carries, or undefined when it carries none of them,
- * together with that lowercase bytecode.
+ * implementation behind it, carries, or undefined when it carries none of them.
  *
  * Only that answer is undefined: an address without bytecode, the token's or
  * its implementation's, and a failure to read it throw, as neither says
@@ -571,7 +572,7 @@ async function detectXERC20Type(
   multiProvider: MultiProvider,
   chain: ChainNameOrId,
   address: Address,
-): Promise<{ type: XERC20Type | undefined; code: string }> {
+): Promise<XERC20Type | undefined> {
   const provider = multiProvider.getProvider(chain);
   let normalizedCode = (await provider.getCode(address)).toLowerCase();
   if (normalizedCode === '0x') {
@@ -621,18 +622,18 @@ async function detectXERC20Type(
 
   // Prefer Velodrome if both selectors are present, and either over Aevo.
   if (normalizedCode.includes(setBufferCapSelector)) {
-    return { type: XERC20Type.Velo, code: normalizedCode };
+    return XERC20Type.Velo;
   }
 
   if (normalizedCode.includes(setLimitsSelector)) {
-    return { type: XERC20Type.Standard, code: normalizedCode };
+    return XERC20Type.Standard;
   }
 
   if (carriesAevoSelectors(normalizedCode)) {
-    return { type: XERC20Type.Aevo, code: normalizedCode };
+    return XERC20Type.Aevo;
   }
 
-  return { type: undefined, code: normalizedCode };
+  return undefined;
 }
 
 export async function deriveXERC20TokenType(
@@ -640,7 +641,7 @@ export async function deriveXERC20TokenType(
   chain: ChainNameOrId,
   address: Address,
 ): Promise<XERC20Type> {
-  const { type } = await detectXERC20Type(multiProvider, chain, address);
+  const type = await detectXERC20Type(multiProvider, chain, address);
   if (isNullish(type)) {
     throw new UnknownXERC20TypeError(
       `Unable to detect XERC20 type for ${address}. Contract does not implement Standard, Velodrome or Aevo XERC20 interface.`,
@@ -660,6 +661,32 @@ const EVM_XERC20_TYPE_TO_STANDARD: Record<XERC20Type, TokenStandard> = {
 };
 
 /**
+ * Whether the token answers a call of the getter of what a minter has minted.
+ * It is asked of the token itself, as the getter is in its implementation when
+ * it is behind a proxy. A call that fails for any other reason than a missing
+ * getter is thrown: it says nothing of whether the token has one.
+ */
+async function hasAevoOutstandingGetter(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  token: Address,
+): Promise<boolean> {
+  const adapter = new EvmXERC20AevoAdapter(
+    multiProvider.getChainName(chain),
+    MultiProtocolProvider.fromMultiProvider(multiProvider),
+    { token },
+  );
+
+  try {
+    await adapter.getOutstanding(ethers.constants.AddressZero);
+    return true;
+  } catch (error: unknown) {
+    throwIfNotMissingSelector(error);
+    return false;
+  }
+}
+
+/**
  * The standard of an EVM router over the xERC20 token at the address: the one
  * `tokenTypeToStandard` gives an xERC20 router for a Standard token or one of
  * no known type, and the standard of its own for a Velodrome or Aevo token.
@@ -673,16 +700,12 @@ export async function deriveEvmXERC20Standard(
   chain: ChainNameOrId,
   xERC20Address: Address,
 ): Promise<TokenStandard> {
-  const { type, code } = await detectXERC20Type(
-    multiProvider,
-    chain,
-    xERC20Address,
-  );
+  const type = await detectXERC20Type(multiProvider, chain, xERC20Address);
   if (isNullish(type)) return EVM_TOKEN_TYPE_TO_STANDARD[TokenType.XERC20];
 
   assert(
     type !== XERC20Type.Aevo ||
-      code.includes(strip0x(AEVO_OUTSTANDING_SELECTOR).toLowerCase()),
+      (await hasAevoOutstandingGetter(multiProvider, chain, xERC20Address)),
     `Unable to derive the standard of ${xERC20Address}. It carries the Aevo XERC20 limit selectors but not the outstanding getter ${AEVO_OUTSTANDING_SELECTOR}, which the Aevo standard reads its limits and bridged supply with.`,
   );
 
