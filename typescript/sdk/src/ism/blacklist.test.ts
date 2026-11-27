@@ -44,6 +44,7 @@ describe('readBlacklistedIds', () => {
   let provider: providers.StaticJsonRpcProvider;
   let send: sinon.SinonStub;
   let getLogsByTopic: sinon.SinonStub;
+  let getContractDeploymentBlockFromExplorer: sinon.SinonStub;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
@@ -55,8 +56,11 @@ describe('readBlacklistedIds', () => {
     send = sandbox
       .stub(provider, 'send')
       .resolves({ number: FINALIZED_BLOCK_HEX });
-    sandbox
-      .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
+    getContractDeploymentBlockFromExplorer = sandbox
+      .stub(
+        EvmEventLogsReader.prototype,
+        'getContractDeploymentBlockFromExplorer',
+      )
       .resolves(DEPLOYMENT_BLOCK);
     getLogsByTopic = sandbox
       .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
@@ -175,6 +179,29 @@ describe('readBlacklistedIds', () => {
       );
     });
   }
+
+  it('scans from genesis when the explorer deployment block is unavailable', async () => {
+    getContractDeploymentBlockFromExplorer.rejects(
+      new Error('No block explorer is configured for chain test1'),
+    );
+    connectBlacklist(sandbox.stub().rejects(missingSelectorError()));
+
+    const ids = await readBlacklistedIds(
+      TestChainName.test1,
+      BLACKLIST_ADDRESS,
+      multiProvider,
+    );
+
+    expect(ids).to.deep.equal([BLACKLISTED_ID]);
+    expect(getLogsByTopic.calledOnce).to.be.true;
+    expect(getLogsByTopic.firstCall.args).to.deep.equal([
+      {
+        contractAddress: BLACKLIST_ADDRESS,
+        eventTopic: MESSAGE_BLACKLISTED_TOPIC,
+        fromBlock: 0,
+      },
+    ]);
+  });
 
   it('returns no ids for a legacy deployment made after the block tag', async () => {
     connectBlacklist(sandbox.stub().rejects(missingSelectorError()));

@@ -149,7 +149,7 @@ describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
-  let getContractDeploymentBlock: sinon.SinonStub;
+  let getContractDeploymentBlockFromExplorer: sinon.SinonStub;
   let hookTypeStub: sinon.SinonStub;
 
   beforeEach(() => {
@@ -160,8 +160,11 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IPostDispatchHook__factory, 'connect')
       .returns(contractDouble<IPostDispatchHook>({ hookType: hookTypeStub }));
-    getContractDeploymentBlock = sandbox
-      .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
+    getContractDeploymentBlockFromExplorer = sandbox
+      .stub(
+        EvmEventLogsReader.prototype,
+        'getContractDeploymentBlockFromExplorer',
+      )
       .resolves(100);
   });
 
@@ -536,7 +539,7 @@ describe('EvmIsmReader', () => {
       fromBlock: 100,
     });
     expect(
-      getContractDeploymentBlock.calledOnceWithExactly(
+      getContractDeploymentBlockFromExplorer.calledOnceWithExactly(
         LEGACY_BLACKLIST_ADDRESS,
       ),
     ).to.be.true;
@@ -702,7 +705,7 @@ describe('EvmIsmReader', () => {
     };
     expect(config).to.deep.equal(expectedConfig);
     expect(getLogsByTopic.notCalled).to.be.true;
-    expect(getContractDeploymentBlock.notCalled).to.be.true;
+    expect(getContractDeploymentBlockFromExplorer.notCalled).to.be.true;
   });
 
   it('should not classify transient blacklist owner failures as test ISM', async () => {

@@ -1096,7 +1096,10 @@ describe('EvmIsmModule', async () => {
       beforeEach(() => {
         legacyDeploymentBlocks.clear();
         legacyDeploymentBlockStub = sinon
-          .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
+          .stub(
+            EvmEventLogsReader.prototype,
+            'getContractDeploymentBlockFromExplorer',
+          )
           .callsFake(async (address) => {
             const block = legacyDeploymentBlocks.get(address.toLowerCase());
             assert(
