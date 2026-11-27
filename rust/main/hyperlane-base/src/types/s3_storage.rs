@@ -5,10 +5,17 @@ use std::{
 };
 
 use async_trait::async_trait;
-use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
+use aws_config::{
+    default_provider::ignore_configured_endpoint_urls::ignore_configured_endpoint_urls_provider,
+    provider_config::ProviderConfig, timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region,
+    SdkConfig,
+};
 use aws_sdk_s3::{
-    error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
-    primitives::ByteStream, Client,
+    config::{RequestChecksumCalculation, ResponseChecksumValidation},
+    error::SdkError,
+    operation::get_object::GetObjectError as SdkGetObjectError,
+    primitives::ByteStream,
+    Client,
 };
 use bytes::Bytes;
 use dashmap::DashMap;
@@ -55,6 +62,27 @@ pub struct S3Storage {
 /// requests when creating them. This cache allows us to reuse
 /// anonymous clients across the entire agent.
 static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, Arc<OnceCell<Client>>>> = OnceLock::new();
+
+/// Builds an S3 client from loaded SDK config.
+///
+/// With `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS`, or `ignore_configured_endpoint_urls` in the
+/// profile, aws-config leaves endpoint URLs from the environment and profile out of the shared
+/// config, but the S3 config builder reads `AWS_ENDPOINT_URL_S3`, `AWS_ENDPOINT_URL` and
+/// profile endpoints again. In that case S3 only uses the shared config's endpoint, which
+/// aws-config then sets only from code.
+async fn s3_client(sdk_config: &SdkConfig) -> Client {
+    let mut config = aws_sdk_s3::config::Builder::from(sdk_config);
+    // Read the setting with aws-config's own provider, from the process environment and AWS
+    // profile that `default_aws_sdk_config_loader` also uses.
+    let ignore_configured_endpoint_urls =
+        ignore_configured_endpoint_urls_provider(&ProviderConfig::default())
+            .await
+            .unwrap_or_default();
+    if ignore_configured_endpoint_urls {
+        config.set_endpoint_url(sdk_config.endpoint_url().map(str::to_owned));
+    }
+    Client::from_conf(config.build())
+}
 
 fn anonymous_client_cell(region: Region) -> Arc<OnceCell<Client>> {
     let cell = ANONYMOUS_CLIENT_CACHE
@@ -177,7 +205,7 @@ impl S3Storage {
         self.authenticated_client
             .get_or_init(|| async {
                 let config = self.default_aws_sdk_config_loader().load().await;
-                Client::new(&config)
+                s3_client(&config).await
             })
             .await
     }
@@ -201,7 +229,7 @@ impl S3Storage {
                 .no_credentials()
                 .load()
                 .await;
-            Client::new(&config)
+            s3_client(&config).await
         })
         .await
         .clone()
@@ -218,6 +246,10 @@ impl S3Storage {
             )
             .behavior_version(BehaviorVersion::latest())
             .region(self.region.clone())
+            // Recent SDKs send and validate CRC checksums by default, which some
+            // S3-compatible stores reject. Only use them where an operation requires it.
+            .request_checksum_calculation(RequestChecksumCalculation::WhenRequired)
+            .response_checksum_validation(ResponseChecksumValidation::WhenRequired)
     }
 
     fn get_composite_key(&self, key: String) -> String {
@@ -426,6 +458,14 @@ impl CheckpointSyncer for S3Storage {
 
 #[cfg(test)]
 mod tests {
+    use aws_sdk_s3::{
+        config::{
+            interceptors::BeforeTransmitInterceptorContextRef, ConfigBag, Intercept,
+            RuntimeComponents,
+        },
+        error::BoxError,
+    };
+
     use super::*;
 
     #[tokio::test]
@@ -721,6 +761,300 @@ mod tests {
             serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
             serde_json::from_slice::<serde_json::Value>(&pretty).unwrap()
         );
+    }
+
+    /// Returns the host an anonymous S3 client built from `loader` sends a GetObject request
+    /// to. The request is stopped before it is sent, so a plain HTTP client is enough.
+    async fn get_object_host(loader: ConfigLoader) -> String {
+        #[derive(Debug, Clone, Default)]
+        struct CaptureUri(Arc<std::sync::Mutex<Option<String>>>);
+
+        impl Intercept for CaptureUri {
+            fn name(&self) -> &'static str {
+                "CaptureUri"
+            }
+
+            fn read_before_transmit(
+                &self,
+                context: &BeforeTransmitInterceptorContextRef<'_>,
+                _: &RuntimeComponents,
+                _: &mut ConfigBag,
+            ) -> Result<(), BoxError> {
+                *self.0.lock().unwrap() = Some(context.request().uri().to_owned());
+                Err("request captured".into())
+            }
+        }
+
+        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
+            .build(hyper::client::HttpConnector::new());
+        let config = loader
+            .no_credentials()
+            .http_client(http_client)
+            .load()
+            .await;
+        let client = s3_client(&config).await;
+        let capture = CaptureUri::default();
+        let result = client
+            .get_object()
+            .bucket("test-bucket")
+            .key("key")
+            .customize()
+            .interceptor(capture.clone())
+            .send()
+            .await;
+        let uri = capture.0.lock().unwrap().take();
+        let uri = uri.unwrap_or_else(|| panic!("request not captured: {result:?}"));
+        Url::parse(&uri).unwrap().host_str().unwrap().to_owned()
+    }
+
+    /// Prints the host the storage's anonymous client sends a GetObject request to, with an
+    /// endpoint set in code if `TEST_ENDPOINT_URL_IN_CODE` is given.
+    #[tokio::test]
+    #[ignore = "Run by s3_endpoint_honours_ignore_configured_endpoint_urls"]
+    async fn print_get_object_host() {
+        let storage = S3Storage::new("test-bucket".into(), None, Region::new("us-east-1"), None);
+        let mut loader = storage.default_aws_sdk_config_loader();
+        if let Ok(endpoint_url) = std::env::var("TEST_ENDPOINT_URL_IN_CODE") {
+            loader = loader.endpoint_url(endpoint_url);
+        }
+        println!("host={}", get_object_host(loader).await);
+    }
+
+    /// Runs the ignored test `name` in a child process that has only `env` as its environment
+    /// and `profile` as its AWS config file, and returns what it printed.
+    fn run_in_child_process(name: &str, env: &[(&str, &str)], profile: &str) -> String {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(config_file.path(), profile).unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg(name)
+            .arg("--ignored")
+            .arg("--nocapture")
+            .env_clear()
+            .env("AWS_CONFIG_FILE", config_file.path())
+            .envs(env.iter().copied())
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            output.status.success() && stdout.contains("1 passed"),
+            "{stdout}{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        stdout
+    }
+
+    /// Runs `print_get_object_host` in a child process and returns the host it prints.
+    fn get_object_host_in_child_process(env: &[(&str, &str)], profile: &[&str]) -> String {
+        let stdout = run_in_child_process("print_get_object_host", env, &profile.join("\n"));
+        let host = stdout.lines().find_map(|line| line.strip_prefix("host="));
+        host.unwrap_or_else(|| panic!("no host in {stdout}"))
+            .to_owned()
+    }
+
+    /// The opt-out must keep S3 off endpoint URLs from the environment and profile, read the
+    /// way aws-config reads it: `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS`, then the profile's
+    /// `ignore_configured_endpoint_urls`, with no service-specific forms. Each case runs in its
+    /// own process, so this process's environment is never changed.
+    #[test]
+    fn s3_endpoint_honours_ignore_configured_endpoint_urls() {
+        const DEFAULT_HOST: &str = "test-bucket.s3.us-east-1.amazonaws.com";
+        let s3_profile = [
+            "[default]",
+            "services = local",
+            "[services local]",
+            "s3 =",
+            "  endpoint_url = http://s3.example.test",
+        ];
+        let cases: [(&[(&str, &str)], &[&str], &str); 8] = [
+            // Without the opt-out, S3 uses the configured endpoints.
+            (
+                &[
+                    ("AWS_ENDPOINT_URL_S3", "http://s3.example.test"),
+                    ("AWS_ENDPOINT_URL", "http://global.example.test"),
+                ],
+                &[],
+                "test-bucket.s3.example.test",
+            ),
+            (&[], &s3_profile, "test-bucket.s3.example.test"),
+            // With it, from the environment or the profile, S3 uses its default endpoint.
+            (
+                &[
+                    ("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS", "true"),
+                    ("AWS_ENDPOINT_URL_S3", "http://s3.example.test"),
+                    ("AWS_ENDPOINT_URL", "http://global.example.test"),
+                ],
+                &[],
+                DEFAULT_HOST,
+            ),
+            (
+                &[],
+                &[
+                    "[default]",
+                    "ignore_configured_endpoint_urls = true",
+                    "endpoint_url = http://global.example.test",
+                    "services = local",
+                    "[services local]",
+                    "s3 =",
+                    "  endpoint_url = http://s3.example.test",
+                ],
+                DEFAULT_HOST,
+            ),
+            // Service-specific forms of the setting are not read.
+            (
+                &[
+                    ("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS", "true"),
+                    ("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS_S3", "false"),
+                    ("AWS_ENDPOINT_URL_S3", "http://s3.example.test"),
+                ],
+                &[],
+                DEFAULT_HOST,
+            ),
+            (
+                &[
+                    ("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS_S3", "true"),
+                    ("AWS_ENDPOINT_URL_S3", "http://s3.example.test"),
+                    ("AWS_ENDPOINT_URL", "http://global.example.test"),
+                ],
+                &[],
+                "test-bucket.s3.example.test",
+            ),
+            (
+                &[],
+                &[
+                    "[default]",
+                    "ignore_configured_endpoint_urls = true",
+                    "services = local",
+                    "[services local]",
+                    "s3 =",
+                    "  endpoint_url = http://s3.example.test",
+                    "  ignore_configured_endpoint_urls = false",
+                ],
+                DEFAULT_HOST,
+            ),
+            // An endpoint set in code still applies.
+            (
+                &[
+                    ("AWS_IGNORE_CONFIGURED_ENDPOINT_URLS", "true"),
+                    ("AWS_ENDPOINT_URL_S3", "http://s3.example.test"),
+                    ("TEST_ENDPOINT_URL_IN_CODE", "http://code.example.test"),
+                ],
+                &[],
+                "test-bucket.code.example.test",
+            ),
+        ];
+        for (env, profile, host) in cases {
+            assert_eq!(
+                get_object_host_in_child_process(env, profile),
+                host,
+                "env {env:?}, profile {profile:?}"
+            );
+        }
+    }
+
+    /// Writes and reads an object through the storage's own clients. Run in a child process by
+    /// `requests_carry_only_required_checksum_headers`.
+    #[tokio::test]
+    #[ignore = "Run by requests_carry_only_required_checksum_headers"]
+    async fn write_and_read_object() {
+        let storage = S3Storage::new("test-bucket".into(), None, Region::new("us-east-1"), None);
+        storage
+            .write_to_bucket("checkpoint_latest_index.json".into(), b"7".to_vec())
+            .await
+            .unwrap();
+        storage
+            .anonymously_read_from_bucket("checkpoint_latest_index.json".into())
+            .await
+            .unwrap();
+    }
+
+    /// Recent AWS SDKs add CRC checksum headers to uploads and request checksum
+    /// validation on downloads by default. Some S3-compatible stores reject
+    /// those headers, so requests must only carry checksums the operation requires.
+    /// The storage runs in a child process with the SDK's default HTTP client and credential
+    /// chain, taking the endpoint and keys from its AWS config file. Its environment is cleared
+    /// apart from a loopback proxy bypass, so host settings can't send it elsewhere.
+    #[test]
+    fn requests_carry_only_required_checksum_headers() {
+        use hyper::{service::service_fn, Body, Response};
+
+        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_requests = Arc::clone(&requests);
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async move {
+                let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+                let serve = async {
+                    loop {
+                        let (socket, _) = listener.accept().await.unwrap();
+                        let requests = Arc::clone(&server_requests);
+                        tokio::spawn(hyper::server::conn::Http::new().serve_connection(
+                            socket,
+                            service_fn(move |request: hyper::Request<Body>| {
+                                let requests = Arc::clone(&requests);
+                                async move {
+                                    let body = if request.method() == hyper::Method::GET {
+                                        Body::from("{}")
+                                    } else {
+                                        Body::empty()
+                                    };
+                                    requests.lock().unwrap().push((
+                                        request.method().clone(),
+                                        request.headers().clone(),
+                                    ));
+                                    Ok::<_, std::convert::Infallible>(Response::new(body))
+                                }
+                            }),
+                        ));
+                    }
+                };
+                tokio::select! {
+                    _ = serve => {}
+                    _ = stopped => {}
+                }
+            });
+        });
+
+        run_in_child_process(
+            "write_and_read_object",
+            &[("NO_PROXY", "127.0.0.1,localhost")],
+            &format!(
+                "[default]\n\
+                 endpoint_url = http://{address}\n\
+                 aws_access_key_id = test-access-key\n\
+                 aws_secret_access_key = test-secret\n"
+            ),
+        );
+        stop.send(()).unwrap();
+        server.join().unwrap();
+
+        let requests = requests.lock().unwrap();
+        let headers = |method: hyper::Method| {
+            requests
+                .iter()
+                .find(|(m, _)| *m == method)
+                .map(|(_, headers)| headers.clone())
+                .unwrap_or_else(|| panic!("no {method} request"))
+        };
+        let put = headers(hyper::Method::PUT);
+        let authorization = put[hyper::header::AUTHORIZATION].to_str().unwrap();
+        assert!(authorization.starts_with("AWS4-HMAC-SHA256 Credential=test-access-key/"));
+        for name in put.keys() {
+            assert!(
+                !name.as_str().starts_with("x-amz-checksum-")
+                    && name.as_str() != "x-amz-sdk-checksum-algorithm",
+                "unexpected PUT header {name}"
+            );
+        }
+        let get = headers(hyper::Method::GET);
+        assert!(get.get(hyper::header::AUTHORIZATION).is_none());
+        assert!(get.get("x-amz-checksum-mode").is_none());
     }
 
     #[tokio::test]
