@@ -526,6 +526,136 @@ describe('ChainSubmissionStrategySchema', () => {
       });
     });
 
+    describe(`with a nested ${TxSubmitterType.INTERCHAIN_ACCOUNT}`, () => {
+      const OUTER_ACCESS_MANAGER_MOCK: Address =
+        '0x00000000000000000000000000000000000000EE';
+      const TIMELOCK_MOCK: Address =
+        '0x00000000000000000000000000000000000000DD';
+
+      interface NestedIcaCase {
+        name: string;
+        submitter: unknown;
+        expectedIssues: string[];
+      }
+
+      function buildNestedIca(
+        icaFields: { owner?: Address; refundAddress?: Address },
+        internalSubmitter: unknown,
+      ) {
+        return {
+          type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+          chain: CHAIN_MOCK,
+          owner: icaFields.owner,
+          refundAddress: icaFields.refundAddress,
+          internalSubmitter,
+        };
+      }
+
+      function wrapInAccessManager(proposerSubmitter: unknown) {
+        return {
+          type: TxSubmitterType.ACCESS_MANAGER,
+          accessManagerAddress: OUTER_ACCESS_MANAGER_MOCK,
+          proposerSubmitter,
+        };
+      }
+
+      const innerAccessManager = {
+        type: TxSubmitterType.ACCESS_MANAGER,
+        accessManagerAddress: ACCESS_MANAGER_MOCK,
+      };
+
+      const refundAddressIssue = `Interchain account refundAddress must be set to an address other than the AccessManager for ${DESTINATION_CHAIN_MOCK}`;
+
+      const cases: NestedIcaCase[] = [
+        {
+          name: `a valid ${TxSubmitterType.ACCESS_MANAGER} internal submitter under an ${TxSubmitterType.ACCESS_MANAGER} proposer`,
+          submitter: wrapInAccessManager(
+            buildNestedIca(
+              { refundAddress: REFUND_ADDRESS_MOCK },
+              innerAccessManager,
+            ),
+          ),
+          expectedIssues: [],
+        },
+        {
+          name: `a missing refundAddress under an ${TxSubmitterType.ACCESS_MANAGER} proposer`,
+          submitter: wrapInAccessManager(
+            buildNestedIca({}, innerAccessManager),
+          ),
+          expectedIssues: [refundAddressIssue],
+        },
+        {
+          name: `a refundAddress equal to the AccessManager under an ${TxSubmitterType.ACCESS_MANAGER} proposer`,
+          submitter: wrapInAccessManager(
+            buildNestedIca(
+              { refundAddress: ACCESS_MANAGER_MOCK.toLowerCase() },
+              innerAccessManager,
+            ),
+          ),
+          expectedIssues: [refundAddressIssue],
+        },
+        {
+          name: `an owner not matching the AccessManager under an ${TxSubmitterType.ACCESS_MANAGER} proposer`,
+          submitter: wrapInAccessManager(
+            buildNestedIca(
+              {
+                owner: OWNER_ADDRESS_MOCK,
+                refundAddress: REFUND_ADDRESS_MOCK,
+              },
+              innerAccessManager,
+            ),
+          ),
+          expectedIssues: [
+            `Interchain account owner address and AccessManager address must match for ${DESTINATION_CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `an owner not matching the multisig under an ${TxSubmitterType.ACCESS_MANAGER} proposer`,
+          submitter: wrapInAccessManager(
+            buildNestedIca(
+              { owner: OWNER_ADDRESS_MOCK },
+              {
+                type: TxSubmitterType.GNOSIS_SAFE,
+                safeAddress: ADDRESS_MOCK,
+              },
+            ),
+          ),
+          expectedIssues: [
+            `Interchain account owner address and multisig address must match for ${DESTINATION_CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `a missing refundAddress under a ${TxSubmitterType.TIMELOCK_CONTROLLER} proposer`,
+          submitter: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            timelockAddress: TIMELOCK_MOCK,
+            proposerSubmitter: buildNestedIca({}, innerAccessManager),
+          },
+          expectedIssues: [refundAddressIssue],
+        },
+        {
+          name: `a missing refundAddress under an ${TxSubmitterType.INTERCHAIN_ACCOUNT} internal submitter`,
+          submitter: buildNestedIca(
+            { owner: OWNER_ADDRESS_MOCK },
+            buildNestedIca({}, innerAccessManager),
+          ),
+          expectedIssues: [refundAddressIssue],
+        },
+      ];
+
+      for (const { name, submitter, expectedIssues } of cases) {
+        it(`should ${expectedIssues.length > 0 ? 'reject' : 'accept'} ${name}`, () => {
+          const result = ChainSubmissionStrategySchema.safeParse({
+            [DESTINATION_CHAIN_MOCK]: { submitter },
+          });
+          const issues = result.success
+            ? []
+            : result.error.issues.map(({ message }) => message);
+          expect(issues).to.deep.equal(expectedIssues);
+        });
+      }
+    });
+
     describe('caller validation', () => {
       const CALLER_MOCK: Address = '0x00000000000000000000000000000000000000Cc';
       const TIMELOCK_MOCK: Address =
@@ -659,6 +789,19 @@ describe('ChainSubmissionStrategySchema', () => {
           },
           expectedIssues: [
             `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.INTERCHAIN_ACCOUNT} internal submitter with a mismatching caller and no refundAddress`,
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: CHAIN_MOCK,
+            owner: ACCESS_MANAGER_MOCK,
+            internalSubmitter: buildAccessManager(CALLER_MOCK, safeProposer),
+          },
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+            `Interchain account refundAddress must be set to an address other than the AccessManager for ${CHAIN_MOCK}`,
           ],
         },
         {

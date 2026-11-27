@@ -35,48 +35,7 @@ export function refineChainSubmissionStrategy<
   T extends { submitter: { type: string } },
 >(value: Record<string, T>, ctx: z.RefinementCtx) {
   Object.entries(value).forEach(([chain, config]) => {
-    refineAccessManagerCallers(config.submitter, chain, ctx);
-
-    if (config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
-      return;
-    }
-
-    const submitter = config.submitter as EvmIcaTxSubmitterProps;
-    const { owner, internalSubmitter } = submitter;
-    if (
-      (internalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
-        internalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
-      !eqAddress(owner, internalSubmitter.safeAddress)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Interchain account owner address and multisig address must match for ${chain}`,
-      });
-    }
-
-    if (internalSubmitter.type !== TxSubmitterType.ACCESS_MANAGER) {
-      return;
-    }
-
-    const { accessManagerAddress } = internalSubmitter;
-    if (!eqAddress(owner, accessManagerAddress)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Interchain account owner address and AccessManager address must match for ${chain}`,
-      });
-    }
-
-    // The AccessManager cannot receive native tokens, so gas payment refunds
-    // to it would revert the scheduled callRemote on execution.
-    if (
-      isNullish(submitter.refundAddress) ||
-      eqAddress(submitter.refundAddress, accessManagerAddress)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Interchain account refundAddress must be set to an address other than the AccessManager for ${chain}`,
-      });
-    }
+    refineSubmitter(config.submitter, chain, ctx);
   });
 }
 
@@ -109,9 +68,59 @@ function getStaticProposerAddress(
   return undefined;
 }
 
+function refineInterchainAccount(
+  submitter: Record<string, unknown>,
+  chain: ChainName,
+  ctx: z.RefinementCtx,
+): void {
+  const { owner, refundAddress, internalSubmitter } = submitter;
+  if (typeof owner !== 'string' || !isRecord(internalSubmitter)) {
+    return;
+  }
+
+  const { type, safeAddress, accessManagerAddress } = internalSubmitter;
+  if (
+    (type === TxSubmitterType.GNOSIS_SAFE ||
+      type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
+    typeof safeAddress === 'string' &&
+    !eqAddress(owner, safeAddress)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Interchain account owner address and multisig address must match for ${chain}`,
+    });
+  }
+
+  if (
+    type !== TxSubmitterType.ACCESS_MANAGER ||
+    typeof accessManagerAddress !== 'string'
+  ) {
+    return;
+  }
+
+  if (!eqAddress(owner, accessManagerAddress)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Interchain account owner address and AccessManager address must match for ${chain}`,
+    });
+  }
+
+  // The AccessManager cannot receive native tokens, so gas payment refunds
+  // to it would revert the scheduled callRemote on execution.
+  if (
+    typeof refundAddress !== 'string' ||
+    eqAddress(refundAddress, accessManagerAddress)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Interchain account refundAddress must be set to an address other than the AccessManager for ${chain}`,
+    });
+  }
+}
+
 // Reads nested submitters defensively as the CLI extends the strategy schema
 // with its own submitter types (e.g. `file`).
-function refineAccessManagerCallers(
+function refineSubmitter(
   submitter: unknown,
   chain: ChainName,
   ctx: z.RefinementCtx,
@@ -121,12 +130,13 @@ function refineAccessManagerCallers(
   }
 
   if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
-    refineAccessManagerCallers(submitter.internalSubmitter, chain, ctx);
+    refineSubmitter(submitter.internalSubmitter, chain, ctx);
+    refineInterchainAccount(submitter, chain, ctx);
     return;
   }
 
   if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
-    refineAccessManagerCallers(submitter.proposerSubmitter, chain, ctx);
+    refineSubmitter(submitter.proposerSubmitter, chain, ctx);
     return;
   }
 
@@ -145,7 +155,7 @@ function refineAccessManagerCallers(
     }
   }
 
-  refineAccessManagerCallers(proposerSubmitter, chain, ctx);
+  refineSubmitter(proposerSubmitter, chain, ctx);
 }
 
 export const ChainSubmissionStrategySchema = z.preprocess(
