@@ -145,13 +145,15 @@ export class CcsAuth {
   }
 
   private verifyV2(body: unknown): CcsIdentity {
-    if (
-      !V2CredentialsSchema.safeParse(body).success &&
-      CredentialsSchema.safeParse(body).success
-    ) {
-      throw new CcsAuthError(CcsAuthFailure.MissingV2Fields);
+    const parsed = V2CredentialsSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new CcsAuthError(
+        CredentialsSchema.safeParse(body).success
+          ? CcsAuthFailure.MissingV2Fields
+          : CcsAuthFailure.Malformed,
+      );
     }
-    const credentials = parseCredentials(V2CredentialsSchema, body);
+    const credentials = parsed.data;
     const now = Math.floor(Date.now() / 1000);
     if (credentials.issued_at < now - this.maxAgeSeconds) {
       throw new CcsAuthError(CcsAuthFailure.Stale);
