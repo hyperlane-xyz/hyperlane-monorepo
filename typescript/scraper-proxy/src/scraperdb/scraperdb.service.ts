@@ -1,5 +1,6 @@
 import { assert } from '@hyperlane-xyz/utils';
 
+import { normalizeAddress, parseId } from '../live/protocol.js';
 import {
   buildProvisionalMessageAffectedQuery,
   PROJECTED_MESSAGE_QUERY,
@@ -23,6 +24,26 @@ type AggregateResult = {
 export interface MessageSelectArgs extends SelectArgs {
   confirmations?: number | null;
 }
+
+export interface MerkleTreeArgs {
+  domain: unknown;
+  merkle_tree_hook: unknown;
+}
+
+export interface MerkleTreePageArgs extends MerkleTreeArgs {
+  from_index: unknown;
+  limit: number;
+}
+
+const MAX_UINT32 = 0xffff_ffff;
+const MAX_INT32 = 0x7fff_ffff;
+const MERKLE_HOOK_REGEX = /^(?:0x|\\x)(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
+const MERKLE_COLUMNS = `(domain::bigint & 4294967295) AS domain,
+  merkle_tree_hook, (leaf_index::bigint & 4294967295) AS leaf_index,
+  message_id, block_number`;
+const BRANCH_COLUMNS = Array.from({ length: 32 }, (_, i) => `branch_${i}`).join(
+  ', ',
+);
 
 // Bound unauthenticated custom-frontier scans; larger history uses canonical queries.
 const MAX_CONFIRMATIONS = 1_000;
@@ -67,6 +88,65 @@ export class ScraperDbService {
     return table === 'domain'
       ? this.db.query(query.sql, query.values)
       : this.historyQuery(query.sql, query.values);
+  }
+
+  async merkleTreeInsertions(args: MerkleTreePageArgs) {
+    const scope = merkleTreeScope(args);
+    const from = uint32(args.from_index);
+    assert(
+      Number.isInteger(args.limit) && args.limit >= 1 && args.limit <= 1000,
+      'limit must be between 1 and 1000',
+    );
+    // Fill the page from the lower unsigned half first. Both ranges use the
+    // signed index and share a single PostgreSQL snapshot. Keep a fixed cap
+    // on both range scans so the plan estimate stays bounded too.
+    const range = (predicate: string) =>
+      `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion e
+       WHERE domain=$1 AND merkle_tree_hook=$2 AND ${predicate}
+       ORDER BY e.leaf_index LIMIT $4`;
+    const sql =
+      from <= MAX_INT32
+        ? `WITH lower_half AS MATERIALIZED (${range('e.leaf_index >= $3')})
+           SELECT * FROM (
+             (SELECT * FROM lower_half)
+             UNION ALL
+             (${range('e.leaf_index < 0 AND (SELECT count(*) FROM lower_half) < $4')})
+           ) AS page ORDER BY page.leaf_index LIMIT $4`
+        : range('e.leaf_index >= $3 AND e.leaf_index < 0');
+    const rows = await this.historyQuery(sql, [
+      ...scope,
+      signedUint32(from),
+      args.limit + 1,
+    ]);
+    return {
+      insertions: rows.slice(0, args.limit),
+      next_index: rows[args.limit]?.leaf_index ?? null,
+    };
+  }
+
+  async merkleTreeInsertion(args: MerkleTreeArgs & { leaf_index: unknown }) {
+    const scope = merkleTreeScope(args);
+    const [row] = await this.historyQuery(
+      `SELECT ${MERKLE_COLUMNS} FROM confirmed_merkle_tree_insertion
+       WHERE domain=$1 AND merkle_tree_hook=$2 AND leaf_index=$3`,
+      [...scope, signedUint32(uint32(args.leaf_index))],
+    );
+    return row ?? null;
+  }
+
+  async merkleTreeSnapshot(args: MerkleTreeArgs) {
+    const [row] = await this.historyQuery(
+      `SELECT (s.domain::bigint & 4294967295) AS domain, s.merkle_tree_hook,
+              s.confirmed_height, s.block_hash, s.root, s.leaf_count, s.leaf_index,
+              ARRAY[${BRANCH_COLUMNS}]::text[] AS branch
+       FROM merkle_tree_snapshot s
+       JOIN scraper_head h ON h.domain=s.domain
+         AND h.merkle_tree_hook=s.merkle_tree_hook AND h.confirmed_height=s.confirmed_height
+       WHERE s.domain=$1 AND s.merkle_tree_hook=$2 AND NOT h.halted
+         AND (h.indexed_height<>h.confirmed_height OR h.indexed_hash=s.block_hash)`,
+      merkleTreeScope(args),
+    );
+    return row ?? null;
   }
 
   async selectMessages(args: MessageSelectArgs): Promise<ScraperDbRow[]> {
@@ -182,6 +262,31 @@ export class ScraperDbService {
     assert(typeof row?.count === 'number', 'Invalid database count result');
     return row.count;
   }
+}
+
+function uint32(value: unknown): number {
+  const parsed = parseId(value);
+  assert(
+    parsed <= BigInt(MAX_UINT32),
+    'value must fit in an unsigned 32-bit integer',
+  );
+  return Number(parsed);
+}
+
+function signedUint32(value: number): number {
+  return value > MAX_INT32 ? value - (MAX_UINT32 + 1) : value;
+}
+
+function merkleTreeScope(args: MerkleTreeArgs): [number, string] {
+  assert(
+    typeof args.merkle_tree_hook === 'string' &&
+      MERKLE_HOOK_REGEX.test(args.merkle_tree_hook),
+    'merkle_tree_hook must be a 20-byte or 32-byte hex address',
+  );
+  return [
+    signedUint32(uint32(args.domain)),
+    normalizeAddress(args.merkle_tree_hook),
+  ];
 }
 
 // Return a necessary msg_id bound, never narrowing an unbounded OR branch.

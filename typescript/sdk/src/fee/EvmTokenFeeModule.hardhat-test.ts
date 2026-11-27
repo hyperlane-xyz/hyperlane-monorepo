@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -7,6 +8,7 @@ import {
   CrossCollateralRoutingFee__factory,
   ERC20Test,
   ERC20Test__factory,
+  RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -371,6 +373,239 @@ describe('EvmTokenFeeModule', () => {
       expect(getLinearBps(onchainConfig.feeContracts[test4Chain])).to.equal(
         BPS + 1,
       );
+    });
+
+    it('should clear routing fee destinations removed from the target config', async () => {
+      const test3Chain = TestChainName.test3;
+      const twoDestConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test3Chain]: config,
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: twoDestConfig,
+      });
+
+      const test3Domain = multiProvider.getDomainId(test3Chain);
+      const test4Domain = multiProvider.getDomainId(test4Chain);
+      const routingDestinations = [test3Domain, test4Domain];
+
+      // Sanity check: both destinations wired on-chain after deploy.
+      const before = await module.read({ routingDestinations });
+      assert(
+        before.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(Object.keys(before.feeContracts).sort()).to.deep.equal(
+        [test3Chain, test4Chain].sort(),
+      );
+
+      // Drop test3 from the target config.
+      const targetConfig: TokenFeeConfig = {
+        ...twoDestConfig,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+
+      // 1 tx: setFeeContract(test3Domain, 0) to clear the removed destination.
+      await expectTxsAndUpdate(module, targetConfig, 1, {
+        routingDestinations,
+      });
+
+      const after = await module.read({ routingDestinations });
+      assert(
+        after.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      // test3 pointer cleared on-chain (reader skips zero-address pointers),
+      // test4 remains wired.
+      expect(Object.keys(after.feeContracts)).to.deep.equal([test4Chain]);
+    });
+
+    // Regression (PR #10146 review, comment 3): clearing must reconcile against the
+    // RoutingFee contract's own domains() set, not the reader's router-enrollment-limited
+    // view. An orphan pointer (router unenrolled before its fee key was removed from the
+    // target) is absent from the reader hints but must still be cleared to zero.
+    it('clears orphan routing fee pointers not visible through router hints', async () => {
+      const test2Chain = TestChainName.test2;
+      const test3Chain = TestChainName.test3;
+      const twoDestConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test2Chain]: config,
+          [test3Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: twoDestConfig,
+      });
+
+      const test2Domain = multiProvider.getDomainId(test2Chain);
+      const test3Domain = multiProvider.getDomainId(test3Chain);
+
+      const routingFee = RoutingFee__factory.connect(
+        module.serialize().deployedFee,
+        signer,
+      );
+      // Both pointers wired on-chain after deploy.
+      expect((await routingFee.domains()).map(Number).sort()).to.deep.equal(
+        [test2Domain, test3Domain].sort(),
+      );
+      expect(await routingFee.feeContracts(test3Domain)).to.not.equal(
+        constants.AddressZero,
+      );
+
+      // Drop test3 from the target, and pass hints that OMIT test3 (simulating a router
+      // that was unenrolled before its fee key removal, so the reader cannot observe it).
+      const targetConfig: TokenFeeConfig = {
+        ...twoDestConfig,
+        feeContracts: {
+          [test2Chain]: config,
+        },
+      };
+
+      // 1 tx: setFeeContract(test3Domain, 0), discovered via domains() not the hints.
+      await expectTxsAndUpdate(module, targetConfig, 1, {
+        routingDestinations: [test2Domain],
+      });
+
+      // Orphan pointer cleared and removed from the domain set.
+      expect(await routingFee.feeContracts(test3Domain)).to.equal(
+        constants.AddressZero,
+      );
+      expect((await routingFee.domains()).map(Number)).to.deep.equal([
+        test2Domain,
+      ]);
+    });
+
+    // Regression (PR #10146 review, comment 1): reader hints must be UNIONED with the
+    // target's own destinations. When a target fee destination is omitted from the hints
+    // (e.g. its router is temporarily unenrolled), the reader must still read its existing
+    // sub-fee address so the update is idempotent and does not redeploy a replacement.
+    it('does not redeploy an existing target fee destination omitted from hints', async () => {
+      const test3Chain = TestChainName.test3;
+      const routingConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test3Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingConfig,
+      });
+      const test3Domain = multiProvider.getDomainId(test3Chain);
+
+      const routingFee = RoutingFee__factory.connect(
+        module.serialize().deployedFee,
+        signer,
+      );
+      const subFeeBefore = await routingFee.feeContracts(test3Domain);
+      expect(subFeeBefore).to.not.equal(constants.AddressZero);
+
+      // Same target, but hints omit test3 (its router appears unenrolled). Before the fix
+      // the reader derived no destinations, missed the existing sub-fee, and emitted a
+      // replacement deployment + pointer tx. After the fix: idempotent (0 txs).
+      const txs = await module.update(routingConfig, {
+        routingDestinations: [],
+      });
+      expect(txs).to.have.lengthOf(0);
+
+      // Existing sub-fee contract retained (no replacement deployed).
+      expect(await routingFee.feeContracts(test3Domain)).to.equal(subFeeBefore);
+    });
+
+    // Regression (PR #10146 review, comment 2): removal transactions must carry the EVM
+    // chain ID (EIP-155 / submitter validation), not the Hyperlane domain ID, which differ
+    // on chains where domainId !== chainId. Otherwise EV5JsonRpcTxSubmitter rejects them.
+    it('uses the EVM chain ID (not the domain ID) for removal transactions', async () => {
+      const test2Chain = TestChainName.test2;
+      const test3Chain = TestChainName.test3;
+      const twoDestConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test2Chain]: config,
+          [test3Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: twoDestConfig,
+      });
+      const deployedFee = module.serialize().deployedFee;
+
+      // Build a MultiProvider where test4's Hyperlane domain != its EVM chain ID.
+      const unequalDomain = 1000031337;
+      const mpUnequal = multiProvider.extendChainMetadata({
+        [test4Chain]: { domainId: unequalDomain },
+      });
+      mpUnequal.setSharedSigner(signer);
+      // Re-wire the in-process hardhat provider lost when cloning the MultiProvider.
+      mpUnequal.setProvider(test4Chain, multiProvider.getProvider(test4Chain));
+      expect(mpUnequal.getDomainId(test4Chain)).to.equal(unequalDomain);
+      expect(mpUnequal.getEvmChainId(test4Chain)).to.equal(31337);
+
+      const moduleUnequal = new EvmTokenFeeModule(mpUnequal, {
+        chain: test4Chain,
+        config: twoDestConfig,
+        addresses: { deployedFee },
+      });
+
+      const test2Domain = mpUnequal.getDomainId(test2Chain);
+      const test3Domain = mpUnequal.getDomainId(test3Chain);
+      const targetConfig: TokenFeeConfig = {
+        ...twoDestConfig,
+        feeContracts: {
+          [test2Chain]: config,
+        },
+      };
+
+      const txs = await moduleUnequal.update(targetConfig, {
+        routingDestinations: [test2Domain, test3Domain],
+      });
+      expect(txs).to.have.lengthOf(1);
+      expect(txs[0].chainId).to.equal(31337);
+      expect(txs[0].chainId).to.not.equal(unequalDomain);
+    });
+
+    it('should not emit removal txs when no routing destinations are removed', async () => {
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+      const routingDestinations = [multiProvider.getDomainId(test4Chain)];
+
+      // Same config, same destinations -> no txs (no spurious removals).
+      const txs = await module.update(routingFeeConfig, {
+        routingDestinations,
+      });
+      expect(txs).to.have.lengthOf(0);
     });
 
     it('should forward token reader params when updating routing fees', async () => {

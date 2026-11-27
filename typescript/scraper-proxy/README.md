@@ -139,6 +139,68 @@ For a combined live list:
 
 Only canonical pages should be used as durable history cursors.
 
+### Merkle tree insertion history
+
+The same `/graphql` endpoint exposes confirmed insertions for one domain and
+Merkle hook, using the existing history database pool/read replica:
+
+```graphql
+query Insertions($domain: bigint!, $hook: bytea!, $from: bigint) {
+  merkle_tree_insertions(
+    domain: $domain
+    merkle_tree_hook: $hook
+    from_index: $from
+    limit: 1000
+  ) {
+    insertions {
+      domain
+      merkle_tree_hook
+      leaf_index
+      message_id
+      block_number
+    }
+    next_index
+  }
+}
+```
+
+`from_index` is inclusive. Omit it to start at zero. Omit `limit` to request
+1,000 leaves, or supply a value between 1 and 1,000. Explicit `null` is invalid
+for either argument. When `next_index` has a value, pass it as the next request's
+`from_index`. A null cursor means no further confirmed rows are currently available. If the
+page is empty, retry later with the same `from_index` (zero if omitted). If the
+page contains leaves, poll later from the last returned leaf index plus one. Stop polling
+if the last index is 4,294,967,295, the largest cursor the API accepts. Clients
+must detect missing sequences and independently verify roots before signing.
+
+Fetch a single leaf with
+`merkle_tree_insertion(domain: $domain, merkle_tree_hook: $hook, leaf_index: $index)`;
+it returns the same insertion fields, or null if absent or not yet confirmed.
+Domains and leaf indices accept unsigned 32-bit values through `bigint`.
+Hook addresses accept `0x` or `\x` hex prefixes and must match the stored 20-byte
+or 32-byte address. Both queries inherit existing GraphQL admission, query-plan
+budgets, timeouts, and optional `@cached` response caching.
+
+### Confirmed Merkle snapshot
+
+```graphql
+query Snapshot($domain: bigint!, $hook: bytea!) {
+  merkle_tree_snapshot(domain: $domain, merkle_tree_hook: $hook) {
+    confirmed_height
+    block_hash
+    root
+    leaf_count
+    branch
+  }
+}
+```
+
+The result is `null` until the stored snapshot matches the scraper's current
+confirmed height for that domain and hook. A halted scraper also returns
+`null`. Restore the tree from `leaf_count` and the 32 hashes in `branch`
+(level zero first). Verify the root and count against the hook at the returned
+block, then use `leaf_count` as `from_index` for `merkle_tree_insertions`.
+
 ### Relayer diagnostics
 
 ```graphql

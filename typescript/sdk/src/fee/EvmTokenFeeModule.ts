@@ -193,7 +193,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ) {
     super(params);
     this.chainName = multiProvider.getChainName(params.chain);
-    this.chainId = multiProvider.getDomainId(this.chainName);
+    // Transactions carry the EVM chain ID for EIP-155 / submitter validation, not
+    // the Hyperlane domain ID (these differ on chains where domain !== chainId).
+    this.chainId = multiProvider.getEvmChainId(this.chainName);
 
     this.deployer = new EvmTokenFeeDeployer(multiProvider, this.chainName, {
       logger: this.logger,
@@ -619,20 +621,55 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       ];
     }
 
-    // Routing fee: update sub-fee contracts
+    // Routing fee: update sub-fee contracts, clearing destinations removed from target
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
-      normalizedActualConfig.type === TokenFeeType.RoutingFee
+      normalizedActualConfig.type === TokenFeeType.RoutingFee &&
+      actualConfig.type === TokenFeeType.RoutingFee
     ) {
+      const targetFeeContracts = normalizedTargetConfig.feeContracts ?? {};
+
+      // Carry actual sub-fee addresses into target entries, but limit to target keys only so
+      // orphan entries from actualConfig don't get re-injected into the update loop.
+      const merged = objMerge<DerivedRoutingFeeConfig>(
+        actualConfig,
+        normalizedTargetConfig,
+        10,
+        true,
+      );
+      if (merged.feeContracts) {
+        for (const chainName of Object.keys(merged.feeContracts)) {
+          if (!(chainName in targetFeeContracts)) {
+            delete merged.feeContracts[chainName];
+          }
+        }
+      }
+
+      // Emit setFeeContract(domain, 0) for on-chain destinations absent from target.
+      // actualConfig is authoritative here: the reader enumerates the RoutingFee
+      // contract's own domains(), so orphan pointers (whose router was unenrolled before
+      // the fee key was removed from target) are present and get reconciled to zero.
+      const removalTxs: AnnotatedEV5Transaction[] = [];
+      for (const chainName of Object.keys(actualConfig.feeContracts ?? {})) {
+        if (!(chainName in targetFeeContracts)) {
+          removalTxs.push({
+            annotation: `Clearing removed RoutingFee destination ${chainName}`,
+            chainId: this.chainId,
+            to: this.args.addresses.deployedFee,
+            data: RoutingFee__factory.createInterface().encodeFunctionData(
+              'setFeeContract(uint32,address)',
+              [
+                this.multiProvider.getDomainId(chainName),
+                constants.AddressZero,
+              ],
+            ),
+          });
+        }
+      }
+
       return [
-        ...(await this.updateRoutingFee(
-          objMerge(
-            actualConfig,
-            normalizedTargetConfig,
-            10,
-            true,
-          ) as DerivedRoutingFeeConfig,
-        )),
+        ...(await this.updateRoutingFee(merged)),
+        ...removalTxs,
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
           normalizedTargetConfig,

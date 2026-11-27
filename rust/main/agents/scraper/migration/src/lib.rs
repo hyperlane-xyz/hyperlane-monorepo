@@ -33,6 +33,7 @@ mod m20261103_000019_scalar_notification_fields;
 
 mod m20261111_000020_transaction_enrichment;
 mod m20261111_000021_transaction_enrichment_cleanup;
+mod m20261125_000022_merkle_tree_snapshot;
 
 pub struct Migrator;
 
@@ -66,6 +67,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261103_000019_scalar_notification_fields::Migration),
             Box::new(m20261111_000020_transaction_enrichment::Migration),
             Box::new(m20261111_000021_transaction_enrichment_cleanup::Migration),
+            Box::new(m20261125_000022_merkle_tree_snapshot::Migration),
         ]
     }
 }
