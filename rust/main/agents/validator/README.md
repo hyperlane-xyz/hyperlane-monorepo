@@ -43,7 +43,7 @@ for insertion backfill and WebSocket for live events.
 
 - `explorerApiUrl` defaults to `https://explorer-api.hyperlane.xyz/graphql`. Set it explicitly for local or unknown domains.
 - `websocketUrl` defaults to the Explorer host at `/validators`. Setting only a custom WebSocket URL uses RPC for backfill.
-- `allowRpcIndexingFallback` defaults to `true`. Set it to `false` to wait for Explorer when insertion data is missing. The validator retries automatically. Both settings use RPC for the startup frontier and checkpoint verification.
+- `allowRpcIndexingFallback` defaults to `true`. Set it to `false` to use Explorer for ordinary insertion indexing. Failed Explorer reads and root mismatches still use RPC insertion logs for recovery. Both settings use RPC for the startup frontier and checkpoint verification.
 - `skipAnnounce: true` is for local tests. It skips the announcement and, with a verified on-chain frontier, starts signing at its tip.
 
 ## Checkpoint verification and publication

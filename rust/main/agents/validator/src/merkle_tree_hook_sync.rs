@@ -610,7 +610,6 @@ impl MerkleTreeHookWebSocketSync {
                 if let Some(api) = &self.explorer {
                     match api.page(next, end).await {
                         Ok(page) => return self.store_page(page, &mut next),
-                        Err(err) if !self.allow_rpc_indexing_fallback => return Err(err),
                         Err(err) => warn!(?err, next, "Historical insertion page unavailable"),
                     }
                 }
@@ -729,10 +728,9 @@ impl MerkleTreeHookWebSocketSync {
                 )
                 .await;
             self.websocket_active.set(0);
-            if self.allow_rpc_indexing_fallback
-                && fallback
-                    .as_ref()
-                    .is_none_or(|task| task.handle.is_finished())
+            if fallback
+                .as_ref()
+                .is_none_or(|task| task.handle.is_finished())
             {
                 if let Some(task) = fallback.take() {
                     task.stop().await;
@@ -791,8 +789,9 @@ impl MerkleTreeHookWebSocketSync {
                             self.store_page(rows, next_sequence)?;
                             last_page_failure = None;
                         }
-                        Err(err) if fallback.is_some() || !self.allow_rpc_indexing_fallback
-                            || first_live_leaf.is_some_and(|first| first <= *next_sequence) => {
+                        Err(err) if self.allow_rpc_indexing_fallback
+                            && (fallback.is_some()
+                                || first_live_leaf.is_some_and(|first| first <= *next_sequence)) => {
                             tracing::debug!(?err, "Waiting for missing handoff insertions");
                             last_page_failure = Some(tokio::time::Instant::now());
                         }
@@ -1697,7 +1696,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explorer_only_buffers_during_startup_and_retries_missing_history_without_rpc_scans() {
+    async fn explorer_only_recovers_through_rpc_after_bad_history() {
         reconnect_to_explorer(false).await;
     }
 
@@ -1710,7 +1709,7 @@ mod tests {
         use crate::explorer::tests::{fixture, serve_async};
         let (mut sync, _dir) = test_sync();
         let rpc_active = sync.fallback_active.clone();
-        // With fallback enabled the second connection also sees an empty page before recovery.
+        // A failed Explorer page activates RPC recovery in either mode.
         let first_available = if allow_rpc_indexing_fallback { 2 } else { 1 };
         let queries = Arc::new(AtomicUsize::new(0));
         let calls = queries.clone();
@@ -1723,10 +1722,9 @@ mod tests {
                 let rpc_active = rpc_active.clone();
                 async move {
                     let attempt = calls.fetch_add(1, Ordering::SeqCst);
-                    assert_eq!(
-                        rpc_active.get(),
-                        i64::from(allow_rpc_indexing_fallback && attempt > 0)
-                    );
+                    if attempt == 1 {
+                        assert_eq!(rpc_active.get(), 1);
+                    }
                     if attempt > first_available {
                         release.notified().await;
                     }
@@ -1755,13 +1753,7 @@ mod tests {
                         tip: Arc::new(100.into()),
                     }),
                 },
-                |_| {
-                    assert!(
-                        allow_rpc_indexing_fallback,
-                        "RPC insertion indexing is disabled"
-                    );
-                    test_fallback(&sync.fallback_active)
-                },
+                |_| test_fallback(&sync.fallback_active),
             )
             .await;
         });
@@ -1773,16 +1765,15 @@ mod tests {
                 .expect("boundary");
             socket
         };
-        let mut socket = connect().await;
+        let first_socket = connect().await;
         assert_eq!(queries.load(Ordering::SeqCst), 0);
         floor.send(0).expect("use leaf zero");
-        if allow_rpc_indexing_fallback {
-            socket = timeout(Duration::from_secs(5), connect())
-                .await
-                .expect("reconnect to start RPC fallback");
-        }
-        let expected_requests = first_available + 2;
-        wait_until(|| queries.load(Ordering::SeqCst) == expected_requests).await;
+        wait_until(|| queries.load(Ordering::SeqCst) > 0).await;
+        let mut socket = timeout(Duration::from_secs(5), connect())
+            .await
+            .expect("reconnect to start RPC recovery");
+        drop(first_socket);
+        wait_until(|| queries.load(Ordering::SeqCst) > first_available).await;
         socket.send(frame(1)).await.expect("live insertion");
         // A pong proves the client consumed the preceding event before GraphQL returns its empty page.
         socket
@@ -1797,7 +1788,7 @@ mod tests {
                 .expect("pong"),
             Message::Pong(vec![1].into())
         );
-        // Handoff must complete even while the redundant Explorer request is pending.
+        // Handoff must complete even if a redundant Explorer request is pending.
         wait_until(|| {
             active.get() == 1
                 && db
@@ -1807,7 +1798,7 @@ mod tests {
         })
         .await;
         reply.notify_one();
-        assert_eq!(queries.load(Ordering::SeqCst), expected_requests);
+        assert!(queries.load(Ordering::SeqCst) > first_available);
         assert_eq!(
             db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
                 .expect("db read")

@@ -59,6 +59,7 @@ mockall::mock! {
         async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>>;
         async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()>;
         async fn latest_index(&self) -> Result<Option<u32>>;
+        async fn has_checkpoint_objects(&self) -> Result<bool>;
         async fn write_latest_index(&self, index: u32) -> Result<()>;
         async fn update_latest_index(&self, index: u32) -> Result<()>;
         async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>>;
@@ -3279,6 +3280,9 @@ fn consensus_test_submitter(
         });
     let mut syncer = MockCheckpointSyncer::new();
     syncer.expect_latest_index().returning(|| Ok(None));
+    syncer
+        .expect_has_checkpoint_objects()
+        .returning(|| Ok(false));
     syncer.expect_read_merkle_snapshot().returning(|| Ok(None));
     syncer.expect_write_merkle_snapshot().returning(|_| Ok(()));
     syncer.expect_fetch_checkpoint().returning(|_| Ok(None));
@@ -4216,7 +4220,7 @@ async fn chain_frontier_requires_matching_rpc_threshold_and_tip_leaf() {
         let reader =
             CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("configured reader");
         let result = submitter
-            .chain_start(&reader, true, |index, _, _| async move {
+            .chain_start(&reader, |index, _, _| async move {
                 let id = if valid_leaf {
                     H256::from_low_u64_be(8)
                 } else {
@@ -4237,7 +4241,7 @@ async fn announced_restart_without_a_publication_snapshot_cannot_skip_a_gap() {
     submitter.checkpoint_syncer = Arc::new(store);
     let reader = CheckpointReader::single(Arc::new(MockMerkleTreeHook::new()));
     assert!(submitter
-        .chain_start(&reader, false, |_, _, _| async {
+        .chain_start(&reader, |_, _, _| async {
             panic!("an announced restart must recover publication history")
         })
         .await
@@ -4323,7 +4327,7 @@ async fn chain_bootstrap_signs_every_live_insertion_while_history_is_missing() {
             .expect("checkpoint reader"),
     );
     let live = submitter
-        .chain_start(&reader, false, |a, b, _| api.page(a, b))
+        .chain_start(&reader, |a, b, _| api.page(a, b))
         .await
         .expect("verified fixture")
         .expect("snapshot")
@@ -4378,62 +4382,38 @@ async fn chain_bootstrap_signs_every_live_insertion_while_history_is_missing() {
 }
 
 #[tokio::test]
-async fn live_only_restart_requires_rpc_agreement_with_previous_signature() {
-    use crate::explorer::tests::{fixture, serve};
-    let api = serve(|r| fixture(r, 8), 0, H256::zero()).await;
-    let checkpoints = consensus_checkpoints(8);
-    for confirmed in [true, false] {
-        let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
-        let prior = checkpoints[3].clone();
-        let signed = submitter
-            .signer
-            .sign(CheckpointWithMessageId {
-                checkpoint: prior.checkpoint,
-                message_id: H256::from_low_u64_be(4),
-            })
-            .await
-            .expect("signed prior tip");
-        let mut store = MockCheckpointSyncer::new();
-        store.expect_latest_index().return_once(|| Ok(Some(3)));
-        store
-            .expect_fetch_checkpoint()
-            .with(mockall::predicate::eq(3))
-            .return_once(move |_| Ok(Some(signed)));
-        submitter.checkpoint_syncer = Arc::new(store);
-        let mut db = MockDb::new();
-        db.expect_retrieve_merkle_tree_insertion_block_number_by_leaf_index()
-            .with(mockall::predicate::eq(3))
-            .return_once(|_| Ok(Some(30)));
-        submitter.db = Arc::new(db);
-        let mut rpc = MockMerkleTreeHook::new();
-        rpc.expect_tree()
-            .once()
-            .returning(|_| Ok(frontier_fixture(8)));
-        let mut tip = checkpoints[7].clone();
-        tip.block_height = Some(100);
-        rpc.expect_latest_checkpoint()
-            .returning(move |_| Ok(tip.clone()));
-        rpc.expect_latest_checkpoint_at_block()
-            .with(mockall::predicate::eq(30))
-            .once()
-            .return_once(move |_| {
-                let mut at_height = prior;
-                at_height.block_height = Some(30);
-                if !confirmed {
-                    at_height.checkpoint.root = H256::zero();
-                }
-                Ok(at_height)
-            });
-        let reader = CheckpointReader::single(Arc::new(rpc));
-        assert_eq!(
-            submitter
-                .chain_start(&reader, true, |a, b, _| api.page(a, b))
-                .await
-                .expect("snapshot lookup")
-                .is_some(),
-            confirmed
-        );
-    }
+async fn signed_restart_replays_history_before_using_a_new_frontier() {
+    let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
+    let mut store = MockCheckpointSyncer::new();
+    store.expect_latest_index().return_once(|| Ok(Some(3)));
+    submitter.checkpoint_syncer = Arc::new(store);
+    let reader = CheckpointReader::single(Arc::new(MockMerkleTreeHook::new()));
+    assert!(submitter
+        .chain_start(&reader, |_, _, _| async {
+            panic!("signed restart must replay stored checkpoint history")
+        })
+        .await
+        .expect("signed restart")
+        .is_none());
+}
+
+#[tokio::test]
+async fn first_signed_checkpoint_without_an_index_prevents_frontier_bootstrap() {
+    let mut submitter = consensus_test_submitter(Arc::default(), Arc::default());
+    let mut store = MockCheckpointSyncer::new();
+    store.expect_latest_index().return_once(|| Ok(None));
+    store
+        .expect_has_checkpoint_objects()
+        .return_once(|| Ok(true));
+    submitter.checkpoint_syncer = Arc::new(store);
+    let reader = CheckpointReader::single(Arc::new(MockMerkleTreeHook::new()));
+    assert!(submitter
+        .chain_start(&reader, |_, _, _| async {
+            panic!("stored signature must be checked during historical replay")
+        })
+        .await
+        .expect("crash window")
+        .is_none());
 }
 
 #[tokio::test]
@@ -5015,7 +4995,7 @@ async fn bootstrap_retries_unverified_explorer_leaves_only_with_rpc_indexing_ena
         // its chance well within the 45-second deadline for a single attempt.
         let start = tokio::time::timeout(
             Duration::from_secs(15),
-            submitter.bootstrap_frontier(&reader, false, &recovery, Some(&api)),
+            submitter.bootstrap_frontier(&reader, &recovery, Some(&api)),
         )
         .await
         .expect("bounded bootstrap");

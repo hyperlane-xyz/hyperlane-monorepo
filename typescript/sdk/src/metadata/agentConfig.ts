@@ -946,7 +946,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe(
-      'Allow RPC insertion indexing when Explorer is unavailable. Defaults to true. Checkpoint verification always uses configured RPCs.',
+      'Allow routine RPC insertion indexing when Explorer is unavailable. Defaults to true. Recovery from failed Explorer reads or root mismatches still uses RPC logs. Checkpoint verification always uses configured RPCs.',
     ),
   explorerApiUrl: z
     .url({ protocol: /^https?$/ })

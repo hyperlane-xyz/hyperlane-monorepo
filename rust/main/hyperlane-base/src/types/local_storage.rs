@@ -78,6 +78,21 @@ impl CheckpointSyncer for LocalStorage {
         }
     }
 
+    async fn has_checkpoint_objects(&self) -> Result<bool> {
+        let mut entries = tokio::fs::read_dir(&self.path).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name();
+            if name
+                .to_str()
+                .and_then(|name| name.strip_suffix("_with_id.json"))
+                .is_some_and(|index| index.parse::<u32>().is_ok())
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let path = self.latest_index_file_path();
         tokio::fs::write(&path, index.to_string())
@@ -244,6 +259,28 @@ mod tests {
             .await
             .unwrap();
         assert!(storage.fetch_checkpoint(7).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn checkpoint_inventory_finds_an_object_before_the_index_pointer() {
+        let directory = tempfile::tempdir().expect("temporary checkpoint directory");
+        let storage =
+            LocalStorage::new(directory.path().to_owned(), None).expect("local checkpoint storage");
+        assert!(!storage
+            .has_checkpoint_objects()
+            .await
+            .expect("empty storage"));
+        tokio::fs::write(directory.path().join("index.json"), b"7")
+            .await
+            .expect("write index");
+        assert!(!storage.has_checkpoint_objects().await.expect("index alone"));
+        tokio::fs::write(directory.path().join("9_with_id.json"), b"checkpoint")
+            .await
+            .expect("write checkpoint");
+        assert!(storage
+            .has_checkpoint_objects()
+            .await
+            .expect("checkpoint object"));
     }
 
     #[test]

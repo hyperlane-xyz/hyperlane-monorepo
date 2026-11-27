@@ -98,6 +98,39 @@ impl StorageClient {
             .await
     }
 
+    pub(super) async fn has_checkpoint_objects(&self, bucket: &str, prefix: &str) -> Result<bool> {
+        let bucket = BucketName::non_validated(bucket);
+        let mut page_token = None;
+        loop {
+            let options = objects::ListOptional {
+                prefix: Some(prefix),
+                page_token: page_token.as_deref(),
+                max_results: Some(100),
+                ..Default::default()
+            };
+            let request = objects::Object::list(&bucket, Some(options))?;
+            let response = self
+                .send_with_limits(request.map(|_| Body::empty()), REQUEST_TIMEOUT, 64 * 1024)
+                .await?;
+            ensure!(response.status().is_success(), "Checkpoint listing failed");
+            let page = objects::ListResponse::try_from(response)?;
+            if page.objects.iter().any(|object| {
+                object
+                    .name
+                    .as_deref()
+                    .and_then(|name| name.strip_prefix(prefix))
+                    .and_then(|name| name.strip_suffix("_with_id.json"))
+                    .is_some_and(|index| index.parse::<u32>().is_ok())
+            }) {
+                return Ok(true);
+            }
+            match page.page_token {
+                Some(next) => page_token = Some(next),
+                None => return Ok(false),
+            }
+        }
+    }
+
     pub(super) async fn get_object_with_limit(
         &self,
         bucket: &str,

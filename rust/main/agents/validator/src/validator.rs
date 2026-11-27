@@ -670,7 +670,7 @@ impl BaseAgent for Validator {
                 .as_ref()
                 .and_then(|ws| ws.explorer.as_ref());
             submitter
-                .bootstrap_frontier(&reader, self.skip_announce, &self.insertion_recovery(), api)
+                .bootstrap_frontier(&reader, &self.insertion_recovery(), api)
                 .await
         } else {
             None
@@ -801,18 +801,9 @@ impl Validator {
 
     fn insertion_recovery(&self) -> MerkleTreeRecovery {
         MerkleTreeRecovery {
-            source: match self
-                .websocket_sync
-                .as_ref()
-                .filter(|w| !w.allow_rpc_indexing_fallback)
-            {
-                Some(ws) => RecoverySource::Explorer(
-                    ws.explorer
-                        .clone()
-                        .expect("validated Explorer-only configuration"),
-                ),
-                None => RecoverySource::Rpc(self.rpc_sync.clone()),
-            },
+            // A mismatching Explorer batch must be replaceable with insertion
+            // logs from the same independent RPCs that verify its root.
+            source: RecoverySource::Rpc(self.rpc_sync.clone()),
             db: self.db.clone(),
             index_settings: self.origin_chain_conf.index_settings(),
             from_block: None,

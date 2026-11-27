@@ -368,7 +368,6 @@ impl ValidatorSubmitter {
     pub(crate) async fn bootstrap_frontier(
         &self,
         reader: &CheckpointReader,
-        live_only: bool,
         recovery: &MerkleTreeRecovery,
         explorer: Option<&crate::explorer::Explorer>,
     ) -> Option<IncrementalMerkle> {
@@ -380,7 +379,7 @@ impl ValidatorSubmitter {
             }
             let bootstrap = async {
                 let start = self
-                    .chain_start(reader, live_only, |first, end, height| {
+                    .chain_start(reader, |first, end, height| {
                         recovery.frontier_page(api, first, end, height)
                     })
                     .await?;
@@ -398,7 +397,6 @@ impl ValidatorSubmitter {
     pub(crate) async fn chain_start<F, Fut>(
         &self,
         reader: &CheckpointReader,
-        live_only: bool,
         page: F,
     ) -> eyre::Result<Option<VerifiedStart>>
     where
@@ -406,8 +404,9 @@ impl ValidatorSubmitter {
         Fut: std::future::Future<Output = eyre::Result<Vec<(MerkleTreeInsertion, u64)>>>,
     {
         let previous = self.checkpoint_syncer.latest_index().await?;
-        // Announced validators must account for their complete publication history.
-        if previous.is_some() && !live_only {
+        // The first checkpoint can be durable before its latest-index pointer.
+        // If storage cannot prove this is a fresh signer, replay from history.
+        if previous.is_some() || self.checkpoint_syncer.has_checkpoint_objects().await? {
             return Ok(None);
         }
         let mut failure = None;
@@ -425,11 +424,9 @@ impl ValidatorSubmitter {
                     continue;
                 }
             };
-            let verified = self
-                .verify_frontier(reader, candidate, previous, &page)
-                .await;
+            let verified = self.verify_frontier(reader, candidate, &page).await;
             match verified {
-                Err(err) if previous.is_none() => {
+                Err(err) => {
                     warn!(
                         ?err,
                         endpoint_index = slot,
@@ -450,7 +447,6 @@ impl ValidatorSubmitter {
         &self,
         reader: &CheckpointReader,
         candidate: IncrementalMerkleAtBlock,
-        previous: Option<u32>,
         page: &F,
     ) -> eyre::Result<Option<VerifiedStart>>
     where
@@ -460,44 +456,6 @@ impl ValidatorSubmitter {
         let tree = candidate.tree;
         let expected = self.checkpoint(tree.root(), tree.index());
         let required = reader.consensus.required(reader.endpoint_count());
-        if let Some(index) = previous {
-            let Some(signed) = self.checkpoint_syncer.fetch_checkpoint(index).await? else {
-                return Ok(None);
-            };
-            let prior = signed.value.checkpoint;
-            if index > expected.index
-                || signed.recover()? != self.signer.eth_address()
-                || prior != self.checkpoint(prior.root, index)
-            {
-                return Ok(None);
-            }
-            if index == expected.index {
-                eyre::ensure!(
-                    prior == expected,
-                    "On-chain frontier conflicts with previously signed tip"
-                );
-            } else {
-                // A fresh snapshot may advance past this signer's last checkpoint only
-                // when its configured RPC threshold still authenticates that checkpoint.
-                let Some(block) = self
-                    .db
-                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&index)?
-                else {
-                    return Ok(None);
-                };
-                let votes = reader
-                    .frontier_checkpoints(
-                        &self.reorg_period,
-                        Some(block),
-                        prior,
-                        &self.metrics.checkpoint_reads,
-                    )
-                    .await;
-                if votes.iter().filter(|vote| vote.checkpoint == prior).count() < required {
-                    return Ok(None);
-                }
-            }
-        }
         let votes = reader
             .frontier_checkpoints(
                 &self.reorg_period,
