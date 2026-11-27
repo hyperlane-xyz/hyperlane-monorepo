@@ -1097,10 +1097,16 @@ export {
   canProposeSafeTransactions,
   getSafe,
   getSafeDelegates,
+  getSafeQueueService,
   getSafeService,
   normalizeSafeTxServiceUrl,
   safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
+export {
+  SafeQueueService,
+  SafeQueueServiceError,
+  type SafeQueueTransaction,
+} from './utils/safeQueueService.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
   extractIsmAndHookFactoryAddresses,

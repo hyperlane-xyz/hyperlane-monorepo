@@ -5,12 +5,21 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  eqAddressEvm,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
-const SAFE_GATEWAY_HOST_REGEX = /safe\.global|5afe\.dev/;
+import { SafeQueueService } from './safeQueueService.js';
+
+const SAFE_API_DOMAINS = ['safe.global', '5afe.dev'];
+const SAFE_GATEWAY_HOSTS = ['api.safe.global', 'api.5afe.dev'];
 const TRAILING_SLASHES_REGEX = /\/+$/;
 const GATEWAY_TX_SERVICE_PATH_REGEX = /^\/tx-service\/[^/]+\/api$/;
 
@@ -30,25 +39,47 @@ function isSafeApiKitConstructor(
 }
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
-  return SAFE_GATEWAY_HOST_REGEX.test(txServiceUrl);
-}
-
-export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
-  const trimmedUrl = txServiceUrl.replace(TRAILING_SLASHES_REGEX, '');
-  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
-  return `${trimmedUrl}/api`;
-}
-
-export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
   try {
-    const url = new URL(normalizeSafeTxServiceUrl(txServiceUrl));
+    const { protocol, hostname } = new URL(txServiceUrl);
     return (
-      ['api.safe.global', 'api.5afe.dev'].includes(url.hostname) &&
-      GATEWAY_TX_SERVICE_PATH_REGEX.test(url.pathname)
+      protocol === 'https:' &&
+      SAFE_API_DOMAINS.some(
+        (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+      )
     );
   } catch {
     return false;
   }
+}
+
+export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
+  const trimmedUrl = txServiceUrl.replace(TRAILING_SLASHES_REGEX, '');
+  const normalizedUrl = trimmedUrl.endsWith('/api')
+    ? trimmedUrl
+    : `${trimmedUrl}/api`;
+  const gateway = getSafeGatewayUrl(normalizedUrl);
+  return gateway
+    ? `https://${gateway.hostname}${gateway.pathname}`
+    : normalizedUrl;
+}
+
+function getSafeGatewayUrl(txServiceUrl: string): URL | undefined {
+  try {
+    const url = new URL(txServiceUrl);
+    return (url.protocol === 'https:' || url.protocol === 'http:') &&
+      SAFE_GATEWAY_HOSTS.includes(url.hostname) &&
+      GATEWAY_TX_SERVICE_PATH_REGEX.test(url.pathname)
+      ? url
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
+  return (
+    getSafeGatewayUrl(normalizeSafeTxServiceUrl(txServiceUrl)) !== undefined
+  );
 }
 
 export function getSafeApiKitConfig(
@@ -65,10 +96,13 @@ export function getSafeApiKitConfig(
     apiKey,
   };
 
-  // Safe's hosted gateway authenticates API-key traffic correctly when API Kit
-  // derives the service URL from chainId. Supplying txServiceUrl can hit lower
-  // unauthenticated rate limits on some endpoints.
-  if (apiKey && isSafeGlobalTxServiceUrl(normalizedTxServiceUrl)) {
+  // Derive the production URL from chainId to preserve hosted authentication.
+  // API Kit always derives a production URL, so staging needs its explicit URL.
+  if (
+    apiKey &&
+    isSafeGlobalTxServiceUrl(normalizedTxServiceUrl) &&
+    new URL(normalizedTxServiceUrl).origin === 'https://api.safe.global'
+  ) {
     return baseConfig;
   }
 
@@ -105,10 +139,11 @@ export function getSafeService(
     return new SafeApiKit(config);
   } catch (error) {
     if (
-      error instanceof TypeError &&
-      error.message.includes(
-        'There is no transaction service available for chainId',
-      ) &&
+      error instanceof Error &&
+      (error.message === `Network with chainId ${chainId} not found` ||
+        error.message.includes(
+          'There is no transaction service available for chainId',
+        )) &&
       !config.txServiceUrl &&
       isSafeGlobalTxServiceUrl(gnosisSafeTransactionServiceUrl)
     ) {
@@ -121,6 +156,27 @@ export function getSafeService(
     }
     throw error;
   }
+}
+
+export function getSafeQueueService(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+): SafeQueueService | undefined {
+  const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
+    multiProvider.getChainMetadata(chain);
+  if (
+    !gnosisSafeTransactionServiceUrl ||
+    !isSafeGlobalTxServiceUrl(gnosisSafeTransactionServiceUrl)
+  ) {
+    return undefined;
+  }
+
+  const gateway = new URL(gnosisSafeTransactionServiceUrl);
+  return new SafeQueueService(
+    `https://${gateway.hostname}`,
+    multiProvider.getEvmChainId(chain),
+    gnosisSafeApiKey,
+  );
 }
 
 // This is the version of the Safe contracts that the SDK is compatible with.
@@ -276,7 +332,18 @@ export async function canProposeSafeTransactions(
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);
-  const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();
-  return delegates.includes(proposer) || owners.includes(proposer);
+  if (owners.some((owner) => eqAddressEvm(owner, proposer))) return true;
+
+  const queue = getSafeQueueService(chain, multiProvider);
+  if (queue) {
+    return retryAsync(
+      () => queue.isDelegate(proposer, safeAddress, owners),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
+  }
+
+  const delegates = await getSafeDelegates(safeService, safeAddress);
+  return delegates.some((delegate) => eqAddressEvm(delegate, proposer));
 }

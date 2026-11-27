@@ -1,6 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import {
@@ -8,6 +7,7 @@ import {
   LogLevel,
   assert,
   configureRootLogger,
+  eqAddress,
   rootLogger,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
@@ -16,11 +16,11 @@ import { Contexts } from '../../config/contexts.js';
 import { awSafes as safes } from '../../config/environments/mainnet3/governance/safe/aw.js';
 import { Role } from '../../src/roles.js';
 import {
-  createSafeTransaction,
-  createSafeTransactionData,
   deleteSafeTx,
   getPendingTxsForChains,
   getSafeAndService,
+  retrySafeApi,
+  toProtocolKitTransaction,
 } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -88,6 +88,7 @@ async function main() {
 
   rootLogger.info(chalk.blueBright('Reproposing transactions...'));
 
+  let failed = false;
   for (const tx of pendingTxs) {
     const confirmReproposeTx = await confirm({
       message: `Repropose transaction ${tx.shortTxHash} on chain ${tx.chain}?`,
@@ -97,63 +98,68 @@ async function main() {
       rootLogger.info(
         `Reproposing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
       );
+      let originalCleared = false;
       try {
-        const { safeSdk, safeService } = await getSafeAndService(
+        const { safeSdk, safeService, queueService } = await getSafeAndService(
           tx.chain,
           multiProvider,
           safes[tx.chain],
         );
 
-        const safeTx = await safeService.getTransaction(tx.fullTxHash);
-
-        assert(safeTx.to, 'Transaction has no to address');
-        assert(safeTx.data, 'Transaction has no data');
-        assert(safeTx.value, 'Transaction has no value');
-
-        // Log the transaction details
-        rootLogger.info(
-          chalk.gray(
-            `Transaction details:\n${stringifyObject({
-              to: safeTx.to,
-              data: safeTx.data,
-              value: safeTx.value,
-            })}`,
-          ),
+        const service = queueService ?? safeService;
+        const safeTx = await retrySafeApi(async () =>
+          service.getTransaction(tx.fullTxHash),
+        );
+        assert(
+          safeTx,
+          `Safe transaction ${tx.fullTxHash} not found on ${tx.chain}`,
+        );
+        assert(
+          eqAddress(safeTx.safe, safes[tx.chain]),
+          `Transaction ${tx.fullTxHash} belongs to a different Safe`,
         );
 
-        // Delete the pending transaction
-        await deleteSafeTx(
+        // Build and sign the exact replacement before deleting the old proposal.
+        const safeTransaction = toProtocolKitTransaction(safeTx);
+        const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
+        assert(
+          safeTxHash.toLowerCase() === tx.fullTxHash.toLowerCase(),
+          `Safe transaction hash mismatch for ${tx.fullTxHash}`,
+        );
+        const senderSignature = await safeSdk.signTypedData(safeTransaction);
+        const senderAddress = await multiProvider.getSignerAddress(tx.chain);
+
+        rootLogger.info(
+          chalk.gray(
+            `Reproposal data for ${safeTxHash} on ${tx.chain}:\n${stringifyObject(
+              {
+                safeAddress: safes[tx.chain],
+                ...safeTransaction.data,
+              },
+            )}`,
+          ),
+        );
+        originalCleared = await deleteSafeTx(
           tx.chain,
           multiProvider,
           safes[tx.chain],
           tx.fullTxHash,
         );
-
-        const safeTransactionData = createSafeTransactionData({
-          to: safeTx.to,
-          data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
-        });
-        const safeTransaction = await createSafeTransaction(
-          safeSdk,
-          [safeTransactionData],
-          undefined,
-          tx.nonce,
+        assert(
+          originalCleared,
+          `Could not delete transaction ${tx.fullTxHash}`,
         );
 
-        // Although this is duplicated from the safe utils, we explicitly want to
-        // show that we're providing the signature generated from signTypedData.
-        const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-        const senderSignature = await safeSdk.signTypedData(safeTransaction);
-        const senderAddress = await multiProvider.getSignerAddress(tx.chain);
-
-        await safeService.proposeTransaction({
-          safeAddress: safes[tx.chain],
-          safeTransactionData: safeTransaction.data,
-          safeTxHash,
-          senderAddress,
-          senderSignature: senderSignature.data,
-        });
+        await retrySafeApi(() =>
+          service.proposeTransaction({
+            safeAddress: safes[tx.chain],
+            safeTransactionData: safeTransaction.data,
+            safeTxHash,
+            senderAddress,
+            senderSignature: senderSignature.data,
+            getCurrentOwners: () => safeSdk.getOwners(),
+          }),
+        );
 
         rootLogger.info(
           chalk.green(
@@ -161,13 +167,18 @@ async function main() {
           ),
         );
       } catch (error) {
-        rootLogger.error(chalk.red(`Error reproposing transaction: ${error}`));
-        return;
+        const reason = originalCleared
+          ? 'Original proposal cleared, replacement failed'
+          : 'Failed to repropose';
+        rootLogger.error(
+          chalk.red(`${reason} for ${tx.fullTxHash} on ${tx.chain}: ${error}`),
+        );
+        failed = true;
       }
     }
   }
 
-  process.exit(0);
+  process.exitCode = failed ? 1 : 0;
 }
 
 main()

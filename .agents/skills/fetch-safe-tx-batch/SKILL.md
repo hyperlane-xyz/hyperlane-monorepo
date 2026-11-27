@@ -2,16 +2,16 @@
 name: fetch-safe-tx-batch
 description:
   Fetch and decode a pending Safe (multisig) governance batch from the
-  Safe Transaction Service into a chain-tagged transactions JSON file that `/warp-route-check`
-  (or any downstream consumer with the same input shape) ingests. Safe-API integration
+  Safe Queue Service or a custom Safe Transaction Service into a chain-tagged
+  transactions JSON file that `/warp-route-check` ingests. Safe-API integration
   only — no forks, no replay, no simulation.
 ---
 
 # Fetch Safe Tx Batch — fetch + decode front end
 
-Fetch a pending Safe / Heimdall multisig batch from the Safe Transaction Service, decode the MultiSend wrapper into inner transactions, tag each with the source `chainId`, and emit a single JSON file that `/warp-route-check` consumes. `/warp-route-check` then forks the touched chains, replays the batch under impersonated owners, self-relays any cross-chain ICA messages, and runs `hyperlane warp check` against the target registry config to verify the batch produces the desired state before anyone signs it.
+Fetch a pending Safe / Heimdall multisig batch, decode the MultiSend wrapper into inner transactions, tag each with the source `chainId`, and emit a single JSON file that `/warp-route-check` consumes. `/warp-route-check` then forks the touched chains, replays the batch under impersonated owners, self-relays any cross-chain ICA messages, and runs `hyperlane warp check` against the target registry config to verify the batch produces the desired state before anyone signs it.
 
-This skill is intentionally narrow. The Safe Transaction Service integration (v2 endpoint URL, 308 redirect, MultiSend decode) is the only piece that's specific to Safe-style batches. Keeping it in its own skill leaves `/warp-route-check` generic — any chain-tagged transactions JSON works as input, regardless of whether it came from a Safe batch, a Heimdall queue, or a hand-rolled tx list.
+Use the Safe Queue Service for Safe-hosted chains and the registry's Transaction Service for custom deployments. The output format also works with other sources of chain-tagged transactions.
 
 ## When to use
 
@@ -30,12 +30,13 @@ Solana / Squads and other non-EVM legs cannot be EVM-forked — verify those sep
 ## Prerequisites
 
 - `curl`, `python3`, `jq` on PATH. No `anvil` / `cast` / `forge` needed in this skill — those run in `/warp-route-check`.
+- Set `SAFE_API_KEY` from the existing Safe API credential for authenticated hosted requests.
 
 ## Instructions
 
 ### Step 1 — Fetch and decode each Safe batch
 
-The Safe Transaction Service returns the batch as a single `MultiSend` (`multiSend(bytes)`, selector `0x8d80ff0a`). Decode it into the inner txs the Safe executes (`to`, `value`, `data`). Note the **308 redirect** (`-L`) and the **v2** endpoint.
+The API returns the batch as a single `MultiSend` (`multiSend(bytes)`, selector `0x8d80ff0a`). Decode it into the inner txs the Safe executes (`to`, `value`, `data`).
 
 First set up **one** clean working directory for this invocation. Never reuse a directory that already holds decoded files from a previous run — Step 2 merges by an explicit manifest, but a stale `*.decoded.json` left in the directory is still a corruption hazard, so fail closed if the target isn't clean:
 
@@ -54,27 +55,45 @@ Then, for each `(chainId, safeAddress, safeTxHash)` triple in `safe_txs`:
 
 ```bash
 SAFE_TX_HASH=0x....              # from the Safe / Heimdall link
+SAFE_ADDRESS=0x....              # from the same link or input triple
 CHAIN_ID=1                        # the executing chain
 
-# Resolve the Safe Transaction Service base URL for THIS chain from the local
-# Hyperlane registry — the same source the infra Safe scripts use
-# (chains/<chain>/metadata.yaml -> gnosisSafeTransactionServiceUrl). Never
-# hardcode a host or assume mainnet.
+if ! [[ "$CHAIN_ID" =~ ^[1-9][0-9]*$ && "$SAFE_TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ && "$SAFE_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  echo "ERROR: invalid chain ID, Safe address, or Safe transaction hash." >&2
+  exit 1
+fi
+
+# Resolve the service for the executing chain from the local registry.
 META=$(grep -rlE "^chainId:[[:space:]]*${CHAIN_ID}[[:space:]]*$" "$REGISTRY_PATH/chains/"*/metadata.yaml | head -1)
 [ -n "$META" ] || { echo "ERROR: no registry chain with chainId ${CHAIN_ID}." >&2; exit 1; }
 BASE=$(grep -m1 "^gnosisSafeTransactionServiceUrl:" "$META" | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//; s#/*$##')
 [ -n "$BASE" ] || { echo "ERROR: chainId ${CHAIN_ID} has no gnosisSafeTransactionServiceUrl in the registry." >&2; exit 1; }
-# Match the SDK's normalizeSafeTxServiceUrl: append /api unless already present.
-case "$BASE" in */api) TX_SERVICE="$BASE";; *) TX_SERVICE="$BASE/api";; esac
+RAW="$WORK/decoded/${CHAIN_ID}-${SAFE_TX_HASH}.json"
+if [[ "$BASE" =~ ^https?://(api\.(safe\.global|5afe\.dev))(:[0-9]+)?/tx-service/[^/]+(/api)?$ ]]; then
+  SERVICE=queue
+  URL="https://${BASH_REMATCH[1]}/queue/api/v1/multisig-transactions/${SAFE_TX_HASH}"
+  if [[ -n "${SAFE_API_KEY:-}" ]]; then
+    printf 'Authorization: Bearer %s\n' "$SAFE_API_KEY" | curl -fsS -H @- "$URL" -o "$RAW" || exit 1
+  else
+    curl -fsS "$URL" -o "$RAW" || exit 1
+  fi
+else
+  SERVICE=transaction
+  case "$BASE" in */api) TX_SERVICE="$BASE";; *) TX_SERVICE="$BASE/api";; esac
+  curl -fsSL "${TX_SERVICE}/v2/multisig-transactions/${SAFE_TX_HASH}/" -o "$RAW" || exit 1
+fi
 
-curl -sL "${TX_SERVICE}/v2/multisig-transactions/${SAFE_TX_HASH}/" \
-  -o "$WORK/decoded/${CHAIN_ID}-${SAFE_TX_HASH}.json"
-
-python3 - "$WORK" "$CHAIN_ID" "$SAFE_TX_HASH" << 'EOF'
+python3 - "$WORK" "$CHAIN_ID" "$SAFE_ADDRESS" "$SAFE_TX_HASH" "$SERVICE" << 'EOF' || exit 1
 import json, sys
-W, chain_id, safe_tx = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+W, chain, expected_safe, safe_tx, service = sys.argv[1:]
+chain_id = int(chain)
 src = f"{W}/decoded/{chain_id}-{safe_tx}.json"
 d = json.load(open(src))
+if d['safe'].lower() != expected_safe.lower() or d['safeTxHash'].lower() != safe_tx.lower():
+    sys.exit(f"Safe or hash mismatch for {chain_id}-{safe_tx}")
+if service == 'queue' or 'chainId' in d:
+    if int(d['chainId']) != chain_id:
+        sys.exit(f"chain mismatch for {chain_id}-{safe_tx}")
 raw = d['data'][2:]
 assert raw[:8] == '8d80ff0a', "expected MultiSend"
 rest = raw[8:]; length = int(rest[64:128], 16); packed = rest[128:128 + length * 2]
@@ -145,7 +164,7 @@ End the message there. This skill does NOT run forks, replay txs, or call `warp 
 
 ## Gotchas
 
-- **Safe Tx Service URL**: use `-L` (308 redirect) and the `/api/v2/multisig-transactions/<safeTxHash>/` path.
+- **Safe API URLs** use `/queue/api/v1/multisig-transactions/<safeTxHash>` for hosted services. Custom services use `/api/v2/multisig-transactions/<safeTxHash>/` and can redirect.
 - **MultiSend layout**: selector `0x8d80ff0a`; packed per inner tx is `op(1) to(20) value(32) len(32) data(len)`.
 - **Inner-call selectors** (sanity-check the decode):
   - `enrollRemoteRouters` — `0xe9198bf9`

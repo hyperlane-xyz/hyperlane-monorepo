@@ -2,13 +2,18 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 import Safe from '@safe-global/protocol-kit';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
   getSafe,
   getSafeApiKitConfig,
+  getSafeQueueService,
+  getSafeService,
   isSafeGlobalTxServiceUrl,
   normalizeSafeTxServiceUrl,
+  safeApiKeyRequired,
 } from './gnosisSafe.js';
 
 const safeAddress = '0x1234567890123456789012345678901234567890';
@@ -38,6 +43,26 @@ async function expectRejection(
 }
 
 describe('gnosisSafe utils', () => {
+  describe('safeApiKeyRequired', () => {
+    it('only sends the Safe API key to Safe-owned hostnames', () => {
+      expect(
+        safeApiKeyRequired('https://api.safe.global/tx-service/base'),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('https://api.5afe.dev/tx-service/base'),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('http://api.safe.global/tx-service/base'),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired('https://api.safe.global.example/tx-service/base'),
+      ).to.equal(false);
+      expect(safeApiKeyRequired('https://example.org/safe.global')).to.equal(
+        false,
+      );
+    });
+  });
+
   describe('normalizeSafeTxServiceUrl', () => {
     it('appends api to transaction service URLs', () => {
       expect(
@@ -79,6 +104,13 @@ describe('gnosisSafe utils', () => {
       expect(config.chainId).to.equal(8453n);
       expect(config.apiKey).to.equal('safe-api-key');
       expect(config.txServiceUrl).to.equal(undefined);
+      expect(
+        getSafeApiKitConfig(
+          8453,
+          'http://api.safe.global/tx-service/base',
+          'safe-api-key',
+        ),
+      ).to.deep.equal(config);
     });
 
     it('keeps txServiceUrl for custom services', () => {
@@ -93,6 +125,85 @@ describe('gnosisSafe utils', () => {
       expect(config.txServiceUrl).to.equal(
         'https://safe-transaction-blast.safe.global/api',
       );
+    });
+
+    it('keeps staging credentials on the staging gateway', () => {
+      const config = getSafeApiKitConfig(
+        8453,
+        'https://api.5afe.dev/tx-service/base',
+        'safe-api-key',
+      );
+
+      expect(config.apiKey).to.equal('safe-api-key');
+      expect(config.txServiceUrl).to.equal(
+        'https://api.5afe.dev/tx-service/base/api',
+      );
+    });
+  });
+
+  describe('Safe service selection', () => {
+    function multiProviderWithTxService(
+      txServiceUrl: string,
+      chainId = 8453,
+    ): MultiProvider {
+      return new MultiProvider({
+        testchain: {
+          name: 'testchain',
+          protocol: ProtocolType.Ethereum,
+          chainId,
+          domainId: chainId,
+          rpcUrls: [{ http: 'http://localhost:8545' }],
+          gnosisSafeTransactionServiceUrl: txServiceUrl,
+          gnosisSafeApiKey: 'test-api-key',
+        },
+      });
+    }
+
+    it('uses the canonical HTTPS origin of the configured Safe gateway', async () => {
+      const request = sinon
+        .stub(globalThis, 'fetch')
+        .resolves(
+          new Response(JSON.stringify({ count: 0, next: null, results: [] })),
+        );
+      try {
+        const service = getSafeQueueService(
+          'testchain',
+          multiProviderWithTxService(
+            'http://api.5afe.dev:8080/tx-service/base/api/',
+          ),
+        );
+        expect(service).to.not.equal(undefined);
+        await service?.getPendingTransactions(safeAddress);
+
+        const url = new URL(String(request.firstCall.args[0]));
+        expect(url.origin).to.equal('https://api.5afe.dev');
+        expect(url.searchParams.get('safes')).to.equal(`${safeAddress}:8453`);
+      } finally {
+        request.restore();
+      }
+    });
+
+    it('leaves custom and self-hosted transaction service URLs on their existing client', () => {
+      for (const url of [
+        'https://safe.example/tx-service/base',
+        'http://127.0.0.1:2496',
+      ]) {
+        expect(
+          getSafeQueueService('testchain', multiProviderWithTxService(url)),
+        ).to.equal(undefined);
+      }
+    });
+
+    it('uses the configured transaction service for chains missing from API Kit', () => {
+      expect(() =>
+        getSafeService(
+          'testchain',
+          multiProviderWithTxService(
+            'https://api.safe.global/tx-service/testchain',
+            31347,
+          ),
+        ),
+      ).not.to.throw();
     });
   });
 

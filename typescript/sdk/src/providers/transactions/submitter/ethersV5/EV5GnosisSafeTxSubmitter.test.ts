@@ -2,9 +2,11 @@ import Safe, { EthSafeTransaction } from '@safe-global/protocol-kit';
 import { OperationType } from '@safe-global/types-kit';
 import { expect } from 'chai';
 import { Signer, Wallet, ethers } from 'ethers';
+import sinon from 'sinon';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { SafeQueueServiceError } from '../../../../utils/safeQueueService.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
   EV5GnosisSafeTxSubmitter,
@@ -134,7 +136,7 @@ describe('signSafeTransactionWithSigner', () => {
     expect(error?.message).to.include('must support EIP-712');
   });
 
-  it('proposes the exact signature from an external typed-data signer', async () => {
+  it('proposes the exact external signer signature through an injected service on hosted chains', async () => {
     const safe = await createLocalSignerSafe();
     const signer = new HttpStyleTypedDataSigner(wallet);
     const multiProvider = new MultiProvider({
@@ -144,6 +146,8 @@ describe('signSafeTransactionWithSigner', () => {
         name: 'test',
         protocol: ProtocolType.Ethereum,
         rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+        gnosisSafeTransactionServiceUrl:
+          'https://api.safe.global/tx-service/test',
       },
     });
     multiProvider.setSigner('test', signer);
@@ -161,12 +165,20 @@ describe('signSafeTransactionWithSigner', () => {
       safeService,
     );
 
-    await submitter.submit({
-      chainId: Number(chainId),
-      to: transaction.data.to,
-      value: ethers.BigNumber.from(transaction.data.value),
-      data: transaction.data.data,
-    });
+    const request = sinon
+      .stub(globalThis, 'fetch')
+      .rejects(new SafeQueueServiceError(422, 'Unexpected Queue request'));
+    try {
+      await submitter.submit({
+        chainId: Number(chainId),
+        to: transaction.data.to,
+        value: ethers.BigNumber.from(transaction.data.value),
+        data: transaction.data.data,
+      });
+      expect(request.called).to.equal(false);
+    } finally {
+      request.restore();
+    }
 
     expect(signer.typedDataCalls).to.equal(1);
     expect(proposal).to.not.equal(undefined);

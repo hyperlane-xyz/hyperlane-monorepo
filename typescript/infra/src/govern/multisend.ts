@@ -3,7 +3,7 @@ import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/types-kit';
 import chalk from 'chalk';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider, SafeQueueService } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
@@ -15,6 +15,7 @@ import {
 import {
   createSafeTransaction,
   createSafeTransactionData,
+  getNextSafeNonce,
   getSafeAndService,
   isTypedDataSigner,
   proposeSafeTransaction,
@@ -70,6 +71,7 @@ export class SafeMultiSend extends MultiSend {
     public readonly safeAddress: Address,
     private readonly safeSdk: Safe.default,
     private readonly safeService: SafeApiKit.default,
+    private readonly queueService?: SafeQueueService,
   ) {
     super();
   }
@@ -79,7 +81,7 @@ export class SafeMultiSend extends MultiSend {
     chain: ChainName,
     safeAddress: Address,
   ) {
-    const { safeSdk, safeService } = await retrySafeApi(() =>
+    const { safeSdk, safeService, queueService } = await retrySafeApi(() =>
       getSafeAndService(chain, multiProvider, safeAddress),
     );
     return new SafeMultiSend(
@@ -88,6 +90,7 @@ export class SafeMultiSend extends MultiSend {
       safeAddress,
       safeSdk,
       safeService,
+      queueService,
     );
   }
 
@@ -116,7 +119,12 @@ export class SafeMultiSend extends MultiSend {
       return override;
     }
     const nextNonce = await retrySafeApi(() =>
-      this.safeService.getNextNonce(this.safeAddress),
+      getNextSafeNonce(
+        this.safeService,
+        this.queueService,
+        this.safeAddress,
+        () => this.safeSdk.getNonce(),
+      ),
     );
     return parseInt(nextNonce, 10);
   }
@@ -135,13 +143,7 @@ export class SafeMultiSend extends MultiSend {
         undefined,
         baseNonce + i,
       );
-      hashes.push(
-        await this.proposeSafeTransaction(
-          this.safeSdk,
-          this.safeService,
-          safeTransaction,
-        ),
-      );
+      hashes.push(await this.proposeSafeTransaction(safeTransaction));
     }
     return hashes;
   }
@@ -160,18 +162,12 @@ export class SafeMultiSend extends MultiSend {
       true,
       nonce,
     );
-    const hash = await this.proposeSafeTransaction(
-      this.safeSdk,
-      this.safeService,
-      safeTransaction,
-    );
+    const hash = await this.proposeSafeTransaction(safeTransaction);
     return [hash];
   }
 
   // Helper function to propose a safe transaction
   private async proposeSafeTransaction(
-    safeSdk: Safe.default,
-    safeService: SafeApiKit.default,
     safeTransaction: SafeTransaction,
   ): Promise<string> {
     const signer = this.multiProvider.getSigner(this.chain);
@@ -181,8 +177,8 @@ export class SafeMultiSend extends MultiSend {
     );
     return proposeSafeTransaction(
       this.chain,
-      safeSdk,
-      safeService,
+      this.safeSdk,
+      this.queueService ?? this.safeService,
       safeTransaction,
       this.safeAddress,
       signer,

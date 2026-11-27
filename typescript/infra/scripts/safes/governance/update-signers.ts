@@ -34,7 +34,7 @@ const OUTPUT_ROOT = 'safe-tx-output';
 
 // Per-chain outcome, surfaced in the end-of-run summary table.
 enum ChainOutcome {
-  Proposed = 'proposed', // submitted to the Safe transaction service
+  Proposed = 'proposed', // submitted to Safe
   File = 'file', // wrote a Safe-UI-importable Transaction Builder batch
   FileRaw = 'file *', // wrote raw calldata (NOT Safe-UI-importable)
   NoChange = 'no change', // owners already match, nothing to do
@@ -191,7 +191,7 @@ async function main() {
             value: call.value,
           })),
         );
-        rootLogger.info(`[${chain}] proposed via Safe transaction service`);
+        rootLogger.info(`[${chain}] proposed in Safe`);
         return {
           chain,
           outcome: ChainOutcome.Proposed,
