@@ -32,6 +32,7 @@ import {
   isEmptyAddress,
   isNullish,
   isZeroishAddress,
+  messageId,
   parseMessage,
   redactErrorMessage,
   redactErrorStack,
@@ -57,7 +58,13 @@ import {
   InvalidOriginTxHashError,
 } from '../utils/errors.js';
 import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
-import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
+import {
+  CCS_AUTH_MAX_AGE_SECONDS_LIMIT,
+  CCS_AUTH_MAX_AGE_SECONDS_MIN,
+  CCS_REVEAL_PATH,
+  CcsAuth,
+  CcsSignerSchema,
+} from '../utils/ccsAuth.js';
 
 import {
   BaseService,
@@ -65,10 +72,26 @@ import {
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
 
+const REVEAL_MESSAGE_ID_MISMATCH =
+  'Reveal does not match the signed message id';
+
 export const CalldataLookupEnabledSchema = z
   .enum(['true', 'false'])
   .optional()
   .transform((value) => value === 'true');
+
+export const CcsAuthMaxAgeSecondsSchema = z
+  .string()
+  .regex(/^\d+$/)
+  .default('30')
+  .transform(Number)
+  .pipe(
+    z
+      .number()
+      .int()
+      .min(CCS_AUTH_MAX_AGE_SECONDS_MIN)
+      .max(CCS_AUTH_MAX_AGE_SECONDS_LIMIT),
+  );
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
@@ -84,6 +107,7 @@ const EnvSchema = z.object({
   // Keep unset (disabled) in production until the Sealevel reveal flow is
   // redesigned; enable only for local testing.
   CCS_SEALEVEL_REVEALS_ENABLED: CalldataLookupEnabledSchema,
+  CCS_AUTH_MAX_AGE_SECONDS: CcsAuthMaxAgeSecondsSchema,
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -387,6 +411,7 @@ export class CallCommitmentsService extends BaseService {
     private readonly calldataLookupEnabled: boolean,
     private readonly originMailboxes: ReadonlyMap<number, string>,
     private readonly sealevelRevealsEnabled: boolean,
+    authMaxAgeSeconds: number,
   ) {
     super(config);
     assert(
@@ -400,7 +425,11 @@ export class CallCommitmentsService extends BaseService {
       );
     }
     this.multiProvider = config.multiProvider;
-    this.auth = new CcsAuth(config.baseUrl, authorizedSigners);
+    this.auth = new CcsAuth(
+      config.baseUrl,
+      authorizedSigners,
+      authMaxAgeSeconds,
+    );
   }
 
   static async create(serviceName: string): Promise<CallCommitmentsService> {
@@ -429,6 +458,7 @@ export class CallCommitmentsService extends BaseService {
       env.CCS_CALLDATA_LOOKUP_ENABLED,
       mailboxesByDomain(coreAddresses, multiProvider),
       env.CCS_SEALEVEL_REVEALS_ENABLED,
+      env.CCS_AUTH_MAX_AGE_SECONDS,
     );
   }
 
@@ -556,7 +586,7 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
-    originTxHash?: string,
+    originTxHash: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info(
@@ -607,7 +637,7 @@ export class CallCommitmentsService extends BaseService {
         );
         // Calls are resolved from the commitment dispatched alongside this
         // reveal, which must target the account the calls were registered for.
-        if (!originTxHash || !utils.isHexString(originTxHash, 32)) {
+        if (!utils.isHexString(originTxHash, 32)) {
           throw new InvalidOriginTxHashError();
         }
         const dispatch = await this.deriveIcaFromRevealMessage(
@@ -1452,17 +1482,29 @@ export class CallCommitmentsService extends BaseService {
       );
     }
     app.post<AbiRoute>(
-      `${prefix}/getCallsFromRevealMessage`,
+      `${prefix}${CCS_REVEAL_PATH}`,
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       async (request, reply) => {
-        const rawTxHash = request.body?.origin_tx_hash;
-        const originTxHash =
-          typeof rawTxHash === 'string' ? rawTxHash : undefined;
         return createAbiHandler(
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',
-          (message: string, relayer: string, logger: Logger) =>
-            this.handleFetchCommitment(message, relayer, logger, originTxHash),
+          (message: string, relayer: string, logger: Logger) => {
+            const signedMessageId = this.auth.messageId(request);
+            const revealMessageId = messageId(message).toLowerCase();
+            if (signedMessageId !== revealMessageId) {
+              logger.warn(
+                { relayer, signedMessageId, revealMessageId },
+                REVEAL_MESSAGE_ID_MISMATCH,
+              );
+              throw new CommitmentAccessDeniedError(REVEAL_MESSAGE_ID_MISMATCH);
+            }
+            return this.handleFetchCommitment(
+              message,
+              relayer,
+              logger,
+              this.auth.originTxHash(request),
+            );
+          },
           {
             skipResultEncoding: true,
             authenticatedRelayer: (request) => this.auth.signer(request),

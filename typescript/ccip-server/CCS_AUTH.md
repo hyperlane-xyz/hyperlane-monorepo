@@ -7,7 +7,8 @@ primary, RC, and fastpath relayer identities from `typescript/infra/config/relay
 A commitment's nonempty `relayers` list restricts access further; an empty list permits
 any globally authorized signer.
 
-Both APIs reuse the existing SDK `offchainLookupRequestMessageHash(sender, data, urlTemplate)`:
+The calldata lookup (GET) accepts only the packed (v1) signature of the SDK
+`offchainLookupRequestMessageHash(sender, data, urlTemplate)`:
 
 ```
 hash = keccak256(solidityPacked(
@@ -17,28 +18,53 @@ hash = keccak256(solidityPacked(
 signature = EIP-191-sign(hash bytes)
 ```
 
-There are no timestamps, nonces, sessions, or Solana signatures. A signature can be reused
-for the same signed payload and URL until the signer is removed from the whitelist. Use
-HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-store`.
+The EVM reveal lookup (POST) accepts only the framed (v2) signature of the SDK
+`offchainLookupRequestHash({ urlTemplate, sender, callData, messageId, originTxHash, issuedAt })`:
+
+```
+hash = keccak256(abi.encode(
+  bytes32 keccak256("HYPERLANE_OFFCHAINLOOKUP_V2"),
+  bytes32 keccak256(bytes(urlTemplate)),
+  address sender,
+  bytes32 keccak256(data),
+  bytes32 messageId,
+  bytes32 keccak256(originTxHash),  // origin_tx_hash bytes
+  uint64  issuedAt                  // unix seconds
+))
+signature = EIP-191-sign(hash bytes)
+```
+
+A v1 signature has no timestamp, nonce, or session: it can be reused for the same signed
+payload and URL until the signer is removed from the whitelist. A v2 signature is accepted
+only while `issuedAt` is at most `CCS_AUTH_MAX_AGE_SECONDS` old (decimal seconds from 10
+to 120, default 30) and at most 5 seconds ahead of the server clock. There are no Solana
+signatures. Use HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-store`.
 
 ## Existing EVM lookup
 
-`POST /callCommitments/getCallsFromRevealMessage` keeps its existing JSON body:
+`POST /callCommitments/getCallsFromRevealMessage` takes this JSON body:
 
 ```json
 {
   "sender": "0x<ISM contract address>",
   "data": "0x<ABI lookup calldata>",
   "signature": "0x<65-byte EVM signature>",
-  "origin_tx_hash": "0x<32-byte hash of the tx that dispatched the reveal>"
+  "origin_tx_hash": "0x<32-byte hash of the tx that dispatched the reveal>",
+  "message_id": "0x<32-byte id of the reveal message>",
+  "issued_at": 1700000000
 }
 ```
 
+The body must carry a v2 signature: it requires `message_id`, an integer `issued_at`, and
+a non-empty hex `origin_tx_hash`. A body without these fields (including one signed with
+v1), or a malformed, expired, or future-dated one, returns 401, whichever signer signed it. With a valid
+signature, a `message_id` that is not the id of the reveal message in `data` returns 403.
+
 The signed URL is the configured public endpoint URL, including
-`/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
-keep their signing format if their signer is whitelisted, but a reveal is only served
-with `origin_tx_hash`, and its calls are resolved from the commitment dispatched
-alongside it (see the ccip-server README).
+`/callCommitments/getCallsFromRevealMessage`. Relayers take `message_id` from the message
+they deliver, and `origin_tx_hash` from the transaction that dispatched it. The handler
+uses only the signed `origin_tx_hash`, and an EVM reveal's calls are resolved from the
+commitment dispatched alongside it (see the ccip-server README).
 
 The reveal lookup derives the account from the commit's owner and user salt. A contract
 that commits on a user's behalf must therefore derive the commit's user salt from its own
@@ -51,8 +77,8 @@ ever enrolled on a registry ICA router (`enrollRemoteRouterAndIsm`), this skip i
 registrations made without an ISM on that pair stop resolving.
 
 Origin binding differs by protocol. EVM-origin reveals must carry a 32-byte dispatch
-`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from
-that receipt matches the stored ICA or a registry router version candidate (HTTP 403
+`origin_tx_hash` (HTTP 400 for other signed lengths), and are served only when the ICA derived from that
+receipt matches the stored ICA or a registry router version candidate (HTTP 403
 otherwise). Sealevel-origin reveals are not served (HTTP 403) unless
 `CCS_SEALEVEL_REVEALS_ENABLED=true`, which is off by default; when enabled, they are
 served from the stored commitment record with no origin binding: access rests on relayer
@@ -98,7 +124,11 @@ const response = await fetch(`${baseUrl}/calldata/${commitment}`, {
 
 The server uses its configured URL, never the request's Host header. Missing or invalid
 credentials return 401; a signer outside either applicable whitelist receives 403.
-Query-string credentials are not accepted.
+Query-string credentials are not accepted. Every 401 has the same body; the server logs
+its cause at warn as `reason`: `missing_v2_fields` (for example a v1 POST body),
+`malformed_credentials`, `stale_signature`, `future_dated_signature`, `invalid_signature`
+or `get_sender_mismatch`. A reveal whose signed `message_id` is not the reveal's is
+logged with both ids before the 403.
 
 ## Uploads, compatibility, and rollout
 
@@ -124,8 +154,14 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
    above. Its upload-only usage is unaffected.
 3. Before deployment, confirm partner-operated reader identities and existing per-record
    relayer lists against the intended service whitelist. Include every intended reader in
-   both applicable lists. Deploy CCS with the audited whitelist; existing EVM POST clients
-   retain their signing format.
+   both applicable lists. Deploy CCS with the audited whitelist.
+
+The reveal lookup (POST) switches from v1 to v2 with no overlap, so CCS and the EVM
+relayers roll out together. Mixed versions fail in either order: this CCS returns 401 to
+a relayer that still signs v1, and the previous CCS refuses v2 reveal lookups. Until both
+sides run the new version, reveal lookups fail and are retried, so ICA reveals are
+delayed, not lost. Coordinate the cutover across CCS and every allowlisted relayer
+context (primary, RC, and fastpath).
 
 ## Local HTTP integration tests
 
@@ -136,8 +172,10 @@ enabled. It also serves local JSON-RPC endpoints for two origin chains, one of w
 only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
 origin transaction whose registry mailbox dispatches the commitment and then its reveal,
 and the destination router derives the stored ICA. Origin chains answer only receipt
-requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
-checks a reveal lookup with it before printing `READY`.
+requests. `fixtures.json` records each EVM fixture's `originTxHash` and each fixture's
+reveal `messageId`. Before printing `READY`, the harness checks a v2 reveal lookup with
+them, that a v1 reveal lookup gets 401, and that a v2 lookup signed for another message
+id gets 403.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover
@@ -160,9 +198,9 @@ CCS_E2E_FIXTURES="$CCS_E2E_DIR/fixtures.json" cargo test \
   -p relayer -p hyperlane-sealevel --lib ccs_e2e -- --ignored
 ```
 
-The POST test uses a real local EVM signer. It sends each EVM fixture's
-`origin_tx_hash` and expects the bound calls, and without the hash expects HTTP 400 for
-allowed signers and 403 for others. The SVM test exercises the production GET
+The POST test uses a real local EVM signer and signs v2 with each fixture's `messageId`.
+It sends each EVM fixture's `origin_tx_hash` and expects the bound calls, and without the
+hash expects HTTP 401 for every signer. The SVM test exercises the production GET
 client with valid pre-signed EVM fixtures and asserts its exact signing hash. Both check
 global and per-record authorization. These tests do not access production KMS or execute
 on-chain swaps. Stop the fixture server and disposable database afterward.

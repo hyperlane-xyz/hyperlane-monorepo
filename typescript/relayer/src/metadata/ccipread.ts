@@ -1,15 +1,18 @@
 import { utils } from 'ethers';
 
-import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
+import {
+  AbstractCcipReadIsm__factory,
+  CommitmentReadIsmService__factory,
+} from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   IsmType,
   LayerZeroV2IsmConfig,
   OffchainLookupIsmConfig,
   WormholeIsmConfig,
-  offchainLookupRequestMessageHash,
+  offchainLookupRequestHash,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
+import { WithAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
 import type {
   CcipReadMetadataBuildResult,
@@ -30,6 +33,46 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 }
 
 const MAX_BFS_ITERATIONS = 50;
+
+const COMMITMENT_READ_ISM_SERVICE =
+  CommitmentReadIsmService__factory.createInterface();
+
+const CCS_REVEAL_SELECTOR = COMMITMENT_READ_ISM_SERVICE.getSighash(
+  'getCallsFromRevealMessage',
+);
+
+/** Only the call commitments service reveal lookup is signed. */
+function isCcsRevealLookup(callDataHex: string): boolean {
+  return (
+    utils.hexDataLength(callDataHex) >= 4 &&
+    utils.hexDataSlice(callDataHex, 0, 4).toLowerCase() ===
+      CCS_REVEAL_SELECTOR.toLowerCase()
+  );
+}
+
+/**
+ * Whether a reveal lookup asks for the calls of the message being delivered,
+ * the only reveal the call commitments service serves for it.
+ */
+function revealLookupCarriesMessage(
+  callDataHex: string,
+  deliveredMessageId: string,
+): boolean {
+  let revealMessage: unknown;
+  try {
+    [revealMessage] = COMMITMENT_READ_ISM_SERVICE.decodeFunctionData(
+      'getCallsFromRevealMessage',
+      callDataHex,
+    );
+  } catch {
+    // Malformed call data does not carry any message.
+    return false;
+  }
+  return (
+    typeof revealMessage === 'string' &&
+    messageId(revealMessage).toLowerCase() === deliveredMessageId.toLowerCase()
+  );
+}
 
 function extractRevertData(error: unknown): string | undefined {
   const seen = new Set<unknown>();
@@ -111,6 +154,11 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     };
 
     const callDataHex = utils.hexlify(callData);
+    // The service refuses a reveal for another message, so such a reveal POST
+    // is neither signed nor sent. GET-style lookups are never signed.
+    const refuseRevealPost =
+      isCcsRevealLookup(callDataHex) &&
+      !revealLookupCarriesMessage(callDataHex, message.id);
 
     const signer = this.core.multiProvider.getSigner(
       message.parsed.destination,
@@ -121,29 +169,54 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
 
+      if (!urlTemplate.includes('{data}') && refuseRevealPost) {
+        this.core.logger.warn(
+          `Skipping CCS reveal lookup ${url}: it does not carry message ${message.id}`,
+        );
+        continue;
+      }
+
       let res: Response;
       try {
         if (urlTemplate.includes('{data}')) {
           res = await fetch(url);
-        } else {
+        } else if (isCcsRevealLookup(callDataHex)) {
+          const issuedAt = Math.floor(Date.now() / 1000);
           const signature = await signer.signMessage(
             utils.arrayify(
-              offchainLookupRequestMessageHash(
-                sender,
-                callDataHex,
+              offchainLookupRequestHash({
                 urlTemplate,
-              ),
+                sender,
+                callData: callDataHex,
+                messageId: message.id,
+                originTxHash: dispatchTx.transactionHash,
+                issuedAt,
+              }),
             ),
           );
           res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // Keeps the signed body at the URL it was signed for.
+            redirect: 'error',
             body: JSON.stringify({
               sender,
               data: callDataHex,
               signature,
               // Matches the Rust relayer: lets a service locate the origin
               // event directly instead of querying the Explorer for it.
+              origin_tx_hash: dispatchTx.transactionHash,
+              message_id: message.id,
+              issued_at: issuedAt,
+            }),
+          });
+        } else {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sender,
+              data: callDataHex,
               origin_tx_hash: dispatchTx.transactionHash,
             }),
           });

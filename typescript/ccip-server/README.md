@@ -79,6 +79,9 @@ See [CCS authentication and rollout](./CCS_AUTH.md) for EVM signing on both EVM/
 configuration, and compatibility with the existing EVM reveal endpoint.
 `GET /calldata/:commitment` is disabled by default while the Sealevel reveal flow is
 redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
+`CCS_AUTH_MAX_AGE_SECONDS` sets how old, in decimal seconds from 10 to 120, a signed reveal
+lookup may be (default 30); any other value fails startup. The minimum covers the
+relayer's 5 second signature reuse.
 
 - `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.
@@ -93,11 +96,15 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
 
   Relayers include `origin_tx_hash`, the transaction that dispatched the reveal,
-  in the authenticated request. After the relayer authorization and the check
+  in the authenticated request, signed with the framed (v2) format together with
+  `message_id` and `issued_at` (see [CCS authentication](./CCS_AUTH.md)); a
+  signed `message_id` that is not the reveal's id returns 403. After the relayer authorization and the check
   that the reveal's origin is the stored commitment's origin, handling depends
   on the reveal's origin protocol:
 
-  - EVM: a 32-byte hash is required; a missing, null or malformed hash returns 400. Calls are resolved from the commitment dispatched alongside the reveal.
+  - EVM: a 32-byte hash is required; a missing, null or empty hash fails
+    authentication (401), and a signed hash of another length returns 400.
+    Calls are resolved from the commitment dispatched alongside the reveal.
     The server checks that
     - the reveal was dispatched between ICA routers from the registry
       (`interchainAccountRouter` and `interchainAccountRouterV3`), and
@@ -111,8 +118,8 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
     stored one. A reveal that fails these checks gets HTTP 403.
 
   - Sealevel: not served (HTTP 403) unless `CCS_SEALEVEL_REVEALS_ENABLED=true`,
-    in which case the hash is ignored and the stored commitment ICA is served.
-    Keep the flag unset in production until the Sealevel reveal flow is
+    in which case the signed hash is not used and the stored commitment ICA is
+    served. Keep the flag unset in production until the Sealevel reveal flow is
     redesigned.
   - Any other or unknown origin protocol returns 500.
 

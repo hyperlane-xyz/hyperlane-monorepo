@@ -1842,6 +1842,7 @@ describe('CallCommitmentsService constructor', () => {
       false,
       mailboxesByDomain(addresses, multiProvider),
       false,
+      30,
     );
   }
 
@@ -2245,11 +2246,10 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     expect(result).to.equal(servedCalls(otherIca));
   });
 
-  it('rejects a missing or malformed EVM origin transaction hash', async () => {
+  it('rejects a malformed EVM origin transaction hash', async () => {
     const service = createVerifyingService();
 
     for (const hint of [
-      undefined,
       '',
       '0x1234',
       '34'.repeat(32),
@@ -2290,7 +2290,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
   });
 
-  for (const hint of [undefined, '0x1234', originTxHash]) {
+  for (const hint of ['0x1234', '0x' + 'ab'.repeat(64), originTxHash]) {
     it(`serves the stored ICA for a Sealevel-origin reveal with hash ${String(hint)} when Sealevel reveals are enabled`, async () => {
       const service = createVerifyingService({ sealevelRevealsEnabled: true });
       service.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
@@ -2331,7 +2331,12 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       service.fetchCommitmentRecord = sinon.stub().resolves(record);
 
       const unauthorized = await service
-        .handleFetchCommitment(message, baseRelayers[1], mockLogger())
+        .handleFetchCommitment(
+          message,
+          baseRelayers[1],
+          mockLogger(),
+          originTxHash,
+        )
         .catch((error: unknown) => error);
       expect(unauthorized)
         .to.be.instanceOf(CommitmentAccessDeniedError)
@@ -2346,7 +2351,12 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         relayers: record.relayers,
       });
       const otherOrigin = await service
-        .handleFetchCommitment(message, baseRelayers[0], mockLogger())
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          originTxHash,
+        )
         .catch((error: unknown) => error);
       expect(otherOrigin)
         .to.be.instanceOf(CommitmentAccessDeniedError)

@@ -3,6 +3,7 @@ import { BigNumber, Wallet, ethers, providers, utils } from 'ethers';
 import Fastify from 'fastify';
 import { pino } from 'pino';
 import sinon from 'sinon';
+import { z } from 'zod';
 
 import {
   CommitmentReadIsmService__factory,
@@ -14,7 +15,10 @@ import {
   InterchainAccount,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk/ism/utils';
+import {
+  offchainLookupRequestHash,
+  offchainLookupRequestMessageHash,
+} from '@hyperlane-xyz/sdk/ism/utils';
 import {
   commitmentFromIcaCalls,
   encodeIcaCalls,
@@ -28,13 +32,16 @@ import {
   formatMessage,
   isNullish,
   isZeroishAddress,
+  messageId,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import {
   CallCommitmentsService,
+  CcsAuthMaxAgeSecondsSchema,
   type IcaRouters,
 } from '../../src/services/CallCommitmentsService.js';
+import { CcsAuthFailure } from '../../src/utils/ccsAuth.js';
 import { registerRateLimiting } from '../../src/utils/rateLimit.js';
 
 const origin = 'https://ccs.example';
@@ -107,9 +114,30 @@ async function server(
   {
     calldataLookupEnabled = true,
     sealevelRevealsEnabled = false,
-  }: { calldataLookupEnabled?: boolean; sealevelRevealsEnabled?: boolean } = {},
+    authMaxAgeSeconds = 30,
+    logs,
+  }: {
+    calldataLookupEnabled?: boolean;
+    sealevelRevealsEnabled?: boolean;
+    authMaxAgeSeconds?: number;
+    /** Collects the server's warn and error log lines when given. */
+    logs?: Record<string, unknown>[];
+  } = {},
 ) {
-  const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
+  const app = Fastify({
+    loggerInstance: logs
+      ? pino(
+          { level: 'warn' },
+          {
+            write: (line: string) => {
+              logs.push(
+                z.record(z.string(), z.unknown()).parse(JSON.parse(line)),
+              );
+            },
+          },
+        )
+      : pino({ level: 'silent' }),
+  });
   await registerRateLimiting(app);
   const service = new CallCommitmentsService(
     {
@@ -124,9 +152,72 @@ async function server(
     calldataLookupEnabled,
     dependencies?.originMailboxes ?? defaultOriginMailboxes,
     sealevelRevealsEnabled,
+    authMaxAgeSeconds,
   );
   service.registerRoutes(app, '/callCommitments');
   return app;
+}
+
+/** The fields a v2 POST body carries next to its signature. */
+interface V2Fields {
+  sender: string;
+  data: string;
+  message_id: string;
+  issued_at: number;
+  origin_tx_hash: string;
+}
+
+function signV2(
+  fields: V2Fields,
+  signer = wallet,
+  url = origin + postPath,
+): Promise<string> {
+  return signer.signMessage(
+    utils.arrayify(
+      offchainLookupRequestHash({
+        urlTemplate: url,
+        sender: fields.sender,
+        callData: fields.data,
+        messageId: fields.message_id,
+        originTxHash: fields.origin_tx_hash,
+        issuedAt: fields.issued_at,
+      }),
+    ),
+  );
+}
+
+/** The id of the message revealed by `data`. */
+const revealMessageId = messageId('0x1234');
+const revealOriginTxHash = '0x' + '34'.repeat(32);
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function v2Body(fields: V2Fields, signature: string): Record<string, unknown> {
+  return {
+    sender: fields.sender,
+    data: fields.data,
+    message_id: fields.message_id,
+    issued_at: fields.issued_at,
+    origin_tx_hash: fields.origin_tx_hash,
+    signature,
+  };
+}
+
+/** A v2-signed reveal body for `data`, issued now. */
+async function signedReveal(
+  fields: Pick<V2Fields, 'sender' | 'data' | 'origin_tx_hash'>,
+  signer = wallet,
+): Promise<Record<string, unknown>> {
+  const v2: V2Fields = {
+    sender: fields.sender,
+    data: fields.data,
+    message_id: revealMessageId,
+    issued_at: nowSeconds(),
+    origin_tx_hash: fields.origin_tx_hash,
+  };
+  return v2Body(v2, await signV2(v2, signer));
 }
 
 describe('CCS read authentication', () => {
@@ -293,16 +384,16 @@ describe('CCS read authentication', () => {
     }
   });
 
-  it('accepts the existing POST body signature and restricts it to the global whitelist', async () => {
+  it('rejects an unsigned POST body and restricts a v2 signature to the global whitelist', async () => {
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
       .resolves('0x1234');
     const app = await server();
-    const signature = await wallet.signMessage(
-      utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
-      ),
-    );
+    const signedBody = await signedReveal({
+      sender,
+      data,
+      origin_tx_hash: revealOriginTxHash,
+    });
     try {
       expect(
         (
@@ -316,22 +407,29 @@ describe('CCS read authentication', () => {
       const response = await app.inject({
         method: 'POST',
         url: postPath,
-        payload: { sender, data, signature },
+        payload: signedBody,
       });
       expect(response.statusCode).to.equal(200);
       expect(fetch.lastCall.args[1]).to.equal(wallet.address.toLowerCase());
+      const otherSender = await signedReveal({
+        sender,
+        data,
+        origin_tx_hash: revealOriginTxHash,
+      });
+      otherSender.sender = other.address;
+      const otherData = await signedReveal({
+        sender,
+        data,
+        origin_tx_hash: revealOriginTxHash,
+      });
+      otherData.data = data + '00';
       for (const payload of [
-        { sender: other.address, data, signature },
-        { sender, data: data + '00', signature },
-        {
-          sender,
-          data,
-          signature: await other.signMessage(
-            utils.arrayify(
-              offchainLookupRequestMessageHash(sender, data, origin + postPath),
-            ),
-          ),
-        },
+        otherSender,
+        otherData,
+        await signedReveal(
+          { sender, data, origin_tx_hash: revealOriginTxHash },
+          other,
+        ),
       ]) {
         expect(
           (await app.inject({ method: 'POST', url: postPath, payload }))
@@ -350,11 +448,6 @@ describe('CCS read authentication', () => {
       .resolves('0x1234');
     const app = await server();
     const originTxHash = '0x' + '34'.repeat(32);
-    const signature = await wallet.signMessage(
-      utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
-      ),
-    );
     try {
       const unauthenticated = await app.inject({
         method: 'POST',
@@ -367,7 +460,11 @@ describe('CCS read authentication', () => {
       const response = await app.inject({
         method: 'POST',
         url: postPath,
-        payload: { sender, data, signature, origin_tx_hash: originTxHash },
+        payload: await signedReveal({
+          sender,
+          data,
+          origin_tx_hash: originTxHash,
+        }),
       });
 
       expect(response.statusCode).to.equal(200);
@@ -378,53 +475,27 @@ describe('CCS read authentication', () => {
     }
   });
 
-  it('forwards string origin transaction hints for protocol-aware validation', async () => {
+  it('forwards signed non-empty hex origin transaction hints of any length for protocol-aware validation', async () => {
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
       .resolves('0x1234');
     const app = await server();
-    const signature = await wallet.signMessage(
-      utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
-      ),
-    );
     try {
-      for (const originTxHash of ['0x1234', '', '0x' + 'ab'.repeat(64)]) {
+      for (const originTxHash of ['0x1234', '0x' + 'ab'.repeat(64)]) {
         const response = await app.inject({
           method: 'POST',
           url: postPath,
-          payload: { sender, data, signature, origin_tx_hash: originTxHash },
+          payload: await signedReveal({
+            sender,
+            data,
+            origin_tx_hash: originTxHash,
+          }),
         });
 
         expect(response.statusCode).to.equal(200);
         expect(fetch.lastCall.args[3]).to.equal(originTxHash);
       }
-      expect(fetch.callCount).to.equal(3);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it('treats null and non-string origin transaction hints as absent', async () => {
-    const fetch = sinon
-      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
-      .resolves('0x1234');
-    const app = await server();
-    const signature = await wallet.signMessage(
-      utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
-      ),
-    );
-    try {
-      for (const originTxHash of [null, 1234, false, {}]) {
-        const response = await app.inject({
-          method: 'POST',
-          url: postPath,
-          payload: { sender, data, signature, origin_tx_hash: originTxHash },
-        });
-        expect(response.statusCode).to.equal(200);
-        expect(fetch.lastCall.args[3]).to.equal(undefined);
-      }
+      expect(fetch.callCount).to.equal(2);
     } finally {
       await app.close();
     }
@@ -446,6 +517,584 @@ describe('CCS read authentication', () => {
       await app.close();
     }
   });
+});
+
+describe('CCS v2 reveal authentication', () => {
+  const now = 1_800_000_000;
+  const originTxHash = '0x' + '34'.repeat(32);
+  const signed: V2Fields = {
+    sender,
+    data,
+    message_id: revealMessageId,
+    issued_at: now,
+    origin_tx_hash: originTxHash,
+  };
+
+  beforeEach(() => {
+    sinon.useFakeTimers({ now: now * 1000, toFake: ['Date'] });
+  });
+  afterEach(() => sinon.restore());
+
+  function stubFetch() {
+    return sinon
+      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+      .resolves('0x1234');
+  }
+
+  async function post(
+    app: Awaited<ReturnType<typeof server>>,
+    payload: Record<string, unknown>,
+  ) {
+    return app.inject({ method: 'POST', url: postPath, payload });
+  }
+
+  it('accepts a v2 signature and forwards the authenticated request', async () => {
+    const fetch = stubFetch();
+    const app = await server();
+    try {
+      const response = await post(app, v2Body(signed, await signV2(signed)));
+      expect(response.statusCode).to.equal(200);
+      sinon.assert.calledOnce(fetch);
+      expect(fetch.firstCall.args[0]).to.equal('0x1234');
+      expect(fetch.firstCall.args[1]).to.equal(wallet.address.toLowerCase());
+      expect(fetch.firstCall.args[3]).to.equal(originTxHash);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('accepts an upper-case signed message id', async () => {
+    const fetch = stubFetch();
+    const app = await server();
+    const fields: V2Fields = {
+      sender,
+      data,
+      message_id: '0x' + revealMessageId.slice(2).toUpperCase(),
+      issued_at: now,
+      origin_tx_hash: originTxHash,
+    };
+    try {
+      const response = await post(app, v2Body(fields, await signV2(fields)));
+      expect(response.statusCode).to.equal(200);
+      sinon.assert.calledOnce(fetch);
+    } finally {
+      await app.close();
+    }
+  });
+
+  interface FreshnessCase {
+    name: string;
+    issuedAt: number;
+    authMaxAgeSeconds?: number;
+    status: number;
+  }
+  const freshnessCases: FreshnessCase[] = [
+    { name: 'exactly the max age old', issuedAt: now - 30, status: 200 },
+    { name: 'older than the max age', issuedAt: now - 31, status: 401 },
+    { name: 'at the clock skew limit', issuedAt: now + 5, status: 200 },
+    { name: 'beyond the clock skew limit', issuedAt: now + 6, status: 401 },
+    { name: 'from long ago', issuedAt: 0, status: 401 },
+    {
+      name: 'within a configured max age',
+      issuedAt: now - 100,
+      authMaxAgeSeconds: 120,
+      status: 200,
+    },
+    {
+      name: 'older than a configured max age',
+      issuedAt: now - 121,
+      authMaxAgeSeconds: 120,
+      status: 401,
+    },
+    {
+      name: 'older than a configured shorter max age',
+      issuedAt: now - 11,
+      authMaxAgeSeconds: 10,
+      status: 401,
+    },
+  ];
+  for (const c of freshnessCases) {
+    it(`answers ${c.status} for a v2 signature ${c.name}`, async () => {
+      const fetch = stubFetch();
+      const app = await server(undefined, undefined, {
+        authMaxAgeSeconds: c.authMaxAgeSeconds,
+      });
+      const fields: V2Fields = {
+        sender,
+        data,
+        message_id: revealMessageId,
+        issued_at: c.issuedAt,
+        origin_tx_hash: originTxHash,
+      };
+      try {
+        const response = await post(app, v2Body(fields, await signV2(fields)));
+        expect(response.statusCode).to.equal(c.status);
+        if (c.status === 401) {
+          expect(response.json()).to.deep.equal({
+            error: 'Invalid or missing CCS authentication',
+          });
+        }
+        expect(fetch.callCount).to.equal(c.status === 200 ? 1 : 0);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  it('rejects a max age outside 10 to 120 integer seconds at construction', async () => {
+    for (const authMaxAgeSeconds of [0, -1, 1, 9, 10.5, 121]) {
+      let error: unknown;
+      try {
+        await server(undefined, undefined, { authMaxAgeSeconds });
+      } catch (e: unknown) {
+        error = e;
+      }
+      assert(error instanceof Error, `Expected ${authMaxAgeSeconds} to throw`);
+      expect(error.message).to.equal(
+        'CCS authentication max age must be an integer from 10 to 120',
+      );
+    }
+  });
+
+  it('rejects a signed message id that is not the decoded reveal message id', async () => {
+    const fetch = stubFetch();
+    const logs: Record<string, unknown>[] = [];
+    const app = await server(undefined, undefined, { logs });
+    const fields: V2Fields = {
+      sender,
+      data,
+      message_id: messageId('0x1235'),
+      issued_at: now,
+      origin_tx_hash: originTxHash,
+    };
+    try {
+      const response = await post(app, v2Body(fields, await signV2(fields)));
+      expect(response.statusCode).to.equal(403);
+      expect(response.json()).to.deep.equal({
+        error: 'Reveal does not match the signed message id',
+      });
+      sinon.assert.notCalled(fetch);
+      expect(
+        logs.filter(
+          (log) => log.msg === 'Reveal does not match the signed message id',
+        ),
+      ).to.have.length(1);
+      expect(
+        logs.find(
+          (log) => log.msg === 'Reveal does not match the signed message id',
+        ),
+      ).to.include({
+        relayer: wallet.address.toLowerCase(),
+        signedMessageId: messageId('0x1235').toLowerCase(),
+        revealMessageId: revealMessageId.toLowerCase(),
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  interface TamperCase {
+    name: string;
+    sent: V2Fields;
+    url?: string;
+  }
+  const otherData =
+    CommitmentReadIsmService__factory.createInterface().encodeFunctionData(
+      'getCallsFromRevealMessage',
+      ['0x1235'],
+    );
+  const tamperCases: TamperCase[] = [
+    {
+      name: 'url',
+      sent: signed,
+      url: origin + '/callCommitments/calldata',
+    },
+    {
+      name: 'sender',
+      sent: {
+        sender: other.address,
+        data,
+        message_id: revealMessageId,
+        issued_at: now,
+        origin_tx_hash: originTxHash,
+      },
+    },
+    {
+      name: 'data',
+      sent: {
+        sender,
+        data: otherData,
+        message_id: revealMessageId,
+        issued_at: now,
+        origin_tx_hash: originTxHash,
+      },
+    },
+    {
+      name: 'message id',
+      sent: {
+        sender,
+        data,
+        message_id: messageId('0x1235'),
+        issued_at: now,
+        origin_tx_hash: originTxHash,
+      },
+    },
+    {
+      name: 'origin transaction hash',
+      sent: {
+        sender,
+        data,
+        message_id: revealMessageId,
+        issued_at: now,
+        origin_tx_hash: '0x' + '35'.repeat(32),
+      },
+    },
+    {
+      name: 'issued at',
+      sent: {
+        sender,
+        data,
+        message_id: revealMessageId,
+        issued_at: now - 1,
+        origin_tx_hash: originTxHash,
+      },
+    },
+  ];
+  for (const c of tamperCases) {
+    it(`attributes a v2 request with a changed ${c.name} to another signer`, async () => {
+      const fetch = stubFetch();
+      const app = await server();
+      try {
+        const response = await post(
+          app,
+          v2Body(c.sent, await signV2(signed, wallet, c.url)),
+        );
+        expect(response.statusCode).to.equal(403);
+        expect(response.json()).to.deep.equal({
+          error: 'CCS signer not authorized',
+        });
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  it('rejects a v2 signature from a signer outside the whitelist', async () => {
+    const fetch = stubFetch();
+    const app = await server();
+    try {
+      const response = await post(
+        app,
+        v2Body(signed, await signV2(signed, other)),
+      );
+      expect(response.statusCode).to.equal(403);
+      sinon.assert.notCalled(fetch);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('rejects a missing, null, or empty origin transaction hash over an empty-bytes signature', async () => {
+    const fetch = stubFetch();
+    const app = await server();
+    const emptyHash: V2Fields = {
+      sender,
+      data,
+      message_id: revealMessageId,
+      issued_at: now,
+      origin_tx_hash: '0x',
+    };
+    const signature = await signV2(emptyHash);
+    try {
+      for (const originTxHash of [undefined, null, '0x']) {
+        const payload = v2Body(emptyHash, signature);
+        payload.origin_tx_hash = originTxHash;
+        const response = await post(app, payload);
+        expect(response.statusCode).to.equal(401);
+        expect(response.json()).to.deep.equal({
+          error: 'Invalid or missing CCS authentication',
+        });
+      }
+      sinon.assert.notCalled(fetch);
+    } finally {
+      await app.close();
+    }
+  });
+
+  interface MalformedCase {
+    name: string;
+    payload: Record<string, unknown>;
+  }
+  const malformedCases: MalformedCase[] = [
+    {
+      name: 'a string issued_at',
+      payload: { issued_at: String(now) },
+    },
+    { name: 'a fractional issued_at', payload: { issued_at: now + 0.5 } },
+    { name: 'a negative issued_at', payload: { issued_at: -1 } },
+    { name: 'a null issued_at', payload: { issued_at: null } },
+    { name: 'no issued_at', payload: { issued_at: undefined } },
+    { name: 'no message_id', payload: { message_id: undefined } },
+    { name: 'a short message_id', payload: { message_id: '0x1234' } },
+    {
+      name: 'an odd-length origin_tx_hash',
+      payload: { origin_tx_hash: '0x123' },
+    },
+    { name: 'a non-hex origin_tx_hash', payload: { origin_tx_hash: 'abc' } },
+    { name: 'a numeric origin_tx_hash', payload: { origin_tx_hash: 1234 } },
+    { name: 'an empty origin_tx_hash', payload: { origin_tx_hash: '' } },
+    {
+      name: 'an empty-bytes origin_tx_hash',
+      payload: { origin_tx_hash: '0x' },
+    },
+    { name: 'a null origin_tx_hash', payload: { origin_tx_hash: null } },
+    { name: 'no origin_tx_hash', payload: { origin_tx_hash: undefined } },
+    { name: 'a boolean origin_tx_hash', payload: { origin_tx_hash: false } },
+    { name: 'an object origin_tx_hash', payload: { origin_tx_hash: {} } },
+  ];
+  for (const c of malformedCases) {
+    it(`answers 401 for a v2 body with ${c.name}`, async () => {
+      const fetch = stubFetch();
+      const app = await server();
+      const signature = await signV2(signed);
+      const payload: Record<string, unknown> = v2Body(signed, signature);
+      for (const [key, value] of Object.entries(c.payload)) {
+        payload[key] = value;
+      }
+      try {
+        const response = await post(app, payload);
+        expect(response.statusCode).to.equal(401);
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  interface V1PostCase {
+    name: string;
+    messageId?: string;
+  }
+  const v1PostCases: V1PostCase[] = [
+    { name: 'without a message_id' },
+    { name: 'with the reveal message_id', messageId: revealMessageId },
+  ];
+  for (const c of v1PostCases) {
+    it(`answers 401 for a v1 signature from an allowed signer ${c.name}`, async () => {
+      const fetch = stubFetch();
+      const app = await server();
+      const signature = await wallet.signMessage(
+        utils.arrayify(
+          offchainLookupRequestMessageHash(sender, data, origin + postPath),
+        ),
+      );
+      try {
+        const response = await post(app, {
+          sender,
+          data,
+          signature,
+          message_id: c.messageId,
+          origin_tx_hash: originTxHash,
+        });
+        expect(response.statusCode).to.equal(401);
+        expect(response.json()).to.deep.equal({
+          error: 'Invalid or missing CCS authentication',
+        });
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  interface FailureReasonCase {
+    name: string;
+    request: () => Promise<{
+      method: 'GET' | 'POST';
+      url: string;
+      headers?: Record<string, string>;
+      payload?: Record<string, unknown>;
+    }>;
+    reason: CcsAuthFailure;
+  }
+  const signedAt = async (issuedAt: number) => {
+    const fields: V2Fields = {
+      sender,
+      data,
+      message_id: revealMessageId,
+      issued_at: issuedAt,
+      origin_tx_hash: originTxHash,
+    };
+    return v2Body(fields, await signV2(fields));
+  };
+  const failureReasonCases: FailureReasonCase[] = [
+    {
+      name: 'a v1 POST body',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: {
+          sender,
+          data,
+          signature: await wallet.signMessage(
+            utils.arrayify(
+              offchainLookupRequestMessageHash(sender, data, origin + postPath),
+            ),
+          ),
+          origin_tx_hash: originTxHash,
+        },
+      }),
+      reason: CcsAuthFailure.MissingV2Fields,
+    },
+    {
+      name: 'a POST body without credentials',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: { data },
+      }),
+      reason: CcsAuthFailure.Malformed,
+    },
+    {
+      name: 'a stale v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: await signedAt(now - 31),
+      }),
+      reason: CcsAuthFailure.Stale,
+    },
+    {
+      name: 'a future-dated v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: await signedAt(now + 6),
+      }),
+      reason: CcsAuthFailure.FutureDated,
+    },
+    {
+      name: 'an unrecoverable v2 signature',
+      request: async () => ({
+        method: 'POST',
+        url: postPath,
+        payload: v2Body(signed, '0x' + '00'.repeat(65)),
+      }),
+      reason: CcsAuthFailure.InvalidSignature,
+    },
+    {
+      name: 'a GET signed for another sender',
+      request: async () => ({
+        method: 'GET',
+        url: path,
+        headers: await headers(wallet, undefined, undefined, other.address),
+      }),
+      reason: CcsAuthFailure.SenderMismatch,
+    },
+  ];
+  for (const c of failureReasonCases) {
+    it(`logs why ${c.name} failed authentication without returning it`, async () => {
+      const fetch = stubFetch();
+      const logs: Record<string, unknown>[] = [];
+      const app = await server(undefined, undefined, { logs });
+      try {
+        const response = await app.inject(await c.request());
+        expect(response.statusCode).to.equal(401);
+        expect(response.json()).to.deep.equal({
+          error: 'Invalid or missing CCS authentication',
+        });
+        expect(
+          logs
+            .filter((log) => log.msg === 'CCS authentication failed')
+            .map((log) => log.reason),
+        ).to.deep.equal([c.reason]);
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  it('rejects a v1 signature sent with issued_at', async () => {
+    const fetch = stubFetch();
+    const app = await server();
+    const signature = await wallet.signMessage(
+      utils.arrayify(
+        offchainLookupRequestMessageHash(sender, data, origin + postPath),
+      ),
+    );
+    try {
+      const response = await post(app, {
+        sender,
+        data,
+        signature,
+        message_id: revealMessageId,
+        issued_at: now,
+        origin_tx_hash: originTxHash,
+      });
+      expect(response.statusCode).to.equal(403);
+      sinon.assert.notCalled(fetch);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('CcsAuthMaxAgeSecondsSchema', () => {
+  const EnvSchema = z.object({
+    CCS_AUTH_MAX_AGE_SECONDS: CcsAuthMaxAgeSecondsSchema,
+  });
+
+  it('defaults an unset variable to 30 seconds', () => {
+    expect(EnvSchema.parse({})).to.deep.equal({ CCS_AUTH_MAX_AGE_SECONDS: 30 });
+  });
+
+  interface Case {
+    value: string | undefined;
+    seconds: number;
+  }
+  const accepted: Case[] = [
+    { value: undefined, seconds: 30 },
+    { value: '30', seconds: 30 },
+    { value: '120', seconds: 120 },
+    { value: '10', seconds: 10 },
+    { value: '010', seconds: 10 },
+  ];
+  for (const c of accepted) {
+    it(`parses ${JSON.stringify(c.value)} as ${c.seconds}`, () => {
+      expect(CcsAuthMaxAgeSecondsSchema.parse(c.value)).to.equal(c.seconds);
+    });
+  }
+
+  for (const value of [
+    '',
+    ' 30 ',
+    '1e3',
+    '0x1e',
+    '30.5',
+    '0',
+    '1',
+    '9',
+    '-5',
+    '121',
+    'abc',
+    'Infinity',
+    '9007199254740993',
+  ]) {
+    it(`rejects ${JSON.stringify(value)}`, () => {
+      expect(CcsAuthMaxAgeSecondsSchema.safeParse(value).success).to.equal(
+        false,
+      );
+      let error: unknown;
+      try {
+        EnvSchema.parse({ CCS_AUTH_MAX_AGE_SECONDS: value });
+      } catch (e: unknown) {
+        error = e;
+      }
+      expect(error).to.be.instanceOf(z.ZodError);
+    });
+  }
 });
 
 describe('CCS authenticated reveal recovery integration', () => {
@@ -672,15 +1321,28 @@ describe('CCS authenticated reveal recovery integration', () => {
         'getCallsFromRevealMessage',
         [message],
       );
-    const signature = await wallet.signMessage(
-      utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
-      ),
-    );
-    const payload = { sender, data, signature, origin_tx_hash: originTxHash };
+    const issuedAt = nowSeconds();
+    /** A v2 reveal body that signs and sends `sentOriginTxHash`. */
+    const revealPayload = async (
+      sentOriginTxHash: unknown,
+      signedOriginTxHash: string,
+    ): Promise<Record<string, unknown>> => {
+      const fields: V2Fields = {
+        sender,
+        data,
+        message_id: messageId(message),
+        issued_at: issuedAt,
+        origin_tx_hash: signedOriginTxHash,
+      };
+      const body = v2Body(fields, await signV2(fields));
+      body.origin_tx_hash = sentOriginTxHash;
+      return body;
+    };
+    const payload = await revealPayload(originTxHash, originTxHash);
     return {
       app,
       payload,
+      revealPayload,
       receipt,
       logs,
       icaApp,
@@ -765,22 +1427,17 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
-  it('returns HTTP 400 for a null origin transaction hash', async () => {
+  it('returns HTTP 401 for a null origin transaction hash over an empty-bytes signature', async () => {
     const f = await fixture();
     try {
       const response = await f.app.inject({
         method: 'POST',
         url: postPath,
-        payload: {
-          sender: f.payload.sender,
-          data: f.payload.data,
-          signature: f.payload.signature,
-          origin_tx_hash: null,
-        },
+        payload: await f.revealPayload(null, '0x'),
       });
-      expect(response.statusCode).to.equal(400);
+      expect(response.statusCode).to.equal(401);
       expect(response.json()).to.deep.equal({
-        error: 'Invalid origin_tx_hash',
+        error: 'Invalid or missing CCS authentication',
       });
       sinon.assert.notCalled(f.receipt);
       sinon.assert.notCalled(f.updateMany);
@@ -804,38 +1461,81 @@ describe('CCS authenticated reveal recovery integration', () => {
   ];
 
   for (const { protocol, sealevelRevealsEnabled } of originProtocolCases) {
-    for (const { originTxHash, validEvmHash } of [
-      { originTxHash: undefined, validEvmHash: false },
-      { originTxHash: null, validEvmHash: false },
-      { originTxHash: 1234, validEvmHash: false },
-      { originTxHash: '', validEvmHash: false },
-      { originTxHash: '0x1234', validEvmHash: false },
-      { originTxHash: '0x' + 'ab'.repeat(32), validEvmHash: true },
-      { originTxHash: '0x' + 'ab'.repeat(64), validEvmHash: false },
+    for (const {
+      originTxHash,
+      signedOriginTxHash,
+      authenticated,
+      validEvmHash,
+    } of [
+      {
+        originTxHash: undefined,
+        signedOriginTxHash: '0x',
+        authenticated: false,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: null,
+        signedOriginTxHash: '0x',
+        authenticated: false,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: 1234,
+        signedOriginTxHash: '0x1234',
+        authenticated: false,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: '',
+        signedOriginTxHash: '0x',
+        authenticated: false,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: '0x',
+        signedOriginTxHash: '0x',
+        authenticated: false,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: '0x1234',
+        signedOriginTxHash: '0x1234',
+        authenticated: true,
+        validEvmHash: false,
+      },
+      {
+        originTxHash: '0x' + 'ab'.repeat(32),
+        signedOriginTxHash: '0x' + 'ab'.repeat(32),
+        authenticated: true,
+        validEvmHash: true,
+      },
+      {
+        originTxHash: '0x' + 'ab'.repeat(64),
+        signedOriginTxHash: '0x' + 'ab'.repeat(64),
+        authenticated: true,
+        validEvmHash: false,
+      },
     ]) {
       it(`handles ${protocol ?? 'unknown'} origin with hash ${JSON.stringify(originTxHash)} when Sealevel reveals are ${sealevelRevealsEnabled ? 'enabled' : 'disabled'}`, async () => {
         const f = await fixture({ protocol, sealevelRevealsEnabled });
         const isEvm = protocol === ProtocolType.Ethereum;
         const isSealevel = protocol === ProtocolType.Sealevel;
-        const status = isSealevel
-          ? sealevelRevealsEnabled
-            ? 200
-            : 403
-          : isEvm
-            ? validEvmHash
+        const status = !authenticated
+          ? 401
+          : isSealevel
+            ? sealevelRevealsEnabled
               ? 200
-              : 400
-            : 500;
+              : 403
+            : isEvm
+              ? validEvmHash
+                ? 200
+                : 400
+              : 500;
         try {
           const response = await f.app.inject({
             method: 'POST',
             url: postPath,
-            payload: {
-              sender: f.payload.sender,
-              data: f.payload.data,
-              signature: f.payload.signature,
-              origin_tx_hash: originTxHash,
-            },
+            payload: await f.revealPayload(originTxHash, signedOriginTxHash),
           });
           expect(response.statusCode).to.equal(status);
           if (status === 200) {
@@ -846,11 +1546,13 @@ describe('CCS authenticated reveal recovery integration', () => {
           } else {
             expect(response.json()).to.deep.equal({
               error:
-                status === 400
-                  ? 'Invalid origin_tx_hash'
-                  : status === 403
-                    ? 'Sealevel-origin reveals are disabled'
-                    : 'Internal server error',
+                status === 401
+                  ? 'Invalid or missing CCS authentication'
+                  : status === 400
+                    ? 'Invalid origin_tx_hash'
+                    : status === 403
+                      ? 'Sealevel-origin reveals are disabled'
+                      : 'Internal server error',
             });
           }
           expect(f.receipt.callCount).to.equal(isEvm && validEvmHash ? 1 : 0);

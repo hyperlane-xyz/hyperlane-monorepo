@@ -247,6 +247,7 @@ pub enum OffchainReadState {
     InvalidLookupRevert,
     OriginTransactionMissing,
     OriginTransactionLookupFailed,
+    RevealNotForMessage,
     UrlRejected,
     DomainNotAllowed,
     ClientFailed,
