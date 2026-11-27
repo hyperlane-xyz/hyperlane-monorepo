@@ -38,6 +38,7 @@ import {
   assert,
   deepCopy,
   eqAddress,
+  isNullish,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -90,8 +91,8 @@ export function wasSafeTxProposedBy(
   const actualProposer =
     'proposedBy' in tx ? tx.proposedBy : tx.proposedByDelegate;
   return (
-    (tx.proposer !== null && eqAddress(tx.proposer, signerAddress)) ||
-    (actualProposer !== null && eqAddress(actualProposer, signerAddress))
+    (!isNullish(tx.proposer) && eqAddress(tx.proposer, signerAddress)) ||
+    (!isNullish(actualProposer) && eqAddress(actualProposer, signerAddress))
   );
 }
 
@@ -394,7 +395,7 @@ export async function createSafeTransaction(
   return safeSdk.createTransaction({
     transactions,
     onlyCalls,
-    ...(nonce !== undefined ? { options: { nonce } } : {}),
+    ...(!isNullish(nonce) ? { options: { nonce } } : {}),
   });
 }
 
@@ -436,6 +437,7 @@ export async function proposeSafeTransaction(
       safeTxHash,
       senderAddress,
       senderSignature,
+      getCurrentOwners: () => safeSdk.getOwners(),
     }),
   );
 

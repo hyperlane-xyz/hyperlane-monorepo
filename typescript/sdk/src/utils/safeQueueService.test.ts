@@ -44,6 +44,8 @@ const queuedTransaction = {
   confirmations: [],
 };
 
+const getCurrentOwners = async () => [owner, secondOwner];
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status });
 }
@@ -81,8 +83,10 @@ describe('SafeQueueService', () => {
       jsonResponse({
         count: 2,
         results: [
+          queuedTransaction,
           {
             ...queuedTransaction,
+            safeTxHash: `0x${'22'.repeat(32)}`,
             nonce: '4',
             to: destination.toLowerCase(),
             operation: 2,
@@ -104,7 +108,7 @@ describe('SafeQueueService', () => {
     expect(firstUrl.searchParams.get('limit')).to.equal('100');
     expect(firstUrl.searchParams.get('offset')).to.equal('0');
     const secondUrl = new URL(String(request.secondCall.args[0]));
-    expect(secondUrl.searchParams.get('offset')).to.equal('1');
+    expect(secondUrl.searchParams.get('offset')).to.equal('0');
     expect(transactions.map((transaction) => transaction.nonce)).to.deep.equal([
       '3',
       '4',
@@ -139,7 +143,9 @@ describe('SafeQueueService', () => {
     );
     request
       .onSecondCall()
-      .resolves(jsonResponse({ count: 100, results: [], next: null }));
+      .resolves(
+        jsonResponse({ count: 100, results: pending.slice(100), next: null }),
+      );
     request
       .onThirdCall()
       .resolves(
@@ -153,6 +159,50 @@ describe('SafeQueueService', () => {
     expect(
       new URL(String(request.thirdCall.args[0])).searchParams.get('offset'),
     ).to.equal('0');
+  });
+
+  it('restarts pagination when a proposal is removed and another is added without changing the count', async () => {
+    const pending = Array.from({ length: 102 }, (_, nonce) => ({
+      ...queuedTransaction,
+      nonce: String(nonce),
+      safeTxHash: `0x${nonce.toString(16).padStart(64, '0')}`,
+    }));
+    const updated = pending.slice(1);
+    const count = updated.length;
+    request.onFirstCall().resolves(
+      jsonResponse({
+        count,
+        results: pending.slice(0, 100),
+        next: '?offset=100',
+      }),
+    );
+    request
+      .onSecondCall()
+      .resolves(
+        jsonResponse({ count, results: updated.slice(99), next: null }),
+      );
+    request.onThirdCall().resolves(
+      jsonResponse({
+        count,
+        results: updated.slice(0, 100),
+        next: '?offset=100',
+      }),
+    );
+    request
+      .onCall(3)
+      .resolves(
+        jsonResponse({ count, results: updated.slice(99), next: null }),
+      );
+
+    const transactions = await service.getPendingTransactions(safe);
+    expect(transactions.map(({ safeTxHash }) => safeTxHash)).to.deep.equal(
+      updated.map(({ safeTxHash }) => safeTxHash),
+    );
+    expect(
+      request
+        .getCalls()
+        .map(({ args }) => new URL(String(args[0])).searchParams.get('offset')),
+    ).to.deep.equal(['0', '99', '0', '99']);
   });
 
   it('uses the per-Safe endpoint to include stale unexecuted proposals', async () => {
@@ -198,6 +248,7 @@ describe('SafeQueueService', () => {
       safeTxHash,
       senderAddress: owner,
       senderSignature: signature,
+      getCurrentOwners,
     });
 
     const [rawUrl, options] = request.firstCall.args;
@@ -239,6 +290,7 @@ describe('SafeQueueService', () => {
       safeTxHash,
       senderAddress: owner,
       senderSignature: signature,
+      getCurrentOwners,
     };
 
     await service.proposeTransaction(proposal);
@@ -266,6 +318,7 @@ describe('SafeQueueService', () => {
       safeTxHash,
       senderAddress: secondOwner,
       senderSignature: signature,
+      getCurrentOwners,
     });
 
     const [url, options] = request.thirdCall.args;
@@ -276,6 +329,31 @@ describe('SafeQueueService', () => {
     expect(JSON.parse(String(options?.body))).to.deep.equal({
       signatures: [signature],
     });
+  });
+
+  it('records a confirmation when the original delegate is now an owner', async () => {
+    request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
+    request.onSecondCall().resolves(
+      jsonResponse({
+        ...queuedTransaction,
+        proposedVia: 'DELEGATE',
+        proposedBy: secondOwner,
+      }),
+    );
+    request.onThirdCall().resolves(jsonResponse([{ owner: secondOwner }], 201));
+
+    await service.proposeTransaction({
+      safeAddress: safe,
+      safeTransactionData: transactionData,
+      safeTxHash,
+      senderAddress: secondOwner,
+      senderSignature: signature,
+      getCurrentOwners,
+    });
+
+    expect(String(request.thirdCall.args[0])).to.equal(
+      `${gateway}/queue/api/v1/multisig-transactions/${safeTxHash}/signatures`,
+    );
   });
 
   it('rejects a successful signature response that omits the signer', async () => {
@@ -290,6 +368,7 @@ describe('SafeQueueService', () => {
         safeTxHash,
         senderAddress: secondOwner,
         senderSignature: signature,
+        getCurrentOwners,
       });
       expect.fail('Expected the unverified confirmation to reject');
     } catch (error) {
@@ -326,6 +405,7 @@ describe('SafeQueueService', () => {
       safeTxHash,
       senderAddress: secondOwner,
       senderSignature: signature,
+      getCurrentOwners,
     });
     expect(request.callCount).to.equal(4);
     expect(String(request.lastCall.args[0])).to.equal(
@@ -333,15 +413,9 @@ describe('SafeQueueService', () => {
     );
   });
 
-  it('accepts a delegate retry without trying to record a confirmation', async () => {
+  it('accepts a delegate retry after an owner proposed the same transaction', async () => {
     request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
-    request.onSecondCall().resolves(
-      jsonResponse({
-        ...queuedTransaction,
-        proposedVia: 'DELEGATE',
-        proposedBy: delegate,
-      }),
-    );
+    request.onSecondCall().resolves(jsonResponse(queuedTransaction));
 
     await service.proposeTransaction({
       safeAddress: safe,
@@ -349,6 +423,7 @@ describe('SafeQueueService', () => {
       safeTxHash,
       senderAddress: delegate,
       senderSignature: signature,
+      getCurrentOwners,
     });
 
     expect(request.callCount).to.equal(2);

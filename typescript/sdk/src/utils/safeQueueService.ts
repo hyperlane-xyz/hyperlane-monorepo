@@ -7,6 +7,7 @@ import {
   assert,
   eqAddressEvm,
   isAddressEvm,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 const PAGE_SIZE = 100;
@@ -70,6 +71,7 @@ type QueueProposal = {
   safeTxHash: string;
   senderAddress: Address;
   senderSignature: string;
+  getCurrentOwners: () => Promise<Address[]>;
 };
 
 export class SafeQueueServiceError extends Error {
@@ -111,11 +113,13 @@ export class SafeQueueService {
           `safes/${SafeAddress.parse(safeAddress)}/${MULTISIG_TRANSACTIONS}`,
           { chainId: String(this.chainId), executed: 'false' },
           TransactionSchema,
+          ({ safeTxHash }) => safeTxHash,
         )
       : await this.getAllPages(
           QUEUE,
           { safes: `${safeAddress}:${this.chainId}` },
           TransactionSchema,
+          ({ safeTxHash }) => safeTxHash,
         );
     for (const transaction of transactions) {
       this.assertScope(transaction, safeAddress);
@@ -169,6 +173,7 @@ export class SafeQueueService {
     safeTxHash,
     senderAddress,
     senderSignature,
+    getCurrentOwners,
   }: QueueProposal): Promise<void> {
     try {
       const response = await this.request(MULTISIG_TRANSACTIONS, {
@@ -195,11 +200,12 @@ export class SafeQueueService {
       const alreadySigned = existing.confirmations.some(({ owner }) =>
         eqAddressEvm(owner, senderAddress),
       );
-      // Delegate and nested-owner proposals record the submitter without a confirmation.
-      const alreadyProposed =
-        existing.proposedBy !== null &&
-        eqAddressEvm(existing.proposedBy, senderAddress);
-      if (alreadySigned || alreadyProposed) return;
+      if (alreadySigned) return;
+
+      // Safe returns a proposal conflict only after validating the submitter.
+      // Delegates and nested owners can propose, but only current owners confirm.
+      const owners = await getCurrentOwners();
+      if (!owners.some((owner) => eqAddressEvm(owner, senderAddress))) return;
 
       // The legacy proposal endpoint stored new owner signatures on repeat POSTs.
       // Queue rejects repeat proposals and collects confirmations separately.
@@ -265,11 +271,13 @@ export class SafeQueueService {
       'delegates',
       { delegate: proposer },
       DelegationSchema,
+      ({ chainId, safe, delegate, delegator }) =>
+        JSON.stringify([chainId, safe, delegate, delegator]),
     );
     return delegations.some(
       ({ chainId, safe, delegate, delegator }) =>
-        (chainId === null || chainId === String(this.chainId)) &&
-        (safe === null || eqAddressEvm(safe, safeAddress)) &&
+        (isNullish(chainId) || chainId === String(this.chainId)) &&
+        (isNullish(safe) || eqAddressEvm(safe, safeAddress)) &&
         eqAddressEvm(delegate, proposer) &&
         owners.some((owner) => eqAddressEvm(owner, delegator)),
     );
@@ -294,18 +302,28 @@ export class SafeQueueService {
     path: string,
     query: Record<string, string>,
     schema: z.ZodType<T>,
+    getKey: (entry: T) => string,
   ): Promise<T[]> {
     const results: T[] = [];
     let count: number | undefined;
     let restarts = 0;
     for (;;) {
+      const boundary = results.at(-1);
       const page = await this.getPage(
         path,
-        { ...query, limit: String(PAGE_SIZE), offset: String(results.length) },
+        {
+          ...query,
+          limit: String(PAGE_SIZE),
+          offset: String(Math.max(0, results.length - 1)),
+        },
         schema,
       );
-      // An insertion or removal can move pending entries across offsets.
-      if (count !== undefined && page.count !== count) {
+      const first = page.results[0];
+      // Overlap the boundary by one entry to detect shifts even when the count stays the same.
+      const boundaryMoved =
+        !isNullish(boundary) &&
+        (isNullish(first) || getKey(first) !== getKey(boundary));
+      if ((!isNullish(count) && page.count !== count) || boundaryMoved) {
         assert(
           ++restarts <= MAX_PAGE_RESTARTS,
           'Safe Queue Service results changed repeatedly during pagination',
@@ -315,11 +333,14 @@ export class SafeQueueService {
         continue;
       }
       count = page.count;
-      results.push(...page.results);
+      const newEntries = isNullish(boundary)
+        ? page.results
+        : page.results.slice(1);
+      results.push(...newEntries);
       if (!page.next) return results;
       assert(
-        page.results.length > 0,
-        'Safe Queue Service returned an empty page with a next page',
+        newEntries.length > 0,
+        'Safe Queue Service returned no new entries with a next page',
       );
     }
   }

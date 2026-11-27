@@ -179,7 +179,11 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const queue = this.safeQueueService;
     if (queue) {
       return retryAsync(
-        () => queue.proposeTransaction(proposal),
+        () =>
+          queue.proposeTransaction({
+            ...proposal,
+            getCurrentOwners: () => this.safe.getOwners(),
+          }),
         SAFE_API_RETRIES,
         SAFE_API_BASE_RETRY_MS,
       );

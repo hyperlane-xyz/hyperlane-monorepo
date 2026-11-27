@@ -157,6 +157,7 @@ async function main() {
             safeTxHash,
             senderAddress,
             senderSignature: senderSignature.data,
+            getCurrentOwners: () => safeSdk.getOwners(),
           }),
         );
 
