@@ -7,6 +7,7 @@ import {
   CONTRACTS_PACKAGE_VERSION,
   DefaultHook__factory,
   DomainRoutingHook__factory,
+  FallbackDomainRoutingHook__factory,
   InterchainGasPaymaster__factory,
   MailboxClient__factory,
   MerkleTreeHook__factory,
@@ -2274,6 +2275,433 @@ describe('EvmHookModule', async () => {
         expect(await routedHook(routing, TestChainName.test2)).to.not.equal(
           hre.ethers.constants.AddressZero,
         );
+      });
+
+      describe('fallback routing members', async () => {
+        function fallbackRoutingOf(
+          fallback: HookConfig,
+          owner: Address = signerAddress,
+        ): FallbackRoutingHookConfig {
+          return {
+            owner,
+            type: HookType.FALLBACK_ROUTING,
+            domains: {},
+            fallback,
+          };
+        }
+
+        async function fallbackOf(routing: Address): Promise<Address> {
+          return FallbackDomainRoutingHook__factory.connect(
+            routing,
+            multiProvider.getProvider(chain),
+          ).fallbackHook();
+        }
+
+        async function mailboxOf(hook: Address): Promise<Address> {
+          return MailboxClient__factory.connect(
+            hook,
+            multiProvider.getProvider(chain),
+          ).mailbox();
+        }
+
+        interface ChangeCase {
+          name: string;
+          changesRouting: boolean;
+        }
+        const changeCases: ChangeCase[] = [
+          {
+            name: 'the owner of the routing member changes',
+            changesRouting: true,
+          },
+          { name: 'only a sibling changes', changesRouting: false },
+        ];
+
+        // the routing member next to a pausable one, with the owner of one of them changed
+        function targetOf(
+          fallback: HookConfig,
+          c: ChangeCase,
+        ): AggregationHookConfig {
+          return aggregationOf(
+            fallbackRoutingOf(
+              fallback,
+              c.changesRouting ? randomAddress() : signerAddress,
+            ),
+            pausableMember(c.changesRouting ? signerAddress : randomAddress()),
+          );
+        }
+
+        async function expectKeptInPlace(
+          hook: EvmHookModule,
+          initialHookAddress: Address,
+          target: AggregationHookConfig,
+          c: ChangeCase,
+        ) {
+          const membersBefore = await membersOf(initialHookAddress);
+          const routing = memberOfType(
+            membersBefore,
+            HookType.FALLBACK_ROUTING,
+          );
+          const fallbackBefore = await fallbackOf(routing);
+
+          const txs = await hook.update(target);
+          expect(txs).to.have.length(1);
+          expect(txs[0].to).to.equal(
+            memberOfType(
+              membersBefore,
+              c.changesRouting ? HookType.FALLBACK_ROUTING : HookType.PAUSABLE,
+            ),
+          );
+          await sendTxs(txs);
+
+          expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+          expect(await membersOf(initialHookAddress)).to.deep.equal(
+            membersBefore,
+          );
+          expect(await fallbackOf(routing)).to.equal(fallbackBefore);
+        }
+
+        // the fallback of the routing member of the aggregation that replaced the deployed one
+        async function expectRedeployedFallback(
+          hook: EvmHookModule,
+          initialHookAddress: Address,
+          target: AggregationHookConfig,
+        ): Promise<Address> {
+          await expectTxsAndUpdate(hook, target, 0);
+
+          const deployedHook = hook.serialize().deployedHook;
+          expect(deployedHook).to.not.equal(initialHookAddress);
+          return fallbackOf(
+            memberOfType(
+              await membersOf(deployedHook),
+              HookType.FALLBACK_ROUTING,
+            ),
+          );
+        }
+
+        for (const bound of boundHookCases) {
+          for (const change of changeCases) {
+            it(`redeploys the aggregation when the ${bound.name} fallback is bound to another mailbox and ${change.name}`, async () => {
+              const boundFallback = await bound.deploy(otherMailbox);
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(boundFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+
+              // the fallback is the same as far as its config goes
+              const fallback = await expectRedeployedFallback(
+                hook,
+                initialHookAddress,
+                targetOf(bound.member, change),
+              );
+
+              expect(eqAddress(fallback, boundFallback)).to.be.false;
+              expect(
+                eqAddress(await mailboxOf(fallback), coreAddresses.mailbox),
+              ).to.be.true;
+            });
+
+            it(`keeps the routing member when the ${bound.name} fallback is bound to the mailbox of the module and ${change.name}`, async () => {
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(bound.member),
+                  pausableMember(signerAddress),
+                ),
+              );
+
+              await expectKeptInPlace(
+                hook,
+                initialHookAddress,
+                targetOf(bound.member, change),
+                change,
+              );
+            });
+
+            it(`keeps the routing member that is given the address of its ${bound.name} fallback bound to another mailbox when ${change.name}`, async () => {
+              const boundFallback = await bound.deploy(otherMailbox);
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(boundFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+
+              await expectKeptInPlace(
+                hook,
+                initialHookAddress,
+                targetOf(boundFallback, change),
+                change,
+              );
+            });
+
+            it(`redeploys the aggregation when the routing member is given the address of a ${bound.name} fallback that is not its own and ${change.name}`, async () => {
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(bound.member),
+                  pausableMember(signerAddress),
+                ),
+              );
+              const deployedFallback = await fallbackOf(
+                memberOfType(
+                  await membersOf(initialHookAddress),
+                  HookType.FALLBACK_ROUTING,
+                ),
+              );
+              // bound to the mailbox of the module as well
+              const given = await bound.deploy(coreAddresses.mailbox);
+
+              const fallback = await expectRedeployedFallback(
+                hook,
+                initialHookAddress,
+                targetOf(given, change),
+              );
+
+              expect(eqAddress(fallback, deployedFallback)).to.be.false;
+              expect(
+                eqAddress(await mailboxOf(fallback), coreAddresses.mailbox),
+              ).to.be.true;
+            });
+          }
+        }
+
+        it('deploys nothing but the redeploy when the owner of the fallback of a fallback routing member changes', async () => {
+          const { hook, initialHookAddress } = await createHook(
+            aggregationOf(
+              fallbackRoutingOf(pausableMember(signerAddress)),
+              pausableMember(signerAddress),
+            ),
+          );
+          const fromBlock = await multiProvider
+            .getProvider(chain)
+            .getBlockNumber();
+
+          await expectTxsAndUpdate(
+            hook,
+            aggregationOf(
+              fallbackRoutingOf(pausableMember(randomAddress())),
+              pausableMember(signerAddress),
+            ),
+            0,
+          );
+
+          expect(hook.serialize().deployedHook).to.not.equal(
+            initialHookAddress,
+          );
+          // the fallback, the routing hook and the pausable hook of the redeploy
+          expect(await contractCreationsSince(fromBlock)).to.equal(3);
+        });
+
+        for (const change of changeCases) {
+          it(`keeps the routing member that is given an unknown fallback with the address of its own when ${change.name}`, async () => {
+            const custom = randomAddress();
+            const { hook, initialHookAddress } = await createHook(
+              aggregationOf(
+                fallbackRoutingOf(custom),
+                pausableMember(signerAddress),
+              ),
+            );
+
+            await expectKeptInPlace(
+              hook,
+              initialHookAddress,
+              targetOf({ type: HookType.UNKNOWN, address: custom }, change),
+              change,
+            );
+          });
+
+          it(`does not keep the routing member that is given an unknown fallback with the address of another hook when ${change.name}`, async () => {
+            const { hook } = await createHook(
+              aggregationOf(
+                fallbackRoutingOf(randomAddress()),
+                pausableMember(signerAddress),
+              ),
+            );
+
+            // an unknown hook cannot be deployed
+            await expect(
+              hook.update(
+                targetOf(
+                  { type: HookType.UNKNOWN, address: randomAddress() },
+                  change,
+                ),
+              ),
+            ).to.be.rejectedWith('Unsupported hook config');
+          });
+        }
+
+        describe('with an aggregation as the fallback', async () => {
+          let boundMember: Address;
+          let deployedFallback: Address;
+          let deployedMembers: Address[];
+
+          beforeEach(async () => {
+            boundMember = (
+              await new MerkleTreeHook__factory(signer).deploy(otherMailbox)
+            ).address;
+            ({ initialHookAddress: deployedFallback } = await createHook(
+              aggregationOf(boundMember, pausableMember(signerAddress)),
+            ));
+            deployedMembers = await hooksOf(deployedFallback);
+          });
+
+          for (const change of changeCases) {
+            it(`redeploys the aggregation when a member of the fallback is bound to another mailbox and ${change.name}`, async () => {
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(deployedFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+
+              const fallback = await expectRedeployedFallback(
+                hook,
+                initialHookAddress,
+                targetOf(
+                  aggregationOf(
+                    { type: HookType.MERKLE_TREE },
+                    pausableMember(signerAddress),
+                  ),
+                  change,
+                ),
+              );
+
+              expect(eqAddress(fallback, deployedFallback)).to.be.false;
+              const merkleTree = memberOfType(
+                await membersOf(fallback),
+                HookType.MERKLE_TREE,
+              );
+              expect(
+                eqAddress(await mailboxOf(merkleTree), coreAddresses.mailbox),
+              ).to.be.true;
+            });
+
+            it(`keeps the routing member when a member of the fallback is given as an address bound to another mailbox and ${change.name}`, async () => {
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(deployedFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+
+              await expectKeptInPlace(
+                hook,
+                initialHookAddress,
+                targetOf(
+                  aggregationOf(boundMember, pausableMember(signerAddress)),
+                  change,
+                ),
+                change,
+              );
+              expect(await hooksOf(deployedFallback)).to.deep.equal(
+                deployedMembers,
+              );
+            });
+
+            it(`redeploys the aggregation when a member of the fallback is given as the address of a hook that is not a member and ${change.name}`, async () => {
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(deployedFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+              const notMember = await new MerkleTreeHook__factory(
+                signer,
+              ).deploy(otherMailbox);
+
+              const fallback = await expectRedeployedFallback(
+                hook,
+                initialHookAddress,
+                targetOf(
+                  aggregationOf(
+                    notMember.address,
+                    pausableMember(signerAddress),
+                  ),
+                  change,
+                ),
+              );
+
+              expect(eqAddress(fallback, deployedFallback)).to.be.false;
+            });
+          }
+        });
+
+        describe('in an unchanged nested aggregation', async () => {
+          // only the sibling of the nested aggregation changes
+          function outerTarget(fallback: HookConfig): AggregationHookConfig {
+            return aggregationOf(
+              aggregationOf(
+                fallbackRoutingOf(fallback),
+                pausableMember(signerAddress),
+              ),
+              pausableMember(randomAddress()),
+            );
+          }
+
+          for (const bound of boundHookCases) {
+            it(`redeploys the outer aggregation when the ${bound.name} fallback of the routing member is bound to another mailbox`, async () => {
+              const boundFallback = await bound.deploy(otherMailbox);
+              const { initialHookAddress: nested } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(boundFallback),
+                  pausableMember(signerAddress),
+                ),
+              );
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(nested, pausableMember(signerAddress)),
+              );
+
+              await expectTxsAndUpdate(hook, outerTarget(bound.member), 0);
+
+              const deployedHook = hook.serialize().deployedHook;
+              expect(deployedHook).to.not.equal(initialHookAddress);
+              const fallback = await fallbackOf(
+                memberOfType(
+                  await membersOf(
+                    memberOfType(
+                      await membersOf(deployedHook),
+                      HookType.AGGREGATION,
+                    ),
+                  ),
+                  HookType.FALLBACK_ROUTING,
+                ),
+              );
+              expect(eqAddress(fallback, boundFallback)).to.be.false;
+              expect(
+                eqAddress(await mailboxOf(fallback), coreAddresses.mailbox),
+              ).to.be.true;
+            });
+
+            it(`keeps the outer aggregation when the ${bound.name} fallback of the routing member is bound to the mailbox of the module`, async () => {
+              const { initialHookAddress: nested } = await createHook(
+                aggregationOf(
+                  fallbackRoutingOf(bound.member),
+                  pausableMember(signerAddress),
+                ),
+              );
+              const { hook, initialHookAddress } = await createHook(
+                aggregationOf(nested, pausableMember(signerAddress)),
+              );
+              const membersBefore = await membersOf(initialHookAddress);
+              const nestedHooks = await hooksOf(nested);
+
+              const txs = await hook.update(outerTarget(bound.member));
+              expect(txs).to.have.length(1);
+              expect(txs[0].to).to.equal(
+                memberOfType(membersBefore, HookType.PAUSABLE),
+              );
+              await sendTxs(txs);
+
+              expect(hook.serialize().deployedHook).to.equal(
+                initialHookAddress,
+              );
+              expect(await membersOf(initialHookAddress)).to.deep.equal(
+                membersBefore,
+              );
+              expect(await hooksOf(nested)).to.deep.equal(nestedHooks);
+            });
+          }
+        });
       });
 
       it('redeploys the aggregation when the oracle key of an IGP member changes', async () => {

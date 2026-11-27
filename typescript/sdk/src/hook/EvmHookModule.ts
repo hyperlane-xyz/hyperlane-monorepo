@@ -12,6 +12,7 @@ import {
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
+  FallbackDomainRoutingHook__factory,
   IL1CrossDomainMessenger__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster,
@@ -461,6 +462,16 @@ export class EvmHookModule extends HyperlaneModule<
     address: Address,
     targetConfig: Exclude<HookConfig, Address>,
   ): Promise<boolean> {
+    // A target given with an address has to be the hook at `address`, which the equality of
+    // the configs, that omits the address, does not tell.
+    const referencedAddress = referencedHookAddress(targetConfig);
+    if (
+      referencedAddress !== undefined &&
+      !eqAddress(referencedAddress, address)
+    ) {
+      return false;
+    }
+
     const current: HookConfig = normalizeConfig(
       await this.reader.deriveHookConfig(address),
     );
@@ -481,7 +492,13 @@ export class EvmHookModule extends HyperlaneModule<
     const hasReferencedMembers =
       current.type === HookType.AGGREGATION &&
       referencedHookAddresses(targetConfig).length > 0;
-    if (hookConfigsEqual(current, target) && !hasReferencedMembers) {
+    // The equal configs of a fallback routing member omit the address and the mailbox of
+    // its fallback, which is checked below.
+    if (
+      hookConfigsEqual(current, target) &&
+      !hasReferencedMembers &&
+      current.type !== HookType.FALLBACK_ROUTING
+    ) {
       return this.keptHookUsesModuleMailbox(address);
     }
 
@@ -536,9 +553,20 @@ export class EvmHookModule extends HyperlaneModule<
 
     if (
       current.type === HookType.FALLBACK_ROUTING &&
-      target.type === HookType.FALLBACK_ROUTING
+      target.type === HookType.FALLBACK_ROUTING &&
+      targetConfig.type === HookType.FALLBACK_ROUTING
     ) {
-      return hookConfigsEqual(current.fallback, target.fallback);
+      if (!hookConfigsEqual(current.fallback, target.fallback)) return false;
+
+      // The deployed fallback has to be the hook that the target gives with its address, or
+      // one that is kept unchanged.
+      const deployedFallback = await FallbackDomainRoutingHook__factory.connect(
+        address,
+        this.multiProvider.getProvider(this.chain),
+      ).fallbackHook();
+      return typeof targetConfig.fallback === 'string'
+        ? eqAddress(targetConfig.fallback, deployedFallback)
+        : this.canUpdateSubHookInPlace(deployedFallback, targetConfig.fallback);
     }
 
     // An update in place reuses the gas oracle, and does not transfer its ownership
@@ -555,7 +583,8 @@ export class EvmHookModule extends HyperlaneModule<
 
   // The mailbox is an immutable constructor arg that the reader omits, so a MAILBOX_DEFAULT
   // or MERKLE_TREE hook bound to another mailbox compares equal to one bound to this
-  // module's. Checks the hook, and the members of an aggregation, that are kept unchanged.
+  // module's. Checks the hook, the members of an aggregation and the fallback of a fallback
+  // routing hook, that are kept unchanged.
   protected async keptHookUsesModuleMailbox(
     address: Address,
   ): Promise<boolean> {
@@ -571,6 +600,15 @@ export class EvmHookModule extends HyperlaneModule<
         if (!(await this.keptHookUsesModuleMailbox(member))) return false;
       }
       return true;
+    }
+
+    if (type === HookType.FALLBACK_ROUTING) {
+      return this.keptHookUsesModuleMailbox(
+        await FallbackDomainRoutingHook__factory.connect(
+          address,
+          provider,
+        ).fallbackHook(),
+      );
     }
 
     if (type === HookType.MAILBOX_DEFAULT || type === HookType.MERKLE_TREE) {
