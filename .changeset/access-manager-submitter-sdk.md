@@ -8,6 +8,6 @@ Added the `accessManager` transaction submitter for contracts governed by an Ope
 - Once a call is scheduled, later immediate calls are also returned as `execute` transactions, including in later `submit()` calls, so the original order is kept.
 - The `execute` transactions are returned after the proposer output and must be submitted in that order once the delay has passed.
 - Delayed calls whose operation is already scheduled are not scheduled again; only their `execute` is returned.
-- Strategy validation checks `caller` against the proposer's Safe, timelock or jsonRpc `userAddress` when the config has one.
+- Strategy validation checks `caller` against the proposer's Safe, timelock, jsonRpc `userAddress` or nested AccessManager address when the config has one.
 
 Added an optional `refundAddress` to the interchain account submitter, required when the ICA is owned by an AccessManager.

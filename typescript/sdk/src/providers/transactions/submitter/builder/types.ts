@@ -48,7 +48,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function getStaticProposerAddress(
   proposer: Record<string, unknown>,
 ): { kind: string; address: string } | undefined {
-  const { type, safeAddress, timelockAddress, userAddress } = proposer;
+  const {
+    type,
+    safeAddress,
+    timelockAddress,
+    userAddress,
+    accessManagerAddress,
+  } = proposer;
   if (
     (type === TxSubmitterType.GNOSIS_SAFE ||
       type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
@@ -61,6 +67,14 @@ function getStaticProposerAddress(
     typeof timelockAddress === 'string'
   ) {
     return { kind: 'timelock', address: timelockAddress };
+  }
+  // A nested AccessManager executes the proposal itself, so it is the caller
+  // of the outer AccessManager.
+  if (
+    type === TxSubmitterType.ACCESS_MANAGER &&
+    typeof accessManagerAddress === 'string'
+  ) {
+    return { kind: 'AccessManager', address: accessManagerAddress };
   }
   if (type === TxSubmitterType.JSON_RPC && typeof userAddress === 'string') {
     return { kind: 'jsonRpc user', address: userAddress };

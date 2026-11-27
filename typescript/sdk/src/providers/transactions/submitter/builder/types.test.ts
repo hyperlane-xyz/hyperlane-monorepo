@@ -670,11 +670,12 @@ describe('ChainSubmissionStrategySchema', () => {
       function buildAccessManager(
         caller: Address | undefined,
         proposerSubmitter: unknown,
+        accessManagerAddress: Address = ACCESS_MANAGER_MOCK,
       ) {
         return {
           type: TxSubmitterType.ACCESS_MANAGER,
           chain: CHAIN_MOCK,
-          accessManagerAddress: ACCESS_MANAGER_MOCK,
+          accessManagerAddress,
           caller,
           proposerSubmitter,
         };
@@ -684,6 +685,14 @@ describe('ChainSubmissionStrategySchema', () => {
         type: TxSubmitterType.GNOSIS_SAFE,
         safeAddress: ADDRESS_MOCK,
       };
+
+      const INNER_ACCESS_MANAGER_MOCK: Address =
+        '0x00000000000000000000000000000000000000Ee';
+      const innerAccessManagerProposer = buildAccessManager(
+        ADDRESS_MOCK,
+        safeProposer,
+        INNER_ACCESS_MANAGER_MOCK,
+      );
 
       const cases: CallerCase[] = [
         {
@@ -824,6 +833,24 @@ describe('ChainSubmissionStrategySchema', () => {
           ),
           expectedIssues: [
             `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.ACCESS_MANAGER} proposer with a caller matching its address`,
+          submitter: buildAccessManager(
+            INNER_ACCESS_MANAGER_MOCK.toLowerCase(),
+            innerAccessManagerProposer,
+          ),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.ACCESS_MANAGER} proposer with a caller not matching its address`,
+          submitter: buildAccessManager(
+            CALLER_MOCK,
+            innerAccessManagerProposer,
+          ),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the AccessManager address ${INNER_ACCESS_MANAGER_MOCK} for ${CHAIN_MOCK}`,
           ],
         },
       ];
