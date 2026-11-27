@@ -25,6 +25,7 @@ import {
 import { TokenStandard } from './TokenStandard.js';
 import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 import {
+  AEVO_OUTSTANDING_SELECTOR,
   AEVO_XERC20_SELECTORS,
   BRIDGE_LIMITS_SET_EVENT_SELECTOR,
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
@@ -56,6 +57,14 @@ function storageAddress(address: string): string {
   return ethers.utils.hexZeroPad(address, 32);
 }
 
+// A token that carries the four selectors that identify an Aevo token, with
+// and without the getter of what a minter has minted.
+const aevoSelectorsCode = AEVO_XERC20_SELECTORS.map(strip0x).join('');
+const aevoCodeWithoutOutstanding = ensure0x(aevoSelectorsCode);
+const aevoCodeWithOutstanding = ensure0x(
+  `${aevoSelectorsCode}${strip0x(AEVO_OUTSTANDING_SELECTOR)}`,
+);
+
 interface Case {
   name: string;
   // The token the type is derived for, the proxy at PROXY_ADDRESS unless set.
@@ -66,6 +75,8 @@ interface Case {
   // slot is omitted the stub throws, proving the derivation never reads it.
   storage: Record<string, string>;
   expected: { type: XERC20Type } | { errorIncludes: string };
+  // Set when the type is derived but the standard of the token is not.
+  standardErrorIncludes?: string;
 }
 
 const cases: Case[] = [
@@ -176,6 +187,67 @@ const cases: Case[] = [
     },
     storage: {},
     expected: { type: XERC20Type.Velo },
+  },
+  {
+    name: 'returns Aevo from the address bytecode of a token with the outstanding getter',
+    code: { [PROXY_ADDRESS]: aevoCodeWithOutstanding },
+    storage: {},
+    expected: { type: XERC20Type.Aevo },
+  },
+  {
+    // The four selectors identify the type, as they always did, and only the
+    // standard needs the getter the Aevo adapter reads its limits with.
+    name: 'returns Aevo for a token without the outstanding getter, which has no Aevo standard',
+    code: { [PROXY_ADDRESS]: aevoCodeWithoutOutstanding },
+    storage: {},
+    expected: { type: XERC20Type.Aevo },
+    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+  },
+  {
+    name: 'returns Aevo for a proxy whose implementation carries the outstanding getter',
+    code: {
+      [PROXY_ADDRESS]: '0xdead',
+      [IMPLEMENTATION_ADDRESS]: aevoCodeWithOutstanding,
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: { type: XERC20Type.Aevo },
+  },
+  {
+    name: 'returns Aevo for a proxy whose implementation lacks the outstanding getter, which has no Aevo standard',
+    code: {
+      [PROXY_ADDRESS]: '0xdead',
+      [IMPLEMENTATION_ADDRESS]: aevoCodeWithoutOutstanding,
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: { type: XERC20Type.Aevo },
+    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+  },
+  {
+    // The getter must be in the bytecode the type was read from: one in the
+    // proxy does not make the implementation, which holds the logic, have it.
+    name: 'returns Aevo for a proxy that carries the outstanding getter over an implementation without it, which has no Aevo standard',
+    code: {
+      [PROXY_ADDRESS]: ensure0x(`dead${strip0x(AEVO_OUTSTANDING_SELECTOR)}`),
+      [IMPLEMENTATION_ADDRESS]: aevoCodeWithoutOutstanding,
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(IMPLEMENTATION_ADDRESS),
+    },
+    expected: { type: XERC20Type.Aevo },
+    standardErrorIncludes: `Unable to derive the standard of ${PROXY_ADDRESS}. It carries the Aevo XERC20 limit selectors but not the outstanding getter 0x963aee20`,
+  },
+  {
+    // Standard wins over Aevo, so the missing getter says nothing of it.
+    name: 'prefers Standard over Aevo for a token without the outstanding getter',
+    code: {
+      [PROXY_ADDRESS]: `${aevoCodeWithoutOutstanding}${setLimitsSelector}`,
+    },
+    storage: {},
+    expected: { type: XERC20Type.Standard },
   },
   {
     // Missing one selector means the token cannot be read and written through
@@ -340,18 +412,26 @@ describe('deriveEvmXERC20Standard', () => {
 
   // The standard follows the type of the token, and a token of no known type
   // keeps the standard of an xERC20 router instead of failing the export. A
-  // token that cannot be read at all is no answer, and is rejected.
-  function expectedStandard(c: Case): TokenStandard | undefined {
-    if ('type' in c.expected) return standardOf[c.expected.type];
-    return c.expected.errorIncludes.includes('has no bytecode')
-      ? undefined
+  // token that cannot be read at all is no answer, and is rejected, as is an
+  // Aevo token the Aevo adapter could not read the limits of.
+  function rejection(c: Case): string | undefined {
+    if (c.standardErrorIncludes !== undefined) return c.standardErrorIncludes;
+    return 'errorIncludes' in c.expected &&
+      c.expected.errorIncludes.includes('has no bytecode')
+      ? c.expected.errorIncludes
+      : undefined;
+  }
+
+  function expectedStandard(c: Case): TokenStandard {
+    return 'type' in c.expected
+      ? standardOf[c.expected.type]
       : TokenStandard.EvmHypXERC20;
   }
 
   for (const c of cases) {
-    const expected = expectedStandard(c);
+    const rejected = rejection(c);
 
-    it(`${c.name}: ${expected ?? 'is rejected'}`, async () => {
+    it(`${c.name}: ${rejected === undefined ? expectedStandard(c) : 'is rejected'}`, async () => {
       stubChain(sandbox, multiProvider, c);
       const derive = deriveEvmXERC20Standard(
         multiProvider,
@@ -359,11 +439,10 @@ describe('deriveEvmXERC20Standard', () => {
         c.address ?? PROXY_ADDRESS,
       );
 
-      if (expected === undefined) {
-        assert('errorIncludes' in c.expected, 'Expected an error case');
-        await expect(derive).to.be.rejectedWith(c.expected.errorIncludes);
+      if (rejected === undefined) {
+        expect(await derive).to.equal(expectedStandard(c));
       } else {
-        expect(await derive).to.equal(expected);
+        await expect(derive).to.be.rejectedWith(rejected);
       }
     });
   }
@@ -403,6 +482,10 @@ describe('Aevo token fixture', () => {
       }
     });
 
+    it(`carries the outstanding getter in ${implementation}`, () => {
+      expect(aevoTokenCode(implementation)).to.include('963aee20');
+    });
+
     it(`carries owner() and setOwner(address) in ${implementation}`, () => {
       const code = aevoTokenCode(implementation);
       for (const selector of Object.values(AEVO_OWNER_SELECTORS)) {
@@ -414,9 +497,17 @@ describe('Aevo token fixture', () => {
   it('records a proxy that holds none of the selectors itself', () => {
     const code = aevoTokenCode(AEVO_USDC_PROXY);
     expect((code.length - 2) / 2).to.equal(657);
-    for (const selector of [...aevoSelectors, ...absentSelectors]) {
+    for (const selector of [
+      ...aevoSelectors,
+      ...absentSelectors,
+      AEVO_OUTSTANDING_SELECTOR,
+    ]) {
       expect(code).to.not.include(strip0x(selector));
     }
+  });
+
+  it('pins the selector of the outstanding getter', () => {
+    expect(AEVO_OUTSTANDING_SELECTOR).to.equal('0x963aee20');
   });
 });
 

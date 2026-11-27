@@ -205,6 +205,13 @@ export async function runWarpRouteDeploy({
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
 
+  // Resolved before anything is deployed, so a failed lookup aborts the run
+  // while no gas has been spent, and reused for the registry config below.
+  const standards = await deriveOnChainStandards(
+    multiProvider,
+    warpDeployConfig,
+  );
+
   const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -265,7 +272,11 @@ export async function runWarpRouteDeploy({
   deploymentParams.warpDeployConfig = effectiveWarpDeployConfig;
 
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
+  const { deployedContracts } = await executeDeploy(
+    deploymentParams,
+    apiKeys,
+    standards,
+  );
 
   const registryAddresses = await registry.getAddresses();
 
@@ -340,6 +351,7 @@ export async function runWarpRouteDeploy({
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
     deployedContracts,
+    standards,
   );
 
   // Use warpRouteId if provided, otherwise if the user is deploying
@@ -527,6 +539,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
+  standards: ChainMap<TokenStandard>,
 ): Promise<{
   deployedContracts: ChainMap<Address>;
   deployments: WarpCoreConfig;
@@ -549,6 +562,7 @@ async function executeDeploy(
   const { warpCoreConfig: deployments } = await getWarpCoreConfig(
     { context: params.context, warpDeployConfig },
     deployedContracts,
+    standards,
   );
 
   logGreen('✅ Warp contract deployments complete');
@@ -565,9 +579,10 @@ async function writeDeploymentArtifacts(
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
-async function getWarpCoreConfig(
+export async function getWarpCoreConfig(
   params: DeployParams,
   contracts: ChainMap<Address>,
+  standards: ChainMap<TokenStandard>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions: AddWarpRouteConfigOptions;
@@ -590,11 +605,6 @@ async function getWarpCoreConfig(
       params.context.multiProvider,
       deployedWarpConfig,
     );
-
-  const standards = await deriveOnChainStandards(
-    params.context.multiProvider,
-    deployedWarpConfig,
-  );
 
   generateTokenConfigs(
     params.context.multiProvider,
@@ -1061,6 +1071,13 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
+  // Resolved before any router of the extension is deployed, so a failed
+  // lookup aborts it first, and reused for the registry config.
+  const standards = await deriveOnChainStandards(
+    context.multiProvider,
+    warpDeployConfig,
+  );
+
   // Derive metadata once for all new chains
   const extendedConfigs = await deriveMetadataFromExisting(
     context.multiProvider,
@@ -1147,7 +1164,7 @@ export async function extendWarpRoute(
   );
 
   const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
-    await getWarpCoreConfig(params, mergedRouters);
+    await getWarpCoreConfig(params, mergedRouters, standards);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
   // Re-add the non compatible chains to the warp core config so that expanding the config
