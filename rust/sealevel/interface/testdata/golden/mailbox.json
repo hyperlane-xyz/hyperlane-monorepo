@@ -1,0 +1,448 @@
+{
+  "program": "mailbox",
+  "values": [
+    {
+      "type": "mailbox.Instruction",
+      "variant": "Init",
+      "encoding": "borsh",
+      "fields": {
+        "local_domain": 1399811149,
+        "default_ism": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+        "max_protocol_fee": "1000000000",
+        "protocol_fee": {
+          "fee": "5000",
+          "beneficiary": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e"
+        }
+      },
+      "hex": "004d6c6f530102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2000ca9a3b00000000881300000000000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "InboxProcess",
+      "encoding": "borsh",
+      "fields": {
+        "metadata": "0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455",
+        "message": "0x404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90919293949596979899"
+      },
+      "hex": "0146000000101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f5051525354555a000000404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90919293949596979899"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "InboxSetDefaultIsm",
+      "encoding": "borsh",
+      "fields": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+      "hex": "02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "InboxGetRecipientIsm",
+      "encoding": "borsh",
+      "fields": "Gh5GixNvrU87vKWcLLLp6dcgBGRDtP4EJesFu6rjif4",
+      "hex": "030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "OutboxDispatch",
+      "encoding": "borsh",
+      "fields": {
+        "sender": "LcNR2RPX9mMG1a23dfG6yQNvLUctx4sniKXKH9TV3ym",
+        "destination_domain": 42161,
+        "recipient": "0x606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+        "message_body": "0x68656c6c6f20776f726c64"
+      },
+      "hex": "0405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324b1a40000606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f0b00000068656c6c6f20776f726c64"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "OutboxGetCount",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "05"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "OutboxGetLatestCheckpoint",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "06"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "OutboxGetRoot",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "07"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "GetOwner",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "08"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "TransferOwnership",
+      "name": "some",
+      "encoding": "borsh",
+      "fields": "QXfZKtQ7T4aQ6pXUvzBPrB9AVgpa1khM7zBNfC4EPJU",
+      "hex": "0901060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "TransferOwnership",
+      "name": "none",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "0900"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "ClaimProtocolFees",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "0a"
+    },
+    {
+      "type": "mailbox.Instruction",
+      "variant": "SetProtocolFeeConfig",
+      "encoding": "borsh",
+      "fields": {
+        "fee": "7",
+        "beneficiary": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB"
+      },
+      "hex": "0b07000000000000000708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526"
+    },
+    {
+      "type": "mailbox.Inbox",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "local_domain": 1399811149,
+        "inbox_bump_seed": 254,
+        "default_ism": "YNFqvpRJ3f2gHKYMXe1ybifep7Dv98LTwKVVRHFj3wt",
+        "processed_count": "123456789"
+      },
+      "hex": "014d6c6f53fe08090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262715cd5b0700000000"
+    },
+    {
+      "type": "mailbox.Outbox",
+      "variant": null,
+      "name": "owned",
+      "encoding": "account",
+      "fields": {
+        "local_domain": 1399811149,
+        "outbox_bump_seed": 253,
+        "owner": "cHYzEHRtLxFpNa3npxwGUVRtyKRbCpA2Lz9YoKrUPGb",
+        "tree": {
+          "branch": [
+            "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+            "0x0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526",
+            "0x0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d",
+            "0x15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334",
+            "0x1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b",
+            "0x232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142",
+            "0x2a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40414243444546474849",
+            "0x3132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f50",
+            "0x38393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f5051525354555657",
+            "0x3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e",
+            "0x464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465",
+            "0x4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c",
+            "0x5455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70717273",
+            "0x5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a",
+            "0x62636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081",
+            "0x696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788",
+            "0x707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f",
+            "0x7778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90919293949596",
+            "0x7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d",
+            "0x85868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4",
+            "0x8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaab",
+            "0x939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2",
+            "0x9a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9",
+            "0xa1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0",
+            "0xa8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7",
+            "0xafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdce",
+            "0xb6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5",
+            "0xbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdc",
+            "0xc4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3",
+            "0xcbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9ea",
+            "0xd2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1",
+            "0xd9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8"
+          ],
+          "count": "77"
+        },
+        "max_protocol_fee": "1000000000",
+        "protocol_fee": {
+          "fee": "5000",
+          "beneficiary": "gCr8XkSUeFUxTpZE8HrZMGC98XdGGVyakeocBNTDibJ"
+        }
+      },
+      "hex": "014d6c6f53fd01090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425260e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233341c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041422a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748493132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f5038393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f50515253545556573f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364654d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c5455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172735b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a62636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f8081696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f7778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495967e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d85868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a48c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaab939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b29a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7afb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdceb6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5bdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcc4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3cbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9ead2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f84d0000000000000000ca9a3b0000000088130000000000000a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272829"
+    },
+    {
+      "type": "mailbox.Outbox",
+      "variant": null,
+      "name": "unowned",
+      "encoding": "account",
+      "fields": {
+        "local_domain": 1,
+        "outbox_bump_seed": 255,
+        "owner": null,
+        "tree": {
+          "branch": [
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+          ],
+          "count": "0"
+        },
+        "max_protocol_fee": "0",
+        "protocol_fee": {
+          "fee": "0",
+          "beneficiary": "k89GqDT4wYi6Z54fRcmrE2xPHjpwLBo9AKTfZR3y3v1"
+        }
+      },
+      "hex": "0101000000ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a"
+    },
+    {
+      "type": "mailbox.DispatchedMessage",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "discriminator": "0x4449535041544348",
+        "nonce": 4242,
+        "slot": "987654321",
+        "unique_message_pubkey": "p3SR8gTfEqwEeKa6iwh96oidSx2cPschZz7iwTeiPEi",
+        "encoded_message": "0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3"
+      },
+      "hex": "01444953504154434892100000b168de3a000000000c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3"
+    },
+    {
+      "type": "mailbox.ProcessedMessage",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "discriminator": "0x50524f4345535344",
+        "sequence": "31337",
+        "message_id": "0x909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+        "slot": "555666777"
+      },
+      "hex": "0150524f4345535344697a000000000000909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf59cd1e2100000000"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "init_instruction",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "sxjZS9UFY9ANja5Y2GcRyaUscAEHTZSFyemnKWFTiZR",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "D78mvPvW2tLMHqwQa1VvHMcEmoToaoTuWMrRaEh8L9CB",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "995gkn65CfA5rmkuMHn8RZMUD6o3fiNe23td74z8BunA",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "004d6c6f530102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2000ca9a3b00000000881300000000000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+    },
+    {
+      "name": "transfer_ownership_instruction",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "accounts": [
+        {
+          "pubkey": "995gkn65CfA5rmkuMHn8RZMUD6o3fiNe23td74z8BunA",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "wt2hjcUqqSPWppayKbXirMF7mNRxXFFpPKRqhYrD3t8",
+          "is_signer": true,
+          "is_writable": true
+        }
+      ],
+      "hex": "09010f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e"
+    },
+    {
+      "name": "set_default_ism_instruction",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "accounts": [
+        {
+          "pubkey": "D78mvPvW2tLMHqwQa1VvHMcEmoToaoTuWMrRaEh8L9CB",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "995gkn65CfA5rmkuMHn8RZMUD6o3fiNe23td74z8BunA",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "wt2hjcUqqSPWppayKbXirMF7mNRxXFFpPKRqhYrD3t8",
+          "is_signer": true,
+          "is_writable": true
+        }
+      ],
+      "hex": "02101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "inbox",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e65",
+        "2d",
+        "696e626f78"
+      ],
+      "address": "D78mvPvW2tLMHqwQa1VvHMcEmoToaoTuWMrRaEh8L9CB",
+      "bump": 253
+    },
+    {
+      "name": "outbox",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e65",
+        "2d",
+        "6f7574626f78"
+      ],
+      "address": "995gkn65CfA5rmkuMHn8RZMUD6o3fiNe23td74z8BunA",
+      "bump": 254
+    },
+    {
+      "name": "dispatched_message",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e65",
+        "2d",
+        "646973706174636865645f6d657373616765",
+        "2d",
+        "0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b"
+      ],
+      "address": "52hBFET3YRLB7VvA63vhcjwPbuLjNUapWveMZSVEqu81",
+      "bump": 255
+    },
+    {
+      "name": "message_dispatch_authority",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e655f64697370617463686572",
+        "2d",
+        "64697370617463685f617574686f72697479"
+      ],
+      "address": "3jQK3neXoEt3PS9eiHbFrx4jfpg1Wfc7GMKBrTcr4F59",
+      "bump": 254
+    },
+    {
+      "name": "process_authority",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e65",
+        "2d",
+        "70726f636573735f617574686f72697479",
+        "2d",
+        "1112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30"
+      ],
+      "address": "8tUc3s9Xn6RAmK2tzrGvMeYsjh5AYiqM9du3vHNWetcc",
+      "bump": 253
+    },
+    {
+      "name": "processed_message",
+      "program_id": "Bp3BbhbyBNoTt3LgewDgCf2ckx5pHoUyPxdEMC6KHgyL",
+      "seeds": [
+        "68797065726c616e65",
+        "2d",
+        "70726f6365737365645f6d657373616765",
+        "2d",
+        "909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf"
+      ],
+      "address": "4M8EwAyBngfKpFAM1PygR7w5YTmhijU9TL8fKgJA2FpP",
+      "bump": 252
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.EncodeError",
+      "code": 1
+    },
+    {
+      "name": "Error.DecodeError",
+      "code": 2
+    },
+    {
+      "name": "Error.UnsupportedMessageVersion",
+      "code": 3
+    },
+    {
+      "name": "Error.DestinationDomainNotLocalDomain",
+      "code": 4
+    },
+    {
+      "name": "Error.MessageAlreadyProcessed",
+      "code": 5
+    },
+    {
+      "name": "Error.ExtraneousAccount",
+      "code": 6
+    },
+    {
+      "name": "Error.MaxMessageSizeExceeded",
+      "code": 7
+    }
+  ],
+  "constants": [
+    {
+      "name": "VERSION",
+      "value": 3
+    },
+    {
+      "name": "DISPATCHED_MESSAGE_DISCRIMINATOR",
+      "value": "0x4449535041544348"
+    },
+    {
+      "name": "PROCESSED_MESSAGE_DISCRIMINATOR",
+      "value": "0x50524f4345535344"
+    }
+  ]
+}

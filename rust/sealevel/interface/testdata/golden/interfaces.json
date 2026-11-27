@@ -1,0 +1,260 @@
+{
+  "program": "interfaces",
+  "values": [
+    {
+      "type": "interfaces.ism.InterchainSecurityModuleInstruction",
+      "variant": "Type",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x696161583f7c6a12",
+      "fields": null,
+      "hex": "696161583f7c6a12"
+    },
+    {
+      "type": "interfaces.ism.InterchainSecurityModuleInstruction",
+      "variant": "Verify",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0xf335d600d012e743",
+      "fields": {
+        "metadata": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344",
+        "message": "0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcc"
+      },
+      "hex": "f335d600d012e743440000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40414243444d000000808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcc"
+    },
+    {
+      "type": "interfaces.ism.InterchainSecurityModuleInstruction",
+      "variant": "VerifyAccountMetas",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0xc8419d0c59ff83d8",
+      "fields": {
+        "metadata": "0x101112",
+        "message": "0x2021222324"
+      },
+      "hex": "c8419d0c59ff83d803000000101112050000002021222324"
+    },
+    {
+      "type": "interfaces.ism.InterchainSecurityModuleInstruction",
+      "variant": "VerifyMetadataSpec",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x311816da86843f9b",
+      "fields": {
+        "message": "0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c"
+      },
+      "hex": "311816da86843f9b4d000000303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c"
+    },
+    {
+      "type": "interfaces.ism.MetadataSpecResult",
+      "variant": null,
+      "encoding": "borsh",
+      "fields": {
+        "spec": {
+          "Aggregation": {
+            "threshold": 2,
+            "sub_specs": [
+              "Null",
+              {
+                "MultisigMessageId": {
+                  "validators": [
+                    "0x404142434445464748494a4b4c4d4e4f50515253",
+                    "0x505152535455565758595a5b5c5d5e5f60616263"
+                  ],
+                  "threshold": 1
+                }
+              },
+              {
+                "TrustedRelayer": {
+                  "relayer": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw"
+                }
+              },
+              "CannotVerify"
+            ]
+          }
+        },
+        "accounts": [
+          "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e",
+          "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM"
+        ]
+      },
+      "hex": "01020204000000000102000000404142434445464748494a4b4c4d4e4f50515253505152535455565758595a5b5c5d5e5f6061626301030102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20040200000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122"
+    },
+    {
+      "type": "interfaces.ism.MetadataSpecResult",
+      "variant": null,
+      "name": "none",
+      "encoding": "borsh",
+      "fields": {
+        "spec": null,
+        "accounts": []
+      },
+      "hex": "0000000000"
+    },
+    {
+      "type": "interfaces.message_recipient.MessageRecipientInstruction",
+      "variant": "InterchainSecurityModule",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x2d12f557ea2ef60f",
+      "fields": null,
+      "hex": "2d12f557ea2ef60f"
+    },
+    {
+      "type": "interfaces.message_recipient.MessageRecipientInstruction",
+      "variant": "InterchainSecurityModuleAccountMetas",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0xbed6da814361044c",
+      "fields": null,
+      "hex": "bed6da814361044c"
+    },
+    {
+      "type": "interfaces.message_recipient.MessageRecipientInstruction",
+      "variant": "Handle",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x21d20542c4d4ef8e",
+      "fields": {
+        "origin": 1,
+        "sender": "0x606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+        "message": "0x707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697"
+      },
+      "hex": "21d20542c4d4ef8e01000000606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f28000000707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697"
+    },
+    {
+      "type": "interfaces.message_recipient.MessageRecipientInstruction",
+      "variant": "HandleAccountMetas",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0xc28d1e52f129a934",
+      "fields": {
+        "origin": 42161,
+        "sender": "0x6162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80",
+        "message": "0x71727374"
+      },
+      "hex": "c28d1e52f129a934b1a400006162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f800400000071727374"
+    },
+    {
+      "type": "interfaces.multisig_ism.MultisigIsmInstruction",
+      "variant": "ValidatorsAndThreshold",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x526005dcf1ad0d32",
+      "fields": "0x909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdc",
+      "hex": "526005dcf1ad0d32909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdc"
+    },
+    {
+      "type": "interfaces.multisig_ism.MultisigIsmInstruction",
+      "variant": "ValidatorsAndThresholdAccountMetas",
+      "encoding": "variant_discriminator+payload",
+      "discriminator": "0x71078455eff79dcc",
+      "fields": "0x919293949596",
+      "hex": "71078455eff79dcc919293949596"
+    },
+    {
+      "type": "interfaces.multisig_ism.ValidatorsAndThreshold",
+      "variant": null,
+      "encoding": "borsh",
+      "fields": {
+        "validators": [
+          "0xa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3",
+          "0xb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3"
+        ],
+        "threshold": 2
+      },
+      "hex": "02000000a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c302"
+    },
+    {
+      "type": "interfaces.serializable_account_meta.SimulationReturnData<Vec<SerializableAccountMeta>>",
+      "variant": null,
+      "encoding": "borsh",
+      "fields": {
+        "return_data": [
+          {
+            "pubkey": "Gh5GixNvrU87vKWcLLLp6dcgBGRDtP4EJesFu6rjif4",
+            "is_signer": false,
+            "is_writable": true
+          },
+          {
+            "pubkey": "LcNR2RPX9mMG1a23dfG6yQNvLUctx4sniKXKH9TV3ym",
+            "is_signer": true,
+            "is_writable": false
+          }
+        ]
+      },
+      "hex": "020000000405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223000105060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223240100ff"
+    },
+    {
+      "type": "interfaces.serializable_account_meta.SimulationReturnData<Option<Pubkey>>",
+      "variant": null,
+      "encoding": "borsh",
+      "fields": {
+        "return_data": "QXfZKtQ7T4aQ6pXUvzBPrB9AVgpa1khM7zBNfC4EPJU"
+      },
+      "hex": "01060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425ff"
+    }
+  ],
+  "instructions": [],
+  "pdas": [
+    {
+      "name": "ism.VERIFY_ACCOUNT_METAS_PDA_SEEDS",
+      "program_id": "CHUFbos3KTt3rg6Ei2W7EnRxU4ZE1FHiJpHpkrQWX2EH",
+      "seeds": [
+        "68797065726c616e655f69736d",
+        "2d",
+        "766572696679",
+        "2d",
+        "6163636f756e745f6d65746173"
+      ],
+      "address": "BJ3Dk8PwEm5xCHD6Ysis2Xktzv11HxBfZKrk9ePkq6ZJ",
+      "bump": 254
+    },
+    {
+      "name": "message_recipient.INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS",
+      "program_id": "CHUFbos3KTt3rg6Ei2W7EnRxU4ZE1FHiJpHpkrQWX2EH",
+      "seeds": [
+        "68797065726c616e655f6d6573736167655f726563697069656e74",
+        "2d",
+        "696e746572636861696e5f73656375726974795f6d6f64756c65",
+        "2d",
+        "6163636f756e745f6d65746173"
+      ],
+      "address": "APTz7Qt88zKQGTVN21kqsA6LuyR5B9MSibEMnM2SK5cQ",
+      "bump": 255
+    },
+    {
+      "name": "message_recipient.HANDLE_ACCOUNT_METAS_PDA_SEEDS",
+      "program_id": "CHUFbos3KTt3rg6Ei2W7EnRxU4ZE1FHiJpHpkrQWX2EH",
+      "seeds": [
+        "68797065726c616e655f6d6573736167655f726563697069656e74",
+        "2d",
+        "68616e646c65",
+        "2d",
+        "6163636f756e745f6d65746173"
+      ],
+      "address": "rjpfABE1kw9fFujYeBkwDo4mAWp1nG6hnH3scKMYsoa",
+      "bump": 255
+    },
+    {
+      "name": "multisig_ism.VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS",
+      "program_id": "CHUFbos3KTt3rg6Ei2W7EnRxU4ZE1FHiJpHpkrQWX2EH",
+      "seeds": [
+        "68797065726c616e655f6d756c74697369675f69736d",
+        "2d",
+        "76616c696461746f72735f616e645f7468726573686f6c64",
+        "2d",
+        "6163636f756e745f6d65746173"
+      ],
+      "address": "Hsr4JkofToWB9KTie1HHD4ryaj9R3GPpUCTf9rZTQgVj",
+      "bump": 251
+    }
+  ],
+  "errors": [
+    {
+      "name": "AccountError.ExtraneousAccount",
+      "code": 1407181317
+    }
+  ],
+  "constants": [
+    {
+      "name": "account_utils.PROGRAM_INSTRUCTION_DISCRIMINATOR",
+      "value": "0x0101010101010101"
+    },
+    {
+      "name": "account_utils.SPL_NOOP_PROGRAM_ID",
+      "value": "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV"
+    }
+  ]
+}

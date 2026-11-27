@@ -1,0 +1,24 @@
+// Emitted only for programs that call Log, Log64 or LogPubkey, so every other
+// program's C is unchanged. sol_log_ fails the instruction on invalid UTF-8.
+#ifdef GOSVM_SBF_V3
+#define gosvm_sol_log ((void (*)(const u8 *,u64))0x207559bdULL)
+#define gosvm_sol_log_64 ((void (*)(u64,u64,u64,u64,u64))0x5c2a3178ULL)
+#define gosvm_sol_log_pubkey ((void (*)(const u8 *))0x7ef088caULL)
+#else
+extern void sol_log_(const u8 *,u64);
+extern void sol_log_64_(u64,u64,u64,u64,u64);
+extern void sol_log_pubkey(const u8 *);
+extern void sol_log_compute_units_(void);
+#define gosvm_sol_log sol_log_
+#define gosvm_sol_log_64 sol_log_64_
+#define gosvm_sol_log_pubkey sol_log_pubkey
+#endif
+#ifdef GOSVM_LOG_STRING
+static u64 sol_Log(Context *c,gosvm_string message) {gosvm_sol_log(message.ptr,(u64)message.len);return 0;}
+#endif
+static u64 sol_Log64(Context *c,u64 v0,u64 v1,u64 v2,u64 v3,u64 v4) {sol_log_compute_units_();gosvm_sol_log_64(v0,v1,v2,v3,v4);return 0;}
+static u64 sol_ProbeCU(u64 id) {sol_log_compute_units_();gosvm_sol_log_64(0xE2,id,0,0,0);return 0;}
+static u64 sol_LogPubkey(Context *c,slice key) {
+    if(key.len!=32) return 2019;
+    gosvm_sol_log_pubkey(key.ptr);return 0;
+}

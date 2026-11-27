@@ -1,0 +1,150 @@
+{
+  "program": "validator_announce",
+  "values": [
+    {
+      "type": "validator_announce.Instruction",
+      "variant": "Init",
+      "encoding": "borsh",
+      "fields": {
+        "mailbox": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+        "local_domain": 1399811149
+      },
+      "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f204d6c6f53"
+    },
+    {
+      "type": "validator_announce.Instruction",
+      "variant": "Announce",
+      "encoding": "borsh",
+      "fields": {
+        "validator": "0x202122232425262728292a2b2c2d2e2f30313233",
+        "storage_location": "s3://hyperlane-validator-signatures/us-east-1",
+        "signature": "0x505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90"
+      },
+      "hex": "01202122232425262728292a2b2c2d2e2f303132332d00000073333a2f2f68797065726c616e652d76616c696461746f722d7369676e6174757265732f75732d656173742d3141000000505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90"
+    },
+    {
+      "type": "validator_announce.ValidatorAnnounce",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 255,
+        "mailbox": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e",
+        "local_domain": 1399811149
+      },
+      "hex": "01ff02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20214d6c6f53"
+    },
+    {
+      "type": "validator_announce.ValidatorStorageLocations",
+      "variant": null,
+      "name": "two",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 254,
+        "storage_locations": [
+          "s3://bucket-a/region",
+          "gs://bucket-b"
+        ]
+      },
+      "hex": "01fe020000001400000073333a2f2f6275636b65742d612f726567696f6e0d00000067733a2f2f6275636b65742d62"
+    },
+    {
+      "type": "validator_announce.ValidatorStorageLocations",
+      "variant": null,
+      "name": "empty",
+      "encoding": "account",
+      "fields": {
+        "bump_seed": 253,
+        "storage_locations": []
+      },
+      "hex": "01fd00000000"
+    },
+    {
+      "type": "validator_announce.ReplayProtection",
+      "variant": null,
+      "encoding": "account",
+      "fields": [
+        null
+      ],
+      "hex": "01"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "init_instruction",
+      "program_id": "BwsmtJXzMyPvADqhXXsWnQa9FGWDdvrcWmxYTxBWnMck",
+      "accounts": [
+        {
+          "pubkey": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+          "is_signer": true,
+          "is_writable": false
+        },
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "576abCrEvbxJLQE3LKLTKhpzeYN9vqmvDydcuKCxnnVW",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f204d6c6f53"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "validator_announce",
+      "program_id": "BwsmtJXzMyPvADqhXXsWnQa9FGWDdvrcWmxYTxBWnMck",
+      "seeds": [
+        "68797065726c616e655f76616c696461746f725f616e6e6f756e6365",
+        "2d",
+        "76616c696461746f725f616e6e6f756e6365"
+      ],
+      "address": "576abCrEvbxJLQE3LKLTKhpzeYN9vqmvDydcuKCxnnVW",
+      "bump": 253
+    },
+    {
+      "name": "validator_storage_locations",
+      "program_id": "BwsmtJXzMyPvADqhXXsWnQa9FGWDdvrcWmxYTxBWnMck",
+      "seeds": [
+        "68797065726c616e655f76616c696461746f725f616e6e6f756e6365",
+        "2d",
+        "73746f726167655f6c6f636174696f6e73",
+        "2d",
+        "202122232425262728292a2b2c2d2e2f30313233"
+      ],
+      "address": "5VERjySU3AoLuyHEZarHmwWdpb7SThERXVdJ8ZjBpGT4",
+      "bump": 254
+    },
+    {
+      "name": "replay_protection",
+      "program_id": "BwsmtJXzMyPvADqhXXsWnQa9FGWDdvrcWmxYTxBWnMck",
+      "seeds": [
+        "68797065726c616e655f76616c696461746f725f616e6e6f756e6365",
+        "2d",
+        "7265706c61795f70726f74656374696f6e",
+        "2d",
+        "504485d5884cf2c36b7c373e39799ca3c00a568d2d2b9a61769f86c4deb3d694"
+      ],
+      "address": "FTz1w9UdnNWL6LLomBR3X2jS8iNxTsPtK3LSW6A86QZx",
+      "bump": 253
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.SignatureError",
+      "code": 1
+    },
+    {
+      "name": "Error.SignerMismatch",
+      "code": 2
+    }
+  ],
+  "constants": [
+    {
+      "name": "AnnounceInstruction.replay_id",
+      "value": "0x504485d5884cf2c36b7c373e39799ca3c00a568d2d2b9a61769f86c4deb3d694"
+    }
+  ]
+}

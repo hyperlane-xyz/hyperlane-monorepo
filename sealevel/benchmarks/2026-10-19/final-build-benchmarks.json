@@ -1,0 +1,2864 @@
+{
+  "programs": {
+    "mailbox": {
+      "elf_name": "hyperlane_sealevel_mailbox.so",
+      "cold_build_s": {
+        "go": {
+          "median": 0.711,
+          "min": 0.7,
+          "max": 0.711,
+          "all": [0.7, 0.711, 0.711],
+          "n": 3
+        },
+        "rust": {
+          "median": 22.924,
+          "min": 22.749,
+          "max": 22.924,
+          "all": [22.924, 22.749, 22.924],
+          "n": 3
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.57,
+          "min": 0.57,
+          "max": 0.58,
+          "all": [0.57, 0.58, 0.57],
+          "n": 3
+        },
+        "rust": {
+          "median": 142.02,
+          "min": 141.72,
+          "max": 142.2,
+          "all": [142.2, 141.72, 142.02],
+          "n": 3
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 205.7,
+        "rust": 483.1
+      },
+      "peak_rss_tree_mib": {
+        "go": 263.8,
+        "rust": 2082.2
+      },
+      "retained_artifacts_kib": {
+        "go": 188,
+        "rust": 363416
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 63984
+      },
+      "elf_bytes": {
+        "go": 63984,
+        "rust": 176640
+      },
+      "elf_sha256": {
+        "go": [
+          "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+        ],
+        "rust": [
+          "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 447674160,
+          "5080": 326750680
+        },
+        "rust": {
+          "6960": 1231759920,
+          "5080": 899043160
+        }
+      },
+      "rust_compiled_crates": 259,
+      "handler_edit_s": {
+        "go": {
+          "median": 0.778,
+          "min": 0.771,
+          "max": 0.796,
+          "all": [0.771, 0.778, 0.796],
+          "n": 3
+        },
+        "rust": {
+          "median": 1.606,
+          "min": 1.603,
+          "max": 1.63,
+          "all": [1.63, 1.606, 1.603],
+          "n": 3
+        }
+      },
+      "handler_edit_rust_crates_recompiled": [1, 1, 1],
+      "shared_edit_s": {
+        "go": {
+          "median": 0.797,
+          "min": 0.775,
+          "max": 0.821,
+          "all": [0.797, 0.821, 0.775],
+          "n": 3
+        },
+        "rust": {
+          "median": 4.79,
+          "min": 4.737,
+          "max": 4.795,
+          "all": [4.737, 4.79, 4.795],
+          "n": 3
+        }
+      },
+      "shared_edit_rust_crates_recompiled": [4, 4, 4],
+      "noop_s": {
+        "go": {
+          "median": 0.338,
+          "min": 0.338,
+          "max": 0.338,
+          "all": [0.338],
+          "n": 1
+        },
+        "rust": {
+          "median": 0.953,
+          "min": 0.953,
+          "max": 0.953,
+          "all": [0.953],
+          "n": 1
+        }
+      },
+      "go_solana_v3": {
+        "cold_s": {
+          "median": 0.727,
+          "min": 0.711,
+          "max": 0.749,
+          "all": [0.727, 0.711, 0.749],
+          "n": 3
+        },
+        "handler_edit_s": {
+          "median": 0.798,
+          "min": 0.796,
+          "max": 0.817,
+          "all": [0.817, 0.798, 0.796],
+          "n": 3
+        },
+        "shared_edit_s": {
+          "median": 0.799,
+          "min": 0.779,
+          "max": 0.812,
+          "all": [0.799, 0.779, 0.812],
+          "n": 3
+        },
+        "noop_s": {
+          "median": 0.334,
+          "min": 0.334,
+          "max": 0.334,
+          "all": [0.334],
+          "n": 1
+        },
+        "peak_rss_single_mib": 205.5,
+        "peak_rss_tree_mib": 264.0,
+        "retained_artifacts_kib": 184,
+        "elf_bytes": 60320,
+        "elf_sha256": [
+          "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+        ],
+        "rent_lamports": {
+          "6960": 422172720,
+          "5080": 308137560
+        }
+      }
+    },
+    "ism/multisig-ism-message-id": {
+      "elf_name": "hyperlane_sealevel_multisig_ism_message_id.so",
+      "cold_build_s": {
+        "go": {
+          "median": 0.776,
+          "min": 0.776,
+          "max": 0.776,
+          "all": [0.776],
+          "n": 1
+        },
+        "rust": {
+          "median": 23.219,
+          "min": 23.219,
+          "max": 23.219,
+          "all": [23.219],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.65,
+          "min": 0.65,
+          "max": 0.65,
+          "all": [0.65],
+          "n": 1
+        },
+        "rust": {
+          "median": 142.45,
+          "min": 142.45,
+          "max": 142.45,
+          "all": [142.45],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 202.8,
+        "rust": 468.1
+      },
+      "peak_rss_tree_mib": {
+        "go": 260.7,
+        "rust": 2073.6
+      },
+      "retained_artifacts_kib": {
+        "go": 204,
+        "rust": 363716
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 148,
+        "receipt_bytes": 0,
+        "elf_bytes": 54136
+      },
+      "elf_bytes": {
+        "go": 54136,
+        "rust": 165976
+      },
+      "elf_sha256": {
+        "go": [
+          "38867e805d8f677e30855b5d8433ddada4492e6da0b5b95356af4b85c5006318"
+        ],
+        "rust": [
+          "ebe741f8486aef454366fa4f4bb536e34dbabde90fff774cc6f4d9f5f6ec7d84"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 379132080,
+          "5080": 276722840
+        },
+        "rust": {
+          "6960": 1157538480,
+          "5080": 844870040
+        }
+      },
+      "rust_compiled_crates": 262
+    },
+    "ism/composite-ism": {
+      "elf_name": "hyperlane_sealevel_composite_ism.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.185,
+          "min": 1.185,
+          "max": 1.185,
+          "all": [1.185],
+          "n": 1
+        },
+        "rust": {
+          "median": 23.497,
+          "min": 23.497,
+          "max": 23.497,
+          "all": [23.497],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 1.06,
+          "min": 1.06,
+          "max": 1.06,
+          "all": [1.06],
+          "n": 1
+        },
+        "rust": {
+          "median": 143.24,
+          "min": 143.24,
+          "max": 143.24,
+          "all": [143.24],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 213.2,
+        "rust": 467.4
+      },
+      "peak_rss_tree_mib": {
+        "go": 285.1,
+        "rust": 2056.7
+      },
+      "retained_artifacts_kib": {
+        "go": 284,
+        "rust": 365040
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 132272
+      },
+      "elf_bytes": {
+        "go": 132272,
+        "rust": 263904
+      },
+      "elf_sha256": {
+        "go": [
+          "523505ce5e7b61996439ae036fdcb5f244e5c55a3348f1dcee91f60e2c8b5610"
+        ],
+        "rust": [
+          "806c4d37974aea6a6610ea8caadbe98d965a7b07e8230caef278cb44bdceb8a2"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 922958640,
+          "5080": 673653720
+        },
+        "rust": {
+          "6960": 1839117360,
+          "5080": 1342344280
+        }
+      },
+      "rust_compiled_crates": 263
+    },
+    "ism/test-ism": {
+      "elf_name": "hyperlane_sealevel_test_ism.so",
+      "cold_build_s": {
+        "go": {
+          "median": 0.578,
+          "min": 0.578,
+          "max": 0.578,
+          "all": [0.578],
+          "n": 1
+        },
+        "rust": {
+          "median": 22.995,
+          "min": 22.995,
+          "max": 22.995,
+          "all": [22.995],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.45,
+          "min": 0.45,
+          "max": 0.45,
+          "all": [0.45],
+          "n": 1
+        },
+        "rust": {
+          "median": 140.84,
+          "min": 140.84,
+          "max": 140.84,
+          "all": [140.84],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 198.0,
+        "rust": 479.7
+      },
+      "peak_rss_tree_mib": {
+        "go": 250.4,
+        "rust": 2134.8
+      },
+      "retained_artifacts_kib": {
+        "go": 140,
+        "rust": 362960
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 116,
+        "receipt_bytes": 0,
+        "elf_bytes": 22480
+      },
+      "elf_bytes": {
+        "go": 22480,
+        "rust": 94600
+      },
+      "elf_sha256": {
+        "go": [
+          "6d68410c58e7aab858557d43981935f96e5273a8f9172a1e7cce520a211493bb"
+        ],
+        "rust": [
+          "e7ae22ba6ffbdb5fb290937a9537d51a26707b265f9a1d46f5308722bf750631"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 158806320,
+          "5080": 115910360
+        },
+        "rust": {
+          "6960": 660761520,
+          "5080": 482279960
+        }
+      },
+      "rust_compiled_crates": 260
+    },
+    "validator-announce": {
+      "elf_name": "hyperlane_sealevel_validator_announce.so",
+      "cold_build_s": {
+        "go": {
+          "median": 0.589,
+          "min": 0.589,
+          "max": 0.589,
+          "all": [0.589],
+          "n": 1
+        },
+        "rust": {
+          "median": 23.285,
+          "min": 23.285,
+          "max": 23.285,
+          "all": [23.285],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.45,
+          "min": 0.45,
+          "max": 0.45,
+          "all": [0.45],
+          "n": 1
+        },
+        "rust": {
+          "median": 143.45,
+          "min": 143.45,
+          "max": 143.45,
+          "all": [143.45],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 197.6,
+        "rust": 491.5
+      },
+      "peak_rss_tree_mib": {
+        "go": 251.2,
+        "rust": 2040.4
+      },
+      "retained_artifacts_kib": {
+        "go": 144,
+        "rust": 364336
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 108,
+        "receipt_bytes": 0,
+        "elf_bytes": 32928
+      },
+      "elf_bytes": {
+        "go": 32928,
+        "rust": 130008
+      },
+      "elf_sha256": {
+        "go": [
+          "b9296e4e4e21a8b05d406bd637d1814d1ad8e1bab373eeae5ab5b134990c2895"
+        ],
+        "rust": [
+          "ea00c5135374a01705ac6ed9210b8e558ca3d4b9216eb70ab7c7e2c6a1c8e5db"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 231524400,
+          "5080": 168986200
+        },
+        "rust": {
+          "6960": 907201200,
+          "5080": 662152600
+        }
+      },
+      "rust_compiled_crates": 261
+    },
+    "hyperlane-sealevel-igp": {
+      "elf_name": "hyperlane_sealevel_igp.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.128,
+          "min": 1.128,
+          "max": 1.128,
+          "all": [1.128],
+          "n": 1
+        },
+        "rust": {
+          "median": 22.279,
+          "min": 22.279,
+          "max": 22.279,
+          "all": [22.279],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.98,
+          "min": 0.98,
+          "max": 0.98,
+          "all": [0.98],
+          "n": 1
+        },
+        "rust": {
+          "median": 127.47,
+          "min": 127.47,
+          "max": 127.47,
+          "all": [127.47],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 216.2,
+        "rust": 477.6
+      },
+      "peak_rss_tree_mib": {
+        "go": 285.5,
+        "rust": 2232.0
+      },
+      "retained_artifacts_kib": {
+        "go": 300,
+        "rust": 348832
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 140,
+        "receipt_bytes": 0,
+        "elf_bytes": 163336
+      },
+      "elf_bytes": {
+        "go": 163336,
+        "rust": 359120
+      },
+      "elf_sha256": {
+        "go": [
+          "79c4c9d97c6d232af4de389e5c6c5ae2cd01962e64646e670acc2a027903119f"
+        ],
+        "rust": [
+          "5fd4ec689a15fda40a50427f2b3ac2d002987b2638c7f394a84e79209486c4d7"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 1139164080,
+          "5080": 831458840
+        },
+        "rust": {
+          "6960": 2501820720,
+          "5080": 1826041560
+        }
+      },
+      "rust_compiled_crates": 258
+    },
+    "hyperlane-sealevel-token": {
+      "elf_name": "hyperlane_sealevel_token.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.09,
+          "min": 1.09,
+          "max": 1.09,
+          "all": [1.09],
+          "n": 1
+        },
+        "rust": {
+          "median": 24.873,
+          "min": 24.873,
+          "max": 24.873,
+          "all": [24.873],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.99,
+          "min": 0.99,
+          "max": 0.99,
+          "all": [0.99],
+          "n": 1
+        },
+        "rust": {
+          "median": 151.04,
+          "min": 151.04,
+          "max": 151.04,
+          "all": [151.04],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 217.8,
+        "rust": 517.1
+      },
+      "peak_rss_tree_mib": {
+        "go": 286.5,
+        "rust": 1747.9
+      },
+      "retained_artifacts_kib": {
+        "go": 284,
+        "rust": 388312
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 132672
+      },
+      "elf_bytes": {
+        "go": 132672,
+        "rust": 402856
+      },
+      "elf_sha256": {
+        "go": [
+          "a5e92f327bd9312035635ab6ffad7a2902481ef682446192702c433a6fd837a2"
+        ],
+        "rust": [
+          "5114a41d57d84bcd74e1d3e7898924b0ea36b632d13c194051766a62a73bcbf6"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 925742640,
+          "5080": 675685720
+        },
+        "rust": {
+          "6960": 2806223280,
+          "5080": 2048220440
+        }
+      },
+      "rust_compiled_crates": 293
+    },
+    "hyperlane-sealevel-token-collateral": {
+      "elf_name": "hyperlane_sealevel_token_collateral.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.085,
+          "min": 1.085,
+          "max": 1.085,
+          "all": [1.085],
+          "n": 1
+        },
+        "rust": {
+          "median": 26.33,
+          "min": 26.33,
+          "max": 26.33,
+          "all": [26.33],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 0.97,
+          "min": 0.97,
+          "max": 0.97,
+          "all": [0.97],
+          "n": 1
+        },
+        "rust": {
+          "median": 160.1,
+          "min": 160.1,
+          "max": 160.1,
+          "all": [160.1],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 217.4,
+        "rust": 519.6
+      },
+      "peak_rss_tree_mib": {
+        "go": 286.4,
+        "rust": 2193.9
+      },
+      "retained_artifacts_kib": {
+        "go": 292,
+        "rust": 388344
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 160,
+        "receipt_bytes": 0,
+        "elf_bytes": 134000
+      },
+      "elf_bytes": {
+        "go": 134000,
+        "rust": 405000
+      },
+      "elf_sha256": {
+        "go": [
+          "6f1916cf3be6962b53f75874a6bccec21cfcded0591aaee5229e268ab5e9a0a6"
+        ],
+        "rust": [
+          "d8ca35df569a0e55304b62bba44e553b9eccac431aadde2cd138fd41193d7506"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 934985520,
+          "5080": 682431960
+        },
+        "rust": {
+          "6960": 2821145520,
+          "5080": 2059111960
+        }
+      },
+      "rust_compiled_crates": 293
+    },
+    "hyperlane-sealevel-token-cross-collateral": {
+      "elf_name": "hyperlane_sealevel_token_cross_collateral.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.32,
+          "min": 1.32,
+          "max": 1.32,
+          "all": [1.32],
+          "n": 1
+        },
+        "rust": {
+          "median": 28.024,
+          "min": 28.024,
+          "max": 28.024,
+          "all": [28.024],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 1.19,
+          "min": 1.19,
+          "max": 1.19,
+          "all": [1.19],
+          "n": 1
+        },
+        "rust": {
+          "median": 162.41,
+          "min": 162.41,
+          "max": 162.41,
+          "all": [162.41],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 216.6,
+        "rust": 516.8
+      },
+      "peak_rss_tree_mib": {
+        "go": 289.9,
+        "rust": 2119.7
+      },
+      "retained_artifacts_kib": {
+        "go": 328,
+        "rust": 389668
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 160,
+        "receipt_bytes": 0,
+        "elf_bytes": 168024
+      },
+      "elf_bytes": {
+        "go": 168024,
+        "rust": 525384
+      },
+      "elf_sha256": {
+        "go": [
+          "0e8881855152cf2cdbe623eba0ed612fc0f4d059ba503105eef55b7b8e8434ad"
+        ],
+        "rust": [
+          "f33d8ada53abfed98cd8064cbc87de1235e2478fa86c976dc944fb460f6bd721"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 1171792560,
+          "5080": 855273880
+        },
+        "rust": {
+          "6960": 3659018160,
+          "5080": 2670662680
+        }
+      },
+      "rust_compiled_crates": 294
+    },
+    "hyperlane-sealevel-token-native": {
+      "elf_name": "hyperlane_sealevel_token_native.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.126,
+          "min": 1.126,
+          "max": 1.126,
+          "all": [1.126],
+          "n": 1
+        },
+        "rust": {
+          "median": 26.68,
+          "min": 26.68,
+          "max": 26.68,
+          "all": [26.68],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 1.01,
+          "min": 1.01,
+          "max": 1.01,
+          "all": [1.01],
+          "n": 1
+        },
+        "rust": {
+          "median": 160.75,
+          "min": 160.75,
+          "max": 160.75,
+          "all": [160.75],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 216.3,
+        "rust": 519.6
+      },
+      "peak_rss_tree_mib": {
+        "go": 284.2,
+        "rust": 2057.4
+      },
+      "retained_artifacts_kib": {
+        "go": 272,
+        "rust": 388404
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 121928
+      },
+      "elf_bytes": {
+        "go": 121928,
+        "rust": 378040
+      },
+      "elf_sha256": {
+        "go": [
+          "db7813b4be9c5bf862e8ca1a7eda82db1c77988a10b23162e274e02a54ab40fc"
+        ],
+        "rust": [
+          "0bf9f6cebefb589d41d1333f0d1e2a4d76651bd1d36177193ff224b3ff2b01ef"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 850964400,
+          "5080": 621106200
+        },
+        "rust": {
+          "6960": 2633503920,
+          "5080": 1922155160
+        }
+      },
+      "rust_compiled_crates": 293
+    },
+    "hyperlane-sealevel-fee": {
+      "elf_name": "hyperlane_sealevel_fee.so",
+      "cold_build_s": {
+        "go": {
+          "median": 1.175,
+          "min": 1.175,
+          "max": 1.175,
+          "all": [1.175],
+          "n": 1
+        },
+        "rust": {
+          "median": 22.931,
+          "min": 22.931,
+          "max": 22.931,
+          "all": [22.931],
+          "n": 1
+        }
+      },
+      "cold_cpu_s": {
+        "go": {
+          "median": 1.03,
+          "min": 1.03,
+          "max": 1.03,
+          "all": [1.03],
+          "n": 1
+        },
+        "rust": {
+          "median": 132.7,
+          "min": 132.7,
+          "max": 132.7,
+          "all": [132.7],
+          "n": 1
+        }
+      },
+      "peak_rss_single_mib": {
+        "go": 215.5,
+        "rust": 473.2
+      },
+      "peak_rss_tree_mib": {
+        "go": 286.6,
+        "rust": 2178.2
+      },
+      "retained_artifacts_kib": {
+        "go": 312,
+        "rust": 348960
+      },
+      "go_retained_breakdown_kib": {
+        "gocache": 140,
+        "receipt_bytes": 0,
+        "elf_bytes": 174720
+      },
+      "elf_bytes": {
+        "go": 174720,
+        "rust": 349344
+      },
+      "elf_sha256": {
+        "go": [
+          "4a6758fff2b286285f533785064b76b0b5fa8c87aba473761597f83bcf93401a"
+        ],
+        "rust": [
+          "96b38720383899f8d115f56a43d19ec40d5619f21993d3abf88b53799e9946b0"
+        ]
+      },
+      "rent_lamports": {
+        "go": {
+          "6960": 1218396720,
+          "5080": 889289560
+        },
+        "rust": {
+          "6960": 2433779760,
+          "5080": 1776379480
+        }
+      },
+      "rust_compiled_crates": 258
+    }
+  },
+  "summary": {
+    "go_s": 10.763,
+    "rust_s": 267.037,
+    "go_elf": 1200480,
+    "rust_elf": 3250872,
+    "go_rent": {
+      "6960": 8381141520,
+      "5080": 6117269960
+    },
+    "rust_rent": {
+      "6960": 22651869840,
+      "5080": 16533261320
+    }
+  },
+  "env": {
+    "machine": "Apple M3 Pro, 11 cores (5 performance + 6 efficiency), 36 GiB RAM",
+    "os": "macOS 27.0.1 (26A434), arm64",
+    "rust_source": "hyperlane-xyz/hyperlane-monorepo c37d20599a (main, clean), rust/sealevel/programs",
+    "cargo_build_sbf": "solana-cargo-build-sbf 3.0.14; platform-tools v1.51; rustc 1.84.1 (/tmp/agave-dl/solana-release/bin/cargo-build-sbf, agave 3.0.14 = CI pin in rust/sealevel/programs/toolchain.env and .github/workflows/rust.yml), run with --tools-version v1.51",
+    "rust_platform_tools": "v1.51 (~/.cache/solana/v1.51/platform-tools): rustc 1.84.1-dev, cargo 1.84.0 (12fe57a9d 2025-04-07), clang version 19.1.7-rust-dev (https://github.com/anza-xyz/llvm-project.git 0c30adaa95a6c007f6210d41735371f25c4c91ed); anza-xyz/rust@565a65a1, anza-xyz/cargo@12fe57a9",
+    "go_source": "/tmp/hm1-all branch gosvm/all @ def448aa6e (copied to /tmp/svm-bench/final/gosrc/sealevel without target/ dirs; def448aa6e only changes PORTING.md/README.md vs 5a9323e5af; all 11 fogo-v0 ELFs are byte-identical to the conformance set /tmp/hm1-all-elf/go6)",
+    "gosvm_cli": "/tmp/gosvm-pilot/bin/gosvm-int2, built from goSVM hyperlane-integration-2 fe6d6b406ca1f5cf4cac17b97d583efc71b18788 (paulbalaji fork); binary sha256 6154617db413953fa97f6c8121ebe4185c550e8bb001cbab98715b82504d8454; reports: gosvm dev experimental darwin-arm64 (fogo = fogo-v0, solana = solana-v3; legacy-v1.51-v3 retained)",
+    "go": "go version go1.23.2 darwin/arm64",
+    "go_platform_tools": "gosvm managed v1.57 (~/Library/Caches/gosvm/toolchains/v1.57/darwin-arm64, archive sha256 48c32c2ec3ac3729b5caf1fdd6c4145496125edf043b2662b0586bfbc932b34a): clang version 22.1.2-rust-dev (https://github.com/anza-xyz/llvm-project.git a4135d044fb7a19f2b7e7d04d0373cd2ba190e6e); gosvm uses only clang + ld.lld from it",
+    "python": "Python 3.14.7"
+  },
+  "rate_formula": "((ELF + 45 + 128) + (36 + 128)) * lamports_per_byte",
+  "go_profile_in_main_tables": "fogo-v0",
+  "sources": {
+    "rust": "/tmp/svm-bench/timing-20261019-034026/timing.jsonl",
+    "go": "/tmp/svm-bench/go-timing-20261019-033934/go-timing.jsonl"
+  },
+  "raw": {
+    "rust": [
+      {
+        "label": "cold-mailbox-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:41  up 6 days, 18:16, 1 user, load averages: 3.70 4.52 9.51",
+        "uptime_after": "3:42  up 6 days, 18:17, 1 user, load averages: 9.40 5.88 9.86",
+        "exit_code": 0,
+        "time_real_s": 22.87,
+        "cpu_user_s": 127.28,
+        "cpu_sys_s": 14.92,
+        "cpu_total_s": 142.2,
+        "wall_s": 22.924,
+        "single_max_rss_bytes": 508166144,
+        "single_max_rss_mib": 484.6,
+        "peak_memory_footprint_bytes": 23396856,
+        "tree_peak_rss_kib": 2131904,
+        "tree_peak_rss_mib": 2081.9,
+        "tree_peak_procs": 16,
+        "rss_samples": 149,
+        "compiling_lines": 259,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "cold-mailbox-2",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-2",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:43  up 6 days, 18:18, 1 user, load averages: 3.90 5.00 9.15",
+        "uptime_after": "3:44  up 6 days, 18:19, 1 user, load averages: 7.40 5.75 9.30",
+        "exit_code": 0,
+        "time_real_s": 22.63,
+        "cpu_user_s": 126.83,
+        "cpu_sys_s": 14.89,
+        "cpu_total_s": 141.72,
+        "wall_s": 22.749,
+        "single_max_rss_bytes": 506265600,
+        "single_max_rss_mib": 482.8,
+        "peak_memory_footprint_bytes": 23314960,
+        "tree_peak_rss_kib": 2154288,
+        "tree_peak_rss_mib": 2103.8,
+        "tree_peak_procs": 15,
+        "rss_samples": 149,
+        "compiling_lines": 259,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "cold-mailbox-3",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-3",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:45  up 6 days, 18:20, 1 user, load averages: 3.83 5.05 8.79",
+        "uptime_after": "3:45  up 6 days, 18:20, 1 user, load averages: 7.53 5.87 8.98",
+        "exit_code": 0,
+        "time_real_s": 22.88,
+        "cpu_user_s": 127.12,
+        "cpu_sys_s": 14.9,
+        "cpu_total_s": 142.02,
+        "wall_s": 22.924,
+        "single_max_rss_bytes": 506609664,
+        "single_max_rss_mib": 483.1,
+        "peak_memory_footprint_bytes": 23675504,
+        "tree_peak_rss_kib": 2132176,
+        "tree_peak_rss_mib": 2082.2,
+        "tree_peak_procs": 20,
+        "rss_samples": 147,
+        "compiling_lines": 259,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "cold-ism_multisig-ism-message-id-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/ism/multisig-ism-message-id",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-ism_multisig-ism-message-id-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:46  up 6 days, 18:21, 1 user, load averages: 3.86 5.09 8.44",
+        "uptime_after": "3:47  up 6 days, 18:21, 1 user, load averages: 7.70 5.92 8.66",
+        "exit_code": 0,
+        "time_real_s": 23.16,
+        "cpu_user_s": 127.38,
+        "cpu_sys_s": 15.07,
+        "cpu_total_s": 142.45,
+        "wall_s": 23.219,
+        "single_max_rss_bytes": 490799104,
+        "single_max_rss_mib": 468.1,
+        "peak_memory_footprint_bytes": 23364136,
+        "tree_peak_rss_kib": 2123376,
+        "tree_peak_rss_mib": 2073.6,
+        "tree_peak_procs": 13,
+        "rss_samples": 150,
+        "compiling_lines": 262,
+        "target_du_kib": 363716,
+        "target_du_mib": 355.2,
+        "elf_bytes": {
+          "hyperlane_sealevel_multisig_ism_message_id.so": 165976
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_multisig_ism_message_id.so": "ebe741f8486aef454366fa4f4bb536e34dbabde90fff774cc6f4d9f5f6ec7d84"
+        }
+      },
+      {
+        "label": "cold-ism_composite-ism-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/ism/composite-ism",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-ism_composite-ism-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:48  up 6 days, 18:23, 1 user, load averages: 3.82 5.15 8.15",
+        "uptime_after": "3:48  up 6 days, 18:23, 1 user, load averages: 8.28 6.15 8.43",
+        "exit_code": 0,
+        "time_real_s": 23.39,
+        "cpu_user_s": 128.25,
+        "cpu_sys_s": 14.99,
+        "cpu_total_s": 143.24,
+        "wall_s": 23.497,
+        "single_max_rss_bytes": 490127360,
+        "single_max_rss_mib": 467.4,
+        "peak_memory_footprint_bytes": 23118328,
+        "tree_peak_rss_kib": 2106096,
+        "tree_peak_rss_mib": 2056.7,
+        "tree_peak_procs": 14,
+        "rss_samples": 154,
+        "compiling_lines": 263,
+        "target_du_kib": 365040,
+        "target_du_mib": 356.5,
+        "elf_bytes": {
+          "hyperlane_sealevel_composite_ism.so": 263904
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_composite_ism.so": "806c4d37974aea6a6610ea8caadbe98d965a7b07e8230caef278cb44bdceb8a2"
+        }
+      },
+      {
+        "label": "cold-ism_test-ism-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/ism/test-ism",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-ism_test-ism-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:50  up 6 days, 18:25, 1 user, load averages: 3.98 5.23 7.78",
+        "uptime_after": "3:50  up 6 days, 18:25, 1 user, load averages: 7.65 6.00 8.00",
+        "exit_code": 0,
+        "time_real_s": 22.94,
+        "cpu_user_s": 126.0,
+        "cpu_sys_s": 14.84,
+        "cpu_total_s": 140.84,
+        "wall_s": 22.995,
+        "single_max_rss_bytes": 502972416,
+        "single_max_rss_mib": 479.7,
+        "peak_memory_footprint_bytes": 23626280,
+        "tree_peak_rss_kib": 2186080,
+        "tree_peak_rss_mib": 2134.8,
+        "tree_peak_procs": 14,
+        "rss_samples": 151,
+        "compiling_lines": 260,
+        "target_du_kib": 362960,
+        "target_du_mib": 354.5,
+        "elf_bytes": {
+          "hyperlane_sealevel_test_ism.so": 94600
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_test_ism.so": "e7ae22ba6ffbdb5fb290937a9537d51a26707b265f9a1d46f5308722bf750631"
+        }
+      },
+      {
+        "label": "cold-validator-announce-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/validator-announce",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-validator-announce-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:51  up 6 days, 18:26, 1 user, load averages: 3.96 5.24 7.58",
+        "uptime_after": "3:52  up 6 days, 18:27, 1 user, load averages: 7.19 5.91 7.75",
+        "exit_code": 0,
+        "time_real_s": 23.23,
+        "cpu_user_s": 128.44,
+        "cpu_sys_s": 15.01,
+        "cpu_total_s": 143.45,
+        "wall_s": 23.285,
+        "single_max_rss_bytes": 515424256,
+        "single_max_rss_mib": 491.5,
+        "peak_memory_footprint_bytes": 23134712,
+        "tree_peak_rss_kib": 2089328,
+        "tree_peak_rss_mib": 2040.4,
+        "tree_peak_procs": 15,
+        "rss_samples": 153,
+        "compiling_lines": 261,
+        "target_du_kib": 364336,
+        "target_du_mib": 355.8,
+        "elf_bytes": {
+          "hyperlane_sealevel_validator_announce.so": 130008
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_validator_announce.so": "ea00c5135374a01705ac6ed9210b8e558ca3d4b9216eb70ab7c7e2c6a1c8e5db"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-igp-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-igp",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-igp-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:53  up 6 days, 18:28, 1 user, load averages: 3.65 5.11 7.30",
+        "uptime_after": "3:53  up 6 days, 18:28, 1 user, load averages: 9.68 6.50 7.75",
+        "exit_code": 0,
+        "time_real_s": 22.25,
+        "cpu_user_s": 113.57,
+        "cpu_sys_s": 13.9,
+        "cpu_total_s": 127.47,
+        "wall_s": 22.279,
+        "single_max_rss_bytes": 500842496,
+        "single_max_rss_mib": 477.6,
+        "peak_memory_footprint_bytes": 23626280,
+        "tree_peak_rss_kib": 2285536,
+        "tree_peak_rss_mib": 2232.0,
+        "tree_peak_procs": 14,
+        "rss_samples": 151,
+        "compiling_lines": 258,
+        "target_du_kib": 348832,
+        "target_du_mib": 340.7,
+        "elf_bytes": {
+          "hyperlane_sealevel_igp.so": 359120
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_igp.so": "5fd4ec689a15fda40a50427f2b3ac2d002987b2638c7f394a84e79209486c4d7"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-token-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-token",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-token-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:55  up 6 days, 18:30, 1 user, load averages: 3.58 5.31 7.18",
+        "uptime_after": "3:55  up 6 days, 18:30, 1 user, load averages: 11.47 7.18 7.81",
+        "exit_code": 0,
+        "time_real_s": 24.84,
+        "cpu_user_s": 134.92,
+        "cpu_sys_s": 16.12,
+        "cpu_total_s": 151.04,
+        "wall_s": 24.873,
+        "single_max_rss_bytes": 542195712,
+        "single_max_rss_mib": 517.1,
+        "peak_memory_footprint_bytes": 23314960,
+        "tree_peak_rss_kib": 1789840,
+        "tree_peak_rss_mib": 1747.9,
+        "tree_peak_procs": 11,
+        "rss_samples": 85,
+        "compiling_lines": 293,
+        "target_du_kib": 388312,
+        "target_du_mib": 379.2,
+        "elf_bytes": {
+          "hyperlane_sealevel_token.so": 402856
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_token.so": "5114a41d57d84bcd74e1d3e7898924b0ea36b632d13c194051766a62a73bcbf6"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-token-collateral-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-token-collateral",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-token-collateral-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:57  up 6 days, 18:32, 1 user, load averages: 3.72 5.69 7.15",
+        "uptime_after": "3:57  up 6 days, 18:32, 1 user, load averages: 9.39 6.93 7.55",
+        "exit_code": 0,
+        "time_real_s": 26.3,
+        "cpu_user_s": 143.26,
+        "cpu_sys_s": 16.84,
+        "cpu_total_s": 160.1,
+        "wall_s": 26.33,
+        "single_max_rss_bytes": 544833536,
+        "single_max_rss_mib": 519.6,
+        "peak_memory_footprint_bytes": 23151072,
+        "tree_peak_rss_kib": 2246592,
+        "tree_peak_rss_mib": 2193.9,
+        "tree_peak_procs": 15,
+        "rss_samples": 172,
+        "compiling_lines": 293,
+        "target_du_kib": 388344,
+        "target_du_mib": 379.2,
+        "elf_bytes": {
+          "hyperlane_sealevel_token_collateral.so": 405000
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_token_collateral.so": "d8ca35df569a0e55304b62bba44e553b9eccac431aadde2cd138fd41193d7506"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-token-cross-collateral-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-token-cross-collateral-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "3:59  up 6 days, 18:34, 1 user, load averages: 3.91 5.76 7.04",
+        "uptime_after": "3:59  up 6 days, 18:34, 1 user, load averages: 7.68 6.56 7.30",
+        "exit_code": 0,
+        "time_real_s": 27.98,
+        "cpu_user_s": 145.59,
+        "cpu_sys_s": 16.82,
+        "cpu_total_s": 162.41,
+        "wall_s": 28.024,
+        "single_max_rss_bytes": 541933568,
+        "single_max_rss_mib": 516.8,
+        "peak_memory_footprint_bytes": 23314960,
+        "tree_peak_rss_kib": 2170544,
+        "tree_peak_rss_mib": 2119.7,
+        "tree_peak_procs": 14,
+        "rss_samples": 185,
+        "compiling_lines": 294,
+        "target_du_kib": 389668,
+        "target_du_mib": 380.5,
+        "elf_bytes": {
+          "hyperlane_sealevel_token_cross_collateral.so": 525384
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_token_cross_collateral.so": "f33d8ada53abfed98cd8064cbc87de1235e2478fa86c976dc944fb460f6bd721"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-token-native-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-token-native",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-token-native-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:00  up 6 days, 18:35, 1 user, load averages: 3.95 5.68 6.91",
+        "uptime_after": "4:01  up 6 days, 18:36, 1 user, load averages: 10.31 7.16 7.41",
+        "exit_code": 0,
+        "time_real_s": 26.6,
+        "cpu_user_s": 144.0,
+        "cpu_sys_s": 16.75,
+        "cpu_total_s": 160.75,
+        "wall_s": 26.68,
+        "single_max_rss_bytes": 544800768,
+        "single_max_rss_mib": 519.6,
+        "peak_memory_footprint_bytes": 23134712,
+        "tree_peak_rss_kib": 2106816,
+        "tree_peak_rss_mib": 2057.4,
+        "tree_peak_procs": 15,
+        "rss_samples": 173,
+        "compiling_lines": 293,
+        "target_du_kib": 388404,
+        "target_du_mib": 379.3,
+        "elf_bytes": {
+          "hyperlane_sealevel_token_native.so": 378040
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_token_native.so": "0bf9f6cebefb589d41d1333f0d1e2a4d76651bd1d36177193ff224b3ff2b01ef"
+        }
+      },
+      {
+        "label": "cold-hyperlane-sealevel-fee-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/hyperlane-sealevel-fee",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-hyperlane-sealevel-fee-1",
+        "fresh_target": true,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:02  up 6 days, 18:37, 1 user, load averages: 3.63 5.70 6.81",
+        "uptime_after": "4:03  up 6 days, 18:38, 1 user, load averages: 7.96 6.60 7.11",
+        "exit_code": 0,
+        "time_real_s": 22.86,
+        "cpu_user_s": 118.46,
+        "cpu_sys_s": 14.24,
+        "cpu_total_s": 132.7,
+        "wall_s": 22.931,
+        "single_max_rss_bytes": 496173056,
+        "single_max_rss_mib": 473.2,
+        "peak_memory_footprint_bytes": 23118328,
+        "tree_peak_rss_kib": 2230448,
+        "tree_peak_rss_mib": 2178.2,
+        "tree_peak_procs": 14,
+        "rss_samples": 149,
+        "compiling_lines": 258,
+        "target_du_kib": 348960,
+        "target_du_mib": 340.8,
+        "elf_bytes": {
+          "hyperlane_sealevel_fee.so": 349344
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_fee.so": "96b38720383899f8d115f56a43d19ec40d5619f21993d3abf88b53799e9946b0"
+        }
+      },
+      {
+        "label": "noop-mailbox-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.94 5.67 6.71",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.94 5.67 6.71",
+        "exit_code": 0,
+        "time_real_s": 0.89,
+        "cpu_user_s": 0.5,
+        "cpu_sys_s": 0.3,
+        "cpu_total_s": 0.8,
+        "wall_s": 0.953,
+        "single_max_rss_bytes": 257622016,
+        "single_max_rss_mib": 245.7,
+        "peak_memory_footprint_bytes": 23331368,
+        "tree_peak_rss_kib": 248544,
+        "tree_peak_rss_mib": 242.7,
+        "tree_peak_procs": 4,
+        "rss_samples": 7,
+        "compiling_lines": 0,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "handler-edit-mailbox-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.94 5.67 6.71",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "exit_code": 0,
+        "time_real_s": 1.59,
+        "cpu_user_s": 1.03,
+        "cpu_sys_s": 0.38,
+        "cpu_total_s": 1.41,
+        "wall_s": 1.63,
+        "single_max_rss_bytes": 257343488,
+        "single_max_rss_mib": 245.4,
+        "peak_memory_footprint_bytes": 23167480,
+        "tree_peak_rss_kib": 359040,
+        "tree_peak_rss_mib": 350.6,
+        "tree_peak_procs": 5,
+        "rss_samples": 12,
+        "compiling_lines": 1,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "handler-edit-mailbox-2",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "exit_code": 0,
+        "time_real_s": 1.56,
+        "cpu_user_s": 1.03,
+        "cpu_sys_s": 0.38,
+        "cpu_total_s": 1.41,
+        "wall_s": 1.606,
+        "single_max_rss_bytes": 256147456,
+        "single_max_rss_mib": 244.3,
+        "peak_memory_footprint_bytes": 23331368,
+        "tree_peak_rss_kib": 372800,
+        "tree_peak_rss_mib": 364.1,
+        "tree_peak_procs": 5,
+        "rss_samples": 12,
+        "compiling_lines": 1,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "handler-edit-mailbox-3",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "exit_code": 0,
+        "time_real_s": 1.57,
+        "cpu_user_s": 1.03,
+        "cpu_sys_s": 0.38,
+        "cpu_total_s": 1.41,
+        "wall_s": 1.603,
+        "single_max_rss_bytes": 261390336,
+        "single_max_rss_mib": 249.3,
+        "peak_memory_footprint_bytes": 23642688,
+        "tree_peak_rss_kib": 371216,
+        "tree_peak_rss_mib": 362.5,
+        "tree_peak_procs": 5,
+        "rss_samples": 12,
+        "compiling_lines": 1,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "settle-after-handler",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.86 5.62 6.69",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.79 5.58 6.67",
+        "exit_code": 0,
+        "time_real_s": 1.6,
+        "cpu_user_s": 1.05,
+        "cpu_sys_s": 0.39,
+        "cpu_total_s": 1.44,
+        "wall_s": 1.64,
+        "single_max_rss_bytes": 257212416,
+        "single_max_rss_mib": 245.3,
+        "peak_memory_footprint_bytes": 23429624,
+        "tree_peak_rss_kib": 360624,
+        "tree_peak_rss_mib": 352.2,
+        "tree_peak_procs": 5,
+        "rss_samples": 12,
+        "compiling_lines": 1,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "shared-edit-mailbox-1",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.79 5.58 6.67",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.65 5.52 6.64",
+        "exit_code": 0,
+        "time_real_s": 4.68,
+        "cpu_user_s": 4.12,
+        "cpu_sys_s": 0.56,
+        "cpu_total_s": 4.68,
+        "wall_s": 4.737,
+        "single_max_rss_bytes": 326270976,
+        "single_max_rss_mib": 311.2,
+        "peak_memory_footprint_bytes": 22823416,
+        "tree_peak_rss_kib": 531504,
+        "tree_peak_rss_mib": 519.0,
+        "tree_peak_procs": 4,
+        "rss_samples": 35,
+        "compiling_lines": 4,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "shared-edit-mailbox-2",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.65 5.52 6.64",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.60 5.48 6.62",
+        "exit_code": 0,
+        "time_real_s": 4.76,
+        "cpu_user_s": 4.19,
+        "cpu_sys_s": 0.56,
+        "cpu_total_s": 4.75,
+        "wall_s": 4.79,
+        "single_max_rss_bytes": 329367552,
+        "single_max_rss_mib": 314.1,
+        "peak_memory_footprint_bytes": 23364136,
+        "tree_peak_rss_kib": 530176,
+        "tree_peak_rss_mib": 517.8,
+        "tree_peak_procs": 4,
+        "rss_samples": 35,
+        "compiling_lines": 4,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "shared-edit-mailbox-3",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.60 5.48 6.62",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.87 5.50 6.62",
+        "exit_code": 0,
+        "time_real_s": 4.76,
+        "cpu_user_s": 4.18,
+        "cpu_sys_s": 0.56,
+        "cpu_total_s": 4.74,
+        "wall_s": 4.795,
+        "single_max_rss_bytes": 326074368,
+        "single_max_rss_mib": 311.0,
+        "peak_memory_footprint_bytes": 23347728,
+        "tree_peak_rss_kib": 524304,
+        "tree_peak_rss_mib": 512.0,
+        "tree_peak_procs": 4,
+        "rss_samples": 35,
+        "compiling_lines": 4,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176648
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      },
+      {
+        "label": "settle-after-shared",
+        "program_dir": "~/work/hm1/rust/sealevel/programs/mailbox",
+        "target_dir": "/tmp/svm-bench/timing-20261019-034026/target-mailbox-1",
+        "fresh_target": false,
+        "cmd": "/usr/bin/time -l /tmp/agave-dl/solana-release/bin/cargo-build-sbf --tools-version v1.51 -- --locked --offline",
+        "uptime_before": "4:04  up 6 days, 18:39, 1 user, load averages: 3.87 5.50 6.62",
+        "uptime_after": "4:04  up 6 days, 18:39, 1 user, load averages: 3.64 5.43 6.59",
+        "exit_code": 0,
+        "time_real_s": 4.8,
+        "cpu_user_s": 4.22,
+        "cpu_sys_s": 0.57,
+        "cpu_total_s": 4.79,
+        "wall_s": 4.838,
+        "single_max_rss_bytes": 326975488,
+        "single_max_rss_mib": 311.8,
+        "peak_memory_footprint_bytes": 23511616,
+        "tree_peak_rss_kib": 523744,
+        "tree_peak_rss_mib": 511.5,
+        "tree_peak_procs": 4,
+        "rss_samples": 35,
+        "compiling_lines": 4,
+        "target_du_kib": 363416,
+        "target_du_mib": 354.9,
+        "elf_bytes": {
+          "hyperlane_sealevel_mailbox.so": 176640
+        },
+        "elf_sha256": {
+          "hyperlane_sealevel_mailbox.so": "f77c29de288f23d5a29c5c2e46b7b3dfd8460360c93b8c0ab7c092f0c8191ba0"
+        }
+      }
+    ],
+    "go": [
+      {
+        "label": "cold-fogo-v0-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.66,
+        "cpu_user_s": 0.44,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.57,
+        "wall_s": 0.7,
+        "single_max_rss_bytes": 215433216,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 205980344,
+        "tree_peak_rss_kib": 269536,
+        "tree_peak_rss_mib": 263.2,
+        "tree_peak_procs": 3,
+        "rss_samples": 19,
+        "out_du_kib": 188,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "cold-fogo-v0-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-2/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-2/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.67,
+        "cpu_user_s": 0.45,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.58,
+        "wall_s": 0.711,
+        "single_max_rss_bytes": 215662592,
+        "single_max_rss_mib": 205.7,
+        "peak_memory_footprint_bytes": 206242536,
+        "tree_peak_rss_kib": 270160,
+        "tree_peak_rss_mib": 263.8,
+        "tree_peak_procs": 3,
+        "rss_samples": 18,
+        "out_du_kib": 188,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "cold-fogo-v0-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-3/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-3/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.67,
+        "cpu_user_s": 0.44,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.57,
+        "wall_s": 0.711,
+        "single_max_rss_bytes": 215859200,
+        "single_max_rss_mib": 205.9,
+        "peak_memory_footprint_bytes": 206439144,
+        "tree_peak_rss_kib": 270432,
+        "tree_peak_rss_mib": 264.1,
+        "tree_peak_procs": 3,
+        "rss_samples": 18,
+        "out_du_kib": 188,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "cold-solana-v3-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.01 4.52 10.36",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.68,
+        "cpu_user_s": 0.45,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.58,
+        "wall_s": 0.727,
+        "single_max_rss_bytes": 215449600,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206013136,
+        "tree_peak_rss_kib": 270304,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 19,
+        "out_du_kib": 184,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "cold-solana-v3-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-2/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-2/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.69,
+        "cpu_user_s": 0.45,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.58,
+        "wall_s": 0.711,
+        "single_max_rss_bytes": 215515136,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206078672,
+        "tree_peak_rss_kib": 270288,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 18,
+        "out_du_kib": 184,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "cold-solana-v3-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-3/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-3/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.7,
+        "cpu_user_s": 0.47,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.6,
+        "wall_s": 0.749,
+        "single_max_rss_bytes": 215531520,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206078648,
+        "tree_peak_rss_kib": 270080,
+        "tree_peak_rss_mib": 263.8,
+        "tree_peak_procs": 3,
+        "rss_samples": 19,
+        "out_du_kib": 184,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 0,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "cold-fogo-v0-ism_multisig-ism-message-id-1",
+        "lang": "go",
+        "program": "ism/multisig-ism-message-id",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_multisig-ism-message-id-1/hyperlane_sealevel_multisig_ism_message_id.so ./programs/ism/multisig-ism-message-id",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_multisig-ism-message-id-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.49,
+        "cpu_sys_s": 0.16,
+        "cpu_total_s": 0.65,
+        "wall_s": 0.776,
+        "single_max_rss_bytes": 212598784,
+        "single_max_rss_mib": 202.8,
+        "peak_memory_footprint_bytes": 203178704,
+        "tree_peak_rss_kib": 266992,
+        "tree_peak_rss_mib": 260.7,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 204,
+        "out_du_mib": 0.2,
+        "gocache_du_kib": 148,
+        "receipt_bytes": 0,
+        "elf_bytes": 54136,
+        "elf_sha256": "38867e805d8f677e30855b5d8433ddada4492e6da0b5b95356af4b85c5006318"
+      },
+      {
+        "label": "cold-fogo-v0-ism_composite-ism-1",
+        "lang": "go",
+        "program": "ism/composite-ism",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_composite-ism-1/hyperlane_sealevel_composite_ism.so ./programs/ism/composite-ism",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_composite-ism-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.17,
+        "cpu_user_s": 0.9,
+        "cpu_sys_s": 0.16,
+        "cpu_total_s": 1.06,
+        "wall_s": 1.185,
+        "single_max_rss_bytes": 223559680,
+        "single_max_rss_mib": 213.2,
+        "peak_memory_footprint_bytes": 214254312,
+        "tree_peak_rss_kib": 291952,
+        "tree_peak_rss_mib": 285.1,
+        "tree_peak_procs": 3,
+        "rss_samples": 30,
+        "out_du_kib": 284,
+        "out_du_mib": 0.28,
+        "gocache_du_kib": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 132272,
+        "elf_sha256": "523505ce5e7b61996439ae036fdcb5f244e5c55a3348f1dcee91f60e2c8b5610"
+      },
+      {
+        "label": "cold-fogo-v0-ism_test-ism-1",
+        "lang": "go",
+        "program": "ism/test-ism",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_test-ism-1/hyperlane_sealevel_test_ism.so ./programs/ism/test-ism",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-ism_test-ism-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 2.93 4.48 10.31",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.55,
+        "cpu_user_s": 0.33,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.45,
+        "wall_s": 0.578,
+        "single_max_rss_bytes": 207667200,
+        "single_max_rss_mib": 198.0,
+        "peak_memory_footprint_bytes": 198230736,
+        "tree_peak_rss_kib": 256368,
+        "tree_peak_rss_mib": 250.4,
+        "tree_peak_procs": 3,
+        "rss_samples": 15,
+        "out_du_kib": 140,
+        "out_du_mib": 0.14,
+        "gocache_du_kib": 116,
+        "receipt_bytes": 0,
+        "elf_bytes": 22480,
+        "elf_sha256": "6d68410c58e7aab858557d43981935f96e5273a8f9172a1e7cce520a211493bb"
+      },
+      {
+        "label": "cold-fogo-v0-validator-announce-1",
+        "lang": "go",
+        "program": "validator-announce",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-validator-announce-1/hyperlane_sealevel_validator_announce.so ./programs/validator-announce",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-validator-announce-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.55,
+        "cpu_user_s": 0.34,
+        "cpu_sys_s": 0.11,
+        "cpu_total_s": 0.45,
+        "wall_s": 0.589,
+        "single_max_rss_bytes": 207241216,
+        "single_max_rss_mib": 197.6,
+        "peak_memory_footprint_bytes": 197837544,
+        "tree_peak_rss_kib": 257264,
+        "tree_peak_rss_mib": 251.2,
+        "tree_peak_procs": 3,
+        "rss_samples": 15,
+        "out_du_kib": 144,
+        "out_du_mib": 0.14,
+        "gocache_du_kib": 108,
+        "receipt_bytes": 0,
+        "elf_bytes": 32928,
+        "elf_sha256": "b9296e4e4e21a8b05d406bd637d1814d1ad8e1bab373eeae5ab5b134990c2895"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-igp-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-igp",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-igp-1/hyperlane_sealevel_igp.so ./programs/hyperlane-sealevel-igp",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-igp-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.1,
+        "cpu_user_s": 0.83,
+        "cpu_sys_s": 0.15,
+        "cpu_total_s": 0.98,
+        "wall_s": 1.128,
+        "single_max_rss_bytes": 226656256,
+        "single_max_rss_mib": 216.2,
+        "peak_memory_footprint_bytes": 217170664,
+        "tree_peak_rss_kib": 292336,
+        "tree_peak_rss_mib": 285.5,
+        "tree_peak_procs": 3,
+        "rss_samples": 28,
+        "out_du_kib": 300,
+        "out_du_mib": 0.29,
+        "gocache_du_kib": 140,
+        "receipt_bytes": 0,
+        "elf_bytes": 163336,
+        "elf_sha256": "79c4c9d97c6d232af4de389e5c6c5ae2cd01962e64646e670acc2a027903119f"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-token-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-token",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-1/hyperlane_sealevel_token.so ./programs/hyperlane-sealevel-token",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.06,
+        "cpu_user_s": 0.81,
+        "cpu_sys_s": 0.18,
+        "cpu_total_s": 0.99,
+        "wall_s": 1.09,
+        "single_max_rss_bytes": 228409344,
+        "single_max_rss_mib": 217.8,
+        "peak_memory_footprint_bytes": 218825424,
+        "tree_peak_rss_kib": 293328,
+        "tree_peak_rss_mib": 286.5,
+        "tree_peak_procs": 3,
+        "rss_samples": 28,
+        "out_du_kib": 284,
+        "out_du_mib": 0.28,
+        "gocache_du_kib": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 132672,
+        "elf_sha256": "a5e92f327bd9312035635ab6ffad7a2902481ef682446192702c433a6fd837a2"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-token-collateral-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-token-collateral",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-collateral-1/hyperlane_sealevel_token_collateral.so ./programs/hyperlane-sealevel-token-collateral",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-collateral-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.07,
+        "cpu_user_s": 0.8,
+        "cpu_sys_s": 0.17,
+        "cpu_total_s": 0.97,
+        "wall_s": 1.085,
+        "single_max_rss_bytes": 227966976,
+        "single_max_rss_mib": 217.4,
+        "peak_memory_footprint_bytes": 218383104,
+        "tree_peak_rss_kib": 293312,
+        "tree_peak_rss_mib": 286.4,
+        "tree_peak_procs": 3,
+        "rss_samples": 27,
+        "out_du_kib": 292,
+        "out_du_mib": 0.29,
+        "gocache_du_kib": 160,
+        "receipt_bytes": 0,
+        "elf_bytes": 134000,
+        "elf_sha256": "6f1916cf3be6962b53f75874a6bccec21cfcded0591aaee5229e268ab5e9a0a6"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-token-cross-collateral-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-token-cross-collateral",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -max-accounts 64 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-cross-collateral-1/hyperlane_sealevel_token_cross_collateral.so ./programs/hyperlane-sealevel-token-cross-collateral",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-cross-collateral-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.09 4.49 10.28",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.29,
+        "cpu_user_s": 1.01,
+        "cpu_sys_s": 0.18,
+        "cpu_total_s": 1.19,
+        "wall_s": 1.32,
+        "single_max_rss_bytes": 227082240,
+        "single_max_rss_mib": 216.6,
+        "peak_memory_footprint_bytes": 217432808,
+        "tree_peak_rss_kib": 296896,
+        "tree_peak_rss_mib": 289.9,
+        "tree_peak_procs": 3,
+        "rss_samples": 32,
+        "out_du_kib": 328,
+        "out_du_mib": 0.32,
+        "gocache_du_kib": 160,
+        "receipt_bytes": 0,
+        "elf_bytes": 168024,
+        "elf_sha256": "0e8881855152cf2cdbe623eba0ed612fc0f4d059ba503105eef55b7b8e8434ad"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-token-native-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-token-native",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-native-1/hyperlane_sealevel_token_native.so ./programs/hyperlane-sealevel-token-native",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-token-native-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.09,
+        "cpu_user_s": 0.83,
+        "cpu_sys_s": 0.18,
+        "cpu_total_s": 1.01,
+        "wall_s": 1.126,
+        "single_max_rss_bytes": 226820096,
+        "single_max_rss_mib": 216.3,
+        "peak_memory_footprint_bytes": 217400064,
+        "tree_peak_rss_kib": 291008,
+        "tree_peak_rss_mib": 284.2,
+        "tree_peak_procs": 3,
+        "rss_samples": 29,
+        "out_du_kib": 272,
+        "out_du_mib": 0.27,
+        "gocache_du_kib": 152,
+        "receipt_bytes": 0,
+        "elf_bytes": 121928,
+        "elf_sha256": "db7813b4be9c5bf862e8ca1a7eda82db1c77988a10b23162e274e02a54ab40fc"
+      },
+      {
+        "label": "cold-fogo-v0-hyperlane-sealevel-fee-1",
+        "lang": "go",
+        "program": "hyperlane-sealevel-fee",
+        "profile": "fogo-v0",
+        "fresh": true,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -no-cache -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-fee-1/hyperlane_sealevel_fee.so ./programs/hyperlane-sealevel-fee",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-hyperlane-sealevel-fee-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 1.15,
+        "cpu_user_s": 0.88,
+        "cpu_sys_s": 0.15,
+        "cpu_total_s": 1.03,
+        "wall_s": 1.175,
+        "single_max_rss_bytes": 225968128,
+        "single_max_rss_mib": 215.5,
+        "peak_memory_footprint_bytes": 216433360,
+        "tree_peak_rss_kib": 293440,
+        "tree_peak_rss_mib": 286.6,
+        "tree_peak_procs": 3,
+        "rss_samples": 29,
+        "out_du_kib": 312,
+        "out_du_mib": 0.3,
+        "gocache_du_kib": 140,
+        "receipt_bytes": 0,
+        "elf_bytes": 174720,
+        "elf_sha256": "4a6758fff2b286285f533785064b76b0b5fa8c87aba473761597f83bcf93401a"
+      },
+      {
+        "label": "settle-fogo-v0",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.51,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.63,
+        "wall_s": 0.778,
+        "single_max_rss_bytes": 215826432,
+        "single_max_rss_mib": 205.8,
+        "peak_memory_footprint_bytes": 206389968,
+        "tree_peak_rss_kib": 269952,
+        "tree_peak_rss_mib": 263.6,
+        "tree_peak_procs": 3,
+        "rss_samples": 19,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "noop-fogo-v0-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.33 4.51 10.25",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.3,
+        "cpu_user_s": 0.12,
+        "cpu_sys_s": 0.08,
+        "cpu_total_s": 0.2,
+        "wall_s": 0.338,
+        "single_max_rss_bytes": 17940480,
+        "single_max_rss_mib": 17.1,
+        "peak_memory_footprint_bytes": 7176816,
+        "tree_peak_rss_kib": 31584,
+        "tree_peak_rss_mib": 30.8,
+        "tree_peak_procs": 4,
+        "rss_samples": 9,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "handler-edit-fogo-v0-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.52,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.65,
+        "wall_s": 0.771,
+        "single_max_rss_bytes": 215728128,
+        "single_max_rss_mib": 205.7,
+        "peak_memory_footprint_bytes": 206275256,
+        "tree_peak_rss_kib": 270304,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 19,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "c2c0ed288e5a2a4353cab20187f4ee75963a4c3d49cda9d94f44b6ab8cfdbd3f"
+      },
+      {
+        "label": "handler-edit-fogo-v0-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.76,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.14,
+        "cpu_total_s": 0.67,
+        "wall_s": 0.778,
+        "single_max_rss_bytes": 215547904,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206111440,
+        "tree_peak_rss_kib": 269696,
+        "tree_peak_rss_mib": 263.4,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "f75021839149a5520967d63e5293256a61392dc913d1b46f22c559463cdc29d3"
+      },
+      {
+        "label": "handler-edit-fogo-v0-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.52,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.64,
+        "wall_s": 0.796,
+        "single_max_rss_bytes": 215580672,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206160616,
+        "tree_peak_rss_kib": 269408,
+        "tree_peak_rss_mib": 263.1,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "644ce6c8247ff299c0e57f79801bfe9da7598a222bcfee7ebd79bd4ee558fd6e"
+      },
+      {
+        "label": "settle-after-handler-fogo-v0",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.77,
+        "cpu_user_s": 0.52,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.64,
+        "wall_s": 0.786,
+        "single_max_rss_bytes": 215498752,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206062288,
+        "tree_peak_rss_kib": 269776,
+        "tree_peak_rss_mib": 263.5,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "shared-edit-fogo-v0-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.76,
+        "cpu_user_s": 0.51,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.64,
+        "wall_s": 0.797,
+        "single_max_rss_bytes": 215547904,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206078672,
+        "tree_peak_rss_kib": 270592,
+        "tree_peak_rss_mib": 264.2,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "1505d2a4cb33b72c4704a4349cc47e6de3ecb527e87202fc94f3beb788284a9a"
+      },
+      {
+        "label": "shared-edit-fogo-v0-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.30 4.48 10.21",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.77,
+        "cpu_user_s": 0.52,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.65,
+        "wall_s": 0.821,
+        "single_max_rss_bytes": 215695360,
+        "single_max_rss_mib": 205.7,
+        "peak_memory_footprint_bytes": 206275304,
+        "tree_peak_rss_kib": 269808,
+        "tree_peak_rss_mib": 263.5,
+        "tree_peak_procs": 3,
+        "rss_samples": 21,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "fec844045e63d9e4d044a3a1f114b1680a595373906059e6d955e47d307d4f5b"
+      },
+      {
+        "label": "shared-edit-fogo-v0-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "uptime_after": "3:39  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.14,
+        "cpu_total_s": 0.67,
+        "wall_s": 0.775,
+        "single_max_rss_bytes": 215662592,
+        "single_max_rss_mib": 205.7,
+        "peak_memory_footprint_bytes": 206226128,
+        "tree_peak_rss_kib": 269824,
+        "tree_peak_rss_mib": 263.5,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "d951a422cdb4e07210cf330148dbbd1eefbf88a9e05496368b286c2a8b01b374"
+      },
+      {
+        "label": "settle-after-shared-fogo-v0",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "fogo-v0",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target fogo-v0 -o /tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-fogo-v0-mailbox-1/gocache"
+        },
+        "uptime_before": "3:39  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.76,
+        "cpu_user_s": 0.52,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.64,
+        "wall_s": 0.796,
+        "single_max_rss_bytes": 215515136,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206078672,
+        "tree_peak_rss_kib": 269920,
+        "tree_peak_rss_mib": 263.6,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 192,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 63984,
+        "elf_sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+      },
+      {
+        "label": "settle-solana-v3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.76,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.66,
+        "wall_s": 0.803,
+        "single_max_rss_bytes": 215580672,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206127800,
+        "tree_peak_rss_kib": 270336,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 188,
+        "out_du_mib": 0.18,
+        "gocache_du_kib": 124,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "noop-solana-v3-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.31,
+        "cpu_user_s": 0.12,
+        "cpu_sys_s": 0.09,
+        "cpu_total_s": 0.21,
+        "wall_s": 0.334,
+        "single_max_rss_bytes": 17924096,
+        "single_max_rss_mib": 17.1,
+        "peak_memory_footprint_bytes": 6980160,
+        "tree_peak_rss_kib": 31264,
+        "tree_peak_rss_mib": 30.5,
+        "tree_peak_procs": 4,
+        "rss_samples": 9,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "handler-edit-solana-v3-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.11 4.43 10.15",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.77,
+        "cpu_user_s": 0.54,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.67,
+        "wall_s": 0.817,
+        "single_max_rss_bytes": 215613440,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206160568,
+        "tree_peak_rss_kib": 270256,
+        "tree_peak_rss_mib": 263.9,
+        "tree_peak_procs": 3,
+        "rss_samples": 21,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60328,
+        "elf_sha256": "837284398c94a813b4515efc2f0d7e251ab03e7d46f13a6d493d80539cd1ff19"
+      },
+      {
+        "label": "handler-edit-solana-v3-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.19 4.42 10.12",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.75,
+        "cpu_user_s": 0.54,
+        "cpu_sys_s": 0.14,
+        "cpu_total_s": 0.68,
+        "wall_s": 0.798,
+        "single_max_rss_bytes": 215482368,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206045904,
+        "tree_peak_rss_kib": 269888,
+        "tree_peak_rss_mib": 263.6,
+        "tree_peak_procs": 3,
+        "rss_samples": 21,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60328,
+        "elf_sha256": "f3685b22b6e92e57dc14394d8a847d64894145fc6f627276af53c88d82b6ff8c"
+      },
+      {
+        "label": "handler-edit-solana-v3-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:14, 1 user, load averages: 3.19 4.42 10.12",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.78,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.65,
+        "wall_s": 0.796,
+        "single_max_rss_bytes": 215498752,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206062288,
+        "tree_peak_rss_kib": 270352,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60328,
+        "elf_sha256": "95735e18e78bd8b14ed43e9c3d775ae9929fab7a3ccaa8feda13ca1fa16ac0be"
+      },
+      {
+        "label": "settle-after-handler-solana-v3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:14, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.76,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.66,
+        "wall_s": 0.798,
+        "single_max_rss_bytes": 215580672,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206144208,
+        "tree_peak_rss_kib": 270256,
+        "tree_peak_rss_mib": 263.9,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      },
+      {
+        "label": "shared-edit-solana-v3-mailbox-1",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.79,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.12,
+        "cpu_total_s": 0.65,
+        "wall_s": 0.799,
+        "single_max_rss_bytes": 215515136,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 206062264,
+        "tree_peak_rss_kib": 270144,
+        "tree_peak_rss_mib": 263.8,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "707976e441ae0e2c3a9caa9fbbad3e96abd860a5234de703c6b361ccf4309caa"
+      },
+      {
+        "label": "shared-edit-solana-v3-mailbox-2",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.74,
+        "cpu_user_s": 0.54,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.67,
+        "wall_s": 0.779,
+        "single_max_rss_bytes": 215597056,
+        "single_max_rss_mib": 205.6,
+        "peak_memory_footprint_bytes": 206127848,
+        "tree_peak_rss_kib": 270336,
+        "tree_peak_rss_mib": 264.0,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "6ce712c269583ccb0295a5644d9db5bba86db12db247f231a4fef50fd7bae192"
+      },
+      {
+        "label": "shared-edit-solana-v3-mailbox-3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:15, 1 user, load averages: 3.19 4.42 10.12",
+        "uptime_after": "3:40  up 6 days, 18:15, 1 user, load averages: 3.25 4.41 10.08",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.77,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.66,
+        "wall_s": 0.812,
+        "single_max_rss_bytes": 215449600,
+        "single_max_rss_mib": 205.5,
+        "peak_memory_footprint_bytes": 205996728,
+        "tree_peak_rss_kib": 270560,
+        "tree_peak_rss_mib": 264.2,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "6e3122cb47c3c8ac1b083f432792b1e8fdc7941512f7d31a738ce703594389e2"
+      },
+      {
+        "label": "settle-after-shared-solana-v3",
+        "lang": "go",
+        "program": "mailbox",
+        "profile": "solana-v3",
+        "fresh": false,
+        "cwd": "/tmp/svm-bench/final/gosrc/sealevel",
+        "cmd": "/usr/bin/time -l /tmp/gosvm-pilot/bin/gosvm-int2 -target solana-v3 -o /tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/hyperlane_sealevel_mailbox.so ./programs/mailbox",
+        "env": {
+          "GOCACHE": "/tmp/svm-bench/go-timing-20261019-033934/out-solana-v3-mailbox-1/gocache"
+        },
+        "uptime_before": "3:40  up 6 days, 18:15, 1 user, load averages: 3.25 4.41 10.08",
+        "uptime_after": "3:40  up 6 days, 18:15, 1 user, load averages: 3.25 4.41 10.08",
+        "load_wait_s": 0.0,
+        "exit_code": 0,
+        "time_real_s": 0.78,
+        "cpu_user_s": 0.53,
+        "cpu_sys_s": 0.13,
+        "cpu_total_s": 0.66,
+        "wall_s": 0.798,
+        "single_max_rss_bytes": 215908352,
+        "single_max_rss_mib": 205.9,
+        "peak_memory_footprint_bytes": 206471888,
+        "tree_peak_rss_kib": 270672,
+        "tree_peak_rss_mib": 264.3,
+        "tree_peak_procs": 3,
+        "rss_samples": 20,
+        "out_du_kib": 196,
+        "out_du_mib": 0.19,
+        "gocache_du_kib": 132,
+        "receipt_bytes": 153,
+        "elf_bytes": 60320,
+        "elf_sha256": "472dcc9b3d815299a3f56b4ec3c0b47c6190d44051acf06f1da006b020f814be"
+      }
+    ]
+  }
+}
