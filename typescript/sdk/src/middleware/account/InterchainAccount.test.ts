@@ -590,6 +590,18 @@ const FIXED_OWNER = '0x' + '11'.repeat(20);
 const FIXED_ISM = '0x' + '44'.repeat(20);
 const FIXED_SALT = '0x' + '55'.repeat(32);
 const FIXED_CALL = { to: '0x' + '22'.repeat(20), data: '0x1234', value: '0' };
+const RPC_URL_WITH_KEY = 'https://rpc.example.com/secret-key';
+const REDACTED_RPC_ERROR_MESSAGE =
+  'missing response (url="<redacted-url>", code=SERVER_ERROR)';
+
+function createRpcError(): Error {
+  return Object.assign(
+    new Error(
+      `missing response (url="${RPC_URL_WITH_KEY}", code=SERVER_ERROR)`,
+    ),
+    { url: RPC_URL_WITH_KEY },
+  );
+}
 const LEGACY_BODY =
   '0x0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000444444444444444444444444444444444444444400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000';
 const PACKED_EMPTY_SALT_BODY =
@@ -1287,9 +1299,8 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   it('returns static 200k fallback when getProvider fails', async () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
-    (multiProvider.getProvider as sinon.SinonStub).throws(
-      new Error('provider error'),
-    );
+    (multiProvider.getProvider as sinon.SinonStub).throws(createRpcError());
+    const warn = sandbox.spy(app.logger, 'warn');
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,
@@ -1299,6 +1310,18 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     });
 
     expect(result.toString()).to.equal(ICA_HANDLE_GAS_FALLBACK.toString());
+    const warnCall = warn
+      .getCalls()
+      .find(
+        (call) =>
+          call.args[1] ===
+          'Individual call estimation also failed, using static fallback',
+      );
+    assert(warnCall, 'Expected the static fallback warning');
+    expect(warnCall.args[0]).to.deep.equal({
+      destination,
+      error: REDACTED_RPC_ERROR_MESSAGE,
+    });
   });
 
   const fixedLocalRouter = '0x' + '77'.repeat(20);
@@ -1566,12 +1589,10 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
       mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
       mockProvider.estimateGas.resolves(BigNumber.from(30_000));
       if (c.failGetCode) {
-        mockProvider.getCode.rejects(new Error('getCode failed'));
+        mockProvider.getCode.rejects(createRpcError());
       } else {
         mockProvider.getCode.resolves('0x');
-        mockDestRouter.estimateGas[saltedDeploy].rejects(
-          new Error('deploy estimate failed'),
-        );
+        mockDestRouter.estimateGas[saltedDeploy].rejects(createRpcError());
       }
       const warn = sandbox.spy(app.logger, 'warn');
 
@@ -1584,7 +1605,15 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
 
       // (30k call + 150k deployment fallback + 50k ICA + 5k per-call) * 1.1
       expect(result.toString()).to.equal('258500');
-      sinon.assert.calledWithMatch(warn, sinon.match.object, c.expectedWarning);
+      const warnCall = warn
+        .getCalls()
+        .find((call) => call.args[1] === c.expectedWarning);
+      assert(warnCall, `Expected warning: ${c.expectedWarning}`);
+      expect(warnCall.args[0]).to.deep.equal({
+        destination,
+        destinationAccount,
+        error: REDACTED_RPC_ERROR_MESSAGE,
+      });
       sinon.assert.notCalled(mockDestRouter.estimateGas[legacyDeploy]);
       if (c.failGetCode) {
         sinon.assert.notCalled(mockDestRouter.estimateGas[saltedDeploy]);

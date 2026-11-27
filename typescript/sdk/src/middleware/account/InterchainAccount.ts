@@ -19,6 +19,7 @@ import {
   objMap,
   parseStandardHookMetadata,
   promiseObjAll,
+  redactErrorMessage,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -447,7 +448,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         .add(PER_CALL_OVERHEAD.mul(formattedCalls.length));
     } catch (error: unknown) {
       this.logger.warn(
-        { destination, err: error },
+        { destination, error: redactErrorMessage(error) },
         'Individual call estimation also failed, using static fallback',
       );
       return ICA_HANDLE_GAS_FALLBACK;
@@ -528,7 +529,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       code = await provider.getCode(destinationAccount);
     } catch (error: unknown) {
       this.logger.warn(
-        { destination, destinationAccount, err: error },
+        { destination, destinationAccount, error: redactErrorMessage(error) },
         'Failed to check ICA deployment, assuming it is undeployed and using the deployment gas fallback',
       );
       return ICA_DEPLOYMENT_GAS_FALLBACK;
@@ -554,7 +555,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           ));
     } catch (error: unknown) {
       this.logger.warn(
-        { destination, destinationAccount, err: error },
+        { destination, destinationAccount, error: redactErrorMessage(error) },
         'Failed to estimate ICA deployment gas, using the deployment gas fallback',
       );
       return ICA_DEPLOYMENT_GAS_FALLBACK;
