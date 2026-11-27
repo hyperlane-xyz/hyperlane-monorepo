@@ -70,7 +70,10 @@ import {
   RoutingIsmConfig,
   WormholeIsmConfig,
 } from './types.js';
-import { readBlacklistedIds } from './blacklist.js';
+import {
+  BLACKLIST_LOG_SCAN_BLOCK_RANGE,
+  readBlacklistedIds,
+} from './blacklist.js';
 import { deriveDelayedFlowRemoteIsms } from './delayedFlow.js';
 
 const INCREMENTAL_REVERT_STRING =
@@ -133,7 +136,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
 
     this.evmLogReader = EvmEventLogsReader.fromConfig(
-      { chain: this.chain },
+      {
+        chain: this.chain,
+        paginationBlockRange: BLACKLIST_LOG_SCAN_BLOCK_RANGE,
+      },
       multiProvider,
     );
   }

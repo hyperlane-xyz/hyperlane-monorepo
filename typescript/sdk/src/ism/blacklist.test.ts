@@ -56,10 +56,7 @@ describe('readBlacklistedIds', () => {
       .stub(provider, 'send')
       .resolves({ number: FINALIZED_BLOCK_HEX });
     sandbox
-      .stub(
-        EvmEventLogsReader.prototype,
-        'getContractDeploymentBlockFromExplorer',
-      )
+      .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
       .resolves(DEPLOYMENT_BLOCK);
     getLogsByTopic = sandbox
       .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')

@@ -13,6 +13,8 @@ import { buildBlockTagOverrides } from '../token/adapters/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
 
+export const BLACKLIST_LOG_SCAN_BLOCK_RANGE = 1_000_000;
+
 const logger = rootLogger.child({ module: 'BlacklistIsmUtils' });
 
 /**
@@ -118,11 +120,10 @@ async function resolveBlockNumber(
  * `EvmEventLogsReader` behaviour rather than anything specific to blacklists;
  * every consumer reading logs through an explorer has the same exposure.
  *
- * The replay requires an explorer-derived deployment block. The explorer either
- * reports the block directly or supplies the deployment transaction whose
- * receipt establishes it. That bound is passed explicitly to the log reader, so
- * an explorer log failure can still fall back to RPC without replacing the
- * bound with one derived by bisecting historical `eth_getCode` responses.
+ * The replay starts at the deployment block. Explorer lookup remains primary:
+ * it either reports the block directly or supplies the deployment transaction
+ * whose receipt establishes it. If that path fails, the bound falls back to RPC
+ * bisection over historical `eth_getCode` responses.
  *
  * `blockTag` reads the set as of that block instead of the latest one: it is
  * passed to `values()`, and the log replay stops at it, resolving a named tag
@@ -152,11 +153,14 @@ export async function readBlacklistedIds(
   }
 
   const logsReader =
-    eventLogsReader ?? EvmEventLogsReader.fromConfig({ chain }, multiProvider);
+    eventLogsReader ??
+    EvmEventLogsReader.fromConfig(
+      { chain, paginationBlockRange: BLACKLIST_LOG_SCAN_BLOCK_RANGE },
+      multiProvider,
+    );
 
   try {
-    const fromBlock =
-      await logsReader.getContractDeploymentBlockFromExplorer(address);
+    const fromBlock = await logsReader.getContractDeploymentBlock(address);
     const query: Parameters<EvmEventLogsReader['getLogsByTopic']>[0] = {
       contractAddress: address,
       eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,

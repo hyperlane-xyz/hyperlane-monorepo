@@ -817,10 +817,7 @@ describe('HyperlaneIsmFactory', async () => {
       ).deploy(owner);
       const deploymentReceipt = await legacyIsm.deployTransaction.wait();
       const deploymentBlockStub = sinon
-        .stub(
-          EvmEventLogsReader.prototype,
-          'getContractDeploymentBlockFromExplorer',
-        )
+        .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
         .resolves(deploymentReceipt.blockNumber);
 
       try {
@@ -1005,10 +1002,7 @@ describe('HyperlaneIsmFactory', async () => {
         sandbox = sinon.createSandbox();
         legacyDeploymentBlocks.clear();
         sandbox
-          .stub(
-            EvmEventLogsReader.prototype,
-            'getContractDeploymentBlockFromExplorer',
-          )
+          .stub(EvmEventLogsReader.prototype, 'getContractDeploymentBlock')
           .callsFake(async (address) => {
             const block = legacyDeploymentBlocks.get(address.toLowerCase());
             assert(
