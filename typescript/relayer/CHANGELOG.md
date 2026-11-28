@@ -1,5 +1,37 @@
 # @hyperlane-xyz/relayer
 
+## 4.1.1
+
+### Patch Changes
+
+- e927ec6: The yaml dependency was updated from 2.4.5 to 2.9.1, which fixes a stack overflow when parsing deeply nested YAML collections (GHSA-48c2-rrv3-qjmp).
+- e927ec6: The minimum zod version was raised to 4.6.7, which bounds memory use when validating oversized constrained collections (GHSA-mrhx-c7xc-m3w5).
+- Updated dependencies [5ad5b80]
+- Updated dependencies [bb87f05]
+- Updated dependencies [e4d30ea]
+- Updated dependencies [cdeacee]
+- Updated dependencies [d61a29e]
+- Updated dependencies [ce47020]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [9808703]
+- Updated dependencies [8509874]
+- Updated dependencies [c640d1f]
+- Updated dependencies [a300484]
+- Updated dependencies [e3b9c16]
+- Updated dependencies [94917ea]
+- Updated dependencies [b88e58c]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [78deaf4]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/core@12.3.0
+
 ## 4.1.0
 
 ### Minor Changes

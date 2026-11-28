@@ -1,5 +1,39 @@
 # @hyperlane-xyz/keyfunder
 
+## 0.1.55
+
+### Patch Changes
+
+- Updated dependencies [5ad5b80]
+- Updated dependencies [bb87f05]
+- Updated dependencies [e4d30ea]
+- Updated dependencies [cdeacee]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d61a29e]
+- Updated dependencies [ce47020]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [9808703]
+- Updated dependencies [8509874]
+- Updated dependencies [c640d1f]
+- Updated dependencies [a300484]
+- Updated dependencies [e3b9c16]
+- Updated dependencies [94917ea]
+- Updated dependencies [b88e58c]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [78deaf4]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/core@12.3.0
+
 ## 0.1.54
 
 ### Patch Changes

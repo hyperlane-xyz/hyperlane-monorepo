@@ -1,5 +1,21 @@
 # @hyperlane-xyz/utils
 
+## 46.0.0
+
+### Minor Changes
+
+- 4ce76cb: `redactSecrets`, `redactErrorMessage`, `redactErrorStack`, `REDACTED_URL` and `REDACTED_HOST` were added to remove URLs and hostnames from error text before it is logged. `redactErrorStack` keeps the stack frames and redacts only the error message inside the stack.
+- f32ac07: Added transaction submission observers and typed failures that retained known identities across delegated sends, ambiguous broadcast responses, and later failures.
+
+  Solana sends were limited to one signed identity per invocation. Automatic blockhash resubmission was disabled by default, and the deprecated `enableBlockhashResubmit: true` setting was rejected before signing; callers using that setting must remove it or set it to `false`. Unresolved sends retained their original signature rather than risking duplicate execution with a fresh blockhash.
+
+  Tron receipt waits gained per-call deadlines covering requests, retries, confirmation checks, and receipt construction. Timed-out HTTP requests were cancelled without changing other waits or shared transport settings.
+
+### Patch Changes
+
+- ce47020: Fixed the docs link in the logging comment, which pointed at a page that no longer exists.
+- e927ec6: The yaml dependency was updated from 2.4.5 to 2.9.1, which fixes a stack overflow when parsing deeply nested YAML collections (GHSA-48c2-rrv3-qjmp).
+
 ## 45.2.0
 
 ### Patch Changes

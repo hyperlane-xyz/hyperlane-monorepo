@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 46.0.0
+
+### Patch Changes
+
+- 94917ea: Migrated Safe-hosted governance proposals and pending transaction operations to the Safe Queue Service before the legacy endpoints retire. Preserved support for custom Safe Transaction Services.
+- b60bcbb: Updated warp send to confirm delivery directly on each destination chain through the SDK. Added CosmWasm delivery polling and Starknet RPC failover for delivery reads, and fixed Aleo RPC encoding for structured delivery keys.
+- e927ec6: The yaml dependency was updated from 2.4.5 to 2.9.1, which fixes a stack overflow when parsing deeply nested YAML collections (GHSA-48c2-rrv3-qjmp).
+
 ## 45.2.0
 
 ### Minor Changes
