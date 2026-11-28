@@ -1378,9 +1378,9 @@ function aevoCapBound(cap: XERC20AevoCapConfig): bigint | undefined {
   }
 }
 
-// The most a router may mint or burn at once, which its authority and its cap
-// alone decide.
-function aevoMaxLimit(limits: XERC20AevoLimitConfig): bigint {
+// The most a router may mint at once, which its authority and its cap alone
+// decide.
+function aevoMintMaxLimit(limits: XERC20AevoLimitConfig): bigint {
   if (!limits.authorized) return 0n;
 
   return aevoCapBound(limits.cap) ?? UIN256_MAX_VALUE;
@@ -1409,6 +1409,22 @@ async function aevoBurnLimit(
   return limits.authorized ? outstanding() : 0n;
 }
 
+// The most a router may burn at once: its cap, or what it has minted and not
+// burned where that is beyond it, as a burn is bound by the count and not by the
+// cap. The count is needed only where there is a cap.
+async function aevoBurnMaxLimit(
+  limits: XERC20AevoLimitConfig,
+  outstanding: () => Promise<bigint>,
+): Promise<bigint> {
+  if (!limits.authorized) return 0n;
+
+  const cap = aevoCapBound(limits.cap);
+  if (cap === undefined) return UIN256_MAX_VALUE;
+
+  const minted = await outstanding();
+  return cap > minted ? cap : minted;
+}
+
 /**
  * Adapter for a HypXERC20 router over an Aevo token, which keeps for each minter
  * an authority, a cap and a count of what the minter has minted and not burned.
@@ -1418,13 +1434,16 @@ async function aevoBurnLimit(
  * - Not authorized: 0 for the four.
  * - Authorized without a cap: the largest uint256 for the mint limit and for
  *   both maximums, and the count for the burn limit.
- * - Authorized with a cap: the cap for both maximums, what is left of it, 0 once
- *   the count is beyond it, for the mint limit, and the count for the burn limit.
+ * - Authorized with a cap: the cap for the mint maximum, what is left of it, 0
+ *   once the count is beyond it, for the mint limit, the count for the burn
+ *   limit, and the cap for the burn maximum, or the count where it is beyond the
+ *   cap, as the token bounds a burn by the count and not by the cap.
  *
  * What the authority, the cap and the count hold at one block is what a limit is
  * read from, so that a block that changes them while they are read is not seen
- * in part. The count is read only where the limit needs it: the maximums never
- * need it, and neither does the mint limit without a cap.
+ * in part. The count is read only where the limit needs it: the mint maximum
+ * never needs it, and neither do the mint limit and the burn maximum without a
+ * cap.
  *
  * What the router has bridged is its count, not the supply of the token: the
  * minters other than the router have minted the rest of it. The count is read
@@ -1474,7 +1493,7 @@ export class EvmHypAevoXERC20Adapter
   }
 
   async getMintMaxLimit(): Promise<bigint> {
-    return aevoMaxLimit((await this.pinned()).limits);
+    return aevoMintMaxLimit((await this.pinned()).limits);
   }
 
   async getBurnLimit(): Promise<bigint> {
@@ -1484,7 +1503,9 @@ export class EvmHypAevoXERC20Adapter
   }
 
   async getBurnMaxLimit(): Promise<bigint> {
-    return aevoMaxLimit((await this.pinned()).limits);
+    const { limits, outstanding } = await this.pinned();
+
+    return aevoBurnMaxLimit(limits, outstanding);
   }
 
   /**
@@ -1497,13 +1518,13 @@ export class EvmHypAevoXERC20Adapter
     burnMax: bigint;
   }> {
     const { limits, outstanding } = await this.pinned();
-    const [mint, burn] = await Promise.all([
+    const [mint, burn, burnMax] = await Promise.all([
       aevoMintLimit(limits, outstanding),
       aevoBurnLimit(limits, outstanding),
+      aevoBurnMaxLimit(limits, outstanding),
     ]);
-    const max = aevoMaxLimit(limits);
 
-    return { mint, mintMax: max, burn, burnMax: max };
+    return { mint, mintMax: aevoMintMaxLimit(limits), burn, burnMax };
   }
 
   override async getBridgedSupply(options?: {

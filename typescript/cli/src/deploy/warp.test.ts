@@ -9,6 +9,7 @@ import {
   type Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import {
   ProtocolType,
   addressToBytes32,
@@ -349,6 +350,14 @@ describe('the standards of the routers of a route', () => {
     .id('setLimits(address,uint256,uint256)')
     .slice(2, 10)}`;
   const lookupError = new Error('RPC unreachable');
+  type DeployedContracts = Awaited<
+    ReturnType<HypERC20Deployer['deploy']>
+  >[string];
+  const ROUTER = '0x7777777777777777777777777777777777777777';
+  const AEVO_CODE = '0x91223d6966d97b216cd22eaf80ad2cf3963aee20';
+  const VELO_CODE = `0x${ethers.utils
+    .id('setBufferCap(address,uint256)')
+    .slice(2, 10)}`;
   const chains = [
     TestChainName.test1,
     TestChainName.test2,
@@ -443,15 +452,6 @@ describe('the standards of the routers of a route', () => {
   });
 
   describe('extendWarpRoute', () => {
-    type DeployedContracts = Awaited<
-      ReturnType<HypERC20Deployer['deploy']>
-    >[string];
-    const ROUTER = '0x7777777777777777777777777777777777777777';
-    const AEVO_CODE = '0x91223d6966d97b216cd22eaf80ad2cf3963aee20';
-    const VELO_CODE = `0x${ethers.utils
-      .id('setBufferCap(address,uint256)')
-      .slice(2, 10)}`;
-
     it('writes the standards resolved before the deployment, derived once per chain', async () => {
       const existing: WarpCoreConfig['tokens'][number] = {
         chainName: TestChainName.test1,
@@ -618,9 +618,13 @@ describe('the standards of the routers of a route', () => {
   describe('a standard that cannot be resolved', () => {
     let getSigner: sinon.SinonStub;
     let getAddresses: sinon.SinonStub;
+    let addWarpRoute: sinon.SinonStub;
+    let addWarpRouteConfig: sinon.SinonStub;
     let deploy: sinon.SinonStub;
 
     beforeEach(() => {
+      addWarpRoute = sinon.stub().resolves();
+      addWarpRouteConfig = sinon.stub().resolves();
       getSigner = sinon
         .stub(multiProvider, 'getSigner')
         .returns(ethers.Wallet.createRandom());
@@ -640,6 +644,7 @@ describe('the standards of the routers of a route', () => {
           const target = await addressOrName;
           if (target === failingToken) throw lookupError;
           if (target === standardToken) return STANDARD_CODE;
+          if (target === veloToken) return VELO_CODE;
           throw new Error(`Unexpected getCode call for ${target}`);
         });
       }
@@ -682,47 +687,170 @@ describe('the standards of the routers of a route', () => {
       expectNothingDeployed();
     });
 
-    it('aborts an extension before any router is deployed', async () => {
-      const warpCoreConfig: WarpCoreConfig = {
-        tokens: [
-          {
-            chainName: TestChainName.test1,
-            standard: TokenStandard.EvmHypXERC20,
-            tokenType: TokenType.XERC20,
-            decimals: 6,
-            symbol: 'USDC',
-            name: 'USD Coin',
-            addressOrDenom: MAILBOX,
-            collateralAddressOrDenom: standardToken,
-          },
-        ],
-      };
+    const existingToken = (
+      chainName: string,
+      token: string,
+    ): WarpCoreConfig['tokens'][number] => ({
+      chainName,
+      standard: TokenStandard.EvmHypXERC20,
+      tokenType: TokenType.XERC20,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MAILBOX,
+      collateralAddressOrDenom: token,
+    });
 
-      const error = await rejection(
-        extendWarpRoute(
-          {
-            context: {
-              altVmSigners: {},
-              multiProvider,
-              registry: { getAddresses },
-              supportedProtocols: [ProtocolType.Ethereum],
-              // CAST: the extension stops at the lookup, before the rest of the context is read.
-            } as unknown as Parameters<typeof extendWarpRoute>[0]['context'],
-            receiptsDir: '',
-            warpCoreConfig,
-            warpDeployConfig: {
-              [TestChainName.test1]: xerc20(standardToken),
-              [TestChainName.test2]: xerc20(failingToken),
-            },
-          },
-          {},
+    function extend(
+      existing: WarpCoreConfig['tokens'],
+      warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+    ) {
+      const warpCoreConfig: WarpCoreConfig = { tokens: existing };
+      return extendWarpRoute(
+        {
+          context: contractDouble<
+            Parameters<typeof extendWarpRoute>[0]['context']
+          >({
+            altVmSigners: {},
+            multiProvider,
+            registry: contractDouble<IRegistry>({
+              addWarpRoute,
+              addWarpRouteConfig,
+              getAddresses,
+            }),
+            supportedProtocols: [ProtocolType.Ethereum],
+          }),
+          receiptsDir: '',
           warpCoreConfig,
-          {},
+          warpDeployConfig,
+        },
+        {},
+        warpCoreConfig,
+        {},
+      );
+    }
+
+    // A router is deployed for each chain of the extension that the deployer is
+    // asked for, answering the router of that chain.
+    function deployEachChain() {
+      deploy.callsFake(async (configMap) =>
+        Object.fromEntries(
+          Object.keys(configMap).map((chain) => [
+            chain,
+            contractDouble<DeployedContracts>({
+              synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+            }),
+          ]),
         ),
+      );
+    }
+
+    // The standard of a chain that exists is what the registry config is made
+    // from, so it is resolved before any router of the extension is deployed.
+    it('aborts an extension before any router is deployed when the token of an existing chain cannot be read', async () => {
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, failingToken)], {
+          [TestChainName.test1]: xerc20(failingToken),
+          [TestChainName.test2]: xerc20(standardToken),
+        }),
       );
 
       expect(error).to.equal(lookupError);
       expectNothingDeployed();
+    });
+
+    // The standard of a new chain is resolved with its deployment, and a lookup
+    // that fails fails that chain like its deployment would.
+    it('fails an extension whose new chains all fail their lookup, deploying and writing nothing', async () => {
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: xerc20(failingToken),
+        }),
+      );
+
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        `Extension deployment failed for all chains: ${TestChainName.test2}. Re-run to retry.`,
+      );
+      expect(getSigner.called).to.equal(false);
+      expect(deploy.called).to.equal(false);
+      expect(addWarpRoute.called).to.equal(false);
+      expect(addWarpRouteConfig.called).to.equal(false);
+    });
+
+    it('deploys and saves the new chains whose lookup succeeds when another new chain fails its lookup', async () => {
+      deployEachChain();
+
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: xerc20(veloToken),
+          [TestChainName.test3]: xerc20(failingToken),
+        }),
+      );
+
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.include(
+        `Extension deployment failed for chain(s): ${TestChainName.test3}.`,
+      );
+      expect(deploy.calledOnce).to.equal(true);
+      expect(Object.keys(deploy.firstCall.args[0])).to.deep.equal([
+        TestChainName.test2,
+      ]);
+      expect(
+        addWarpRoute.firstCall.args[0].tokens.map(
+          (token: WarpCoreConfig['tokens'][number]) => [
+            token.chainName,
+            token.standard,
+          ],
+        ),
+      ).to.deep.equal([
+        [TestChainName.test1, TokenStandard.EvmHypXERC20],
+        [TestChainName.test2, TokenStandard.EvmHypVSXERC20],
+      ]);
+      expect(addWarpRouteConfig.calledOnce).to.equal(true);
+    });
+
+    // The routers of a hybrid extension are deployed together, or none is.
+    it('aborts a hybrid extension before the routers are deployed when the token of a new chain cannot be read', async () => {
+      deployEachChain();
+
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: {
+            type: TokenType.native,
+            mailbox: MAILBOX,
+            owner: OWNER,
+            hook: {
+              type: HookType.NET_FLOW_RATE_LIMITED,
+              thresholdBps: 500,
+              duration: 86400n,
+              owner: OWNER,
+            },
+            interchainSecurityModule: {
+              type: IsmType.AGGREGATION,
+              threshold: 2,
+              modules: [
+                { type: IsmType.TRUSTED_RELAYER, relayer: OWNER },
+                {
+                  type: IsmType.NET_FLOW_RATE_LIMITED,
+                  thresholdBps: 500,
+                  duration: 86400n,
+                  owner: OWNER,
+                },
+              ],
+            },
+          },
+          [TestChainName.test3]: xerc20(failingToken),
+        }),
+      );
+
+      expect(error).to.equal(lookupError);
+      expect(getSigner.called).to.equal(false);
+      expect(deploy.called).to.equal(false);
+      expect(addWarpRoute.called).to.equal(false);
     });
   });
 });

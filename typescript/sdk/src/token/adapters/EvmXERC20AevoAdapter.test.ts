@@ -487,9 +487,16 @@ describe('EvmHypAevoXERC20Adapter', () => {
       expected: { mint: 75n, mintMax: 105n, burn: 30n, burnMax: 105n },
     },
     {
-      name: 'can mint nothing once its cap is lowered below what it has minted',
+      name: 'can mint nothing once it has minted the cap, and burn up to the cap',
+      state: { authorized: true, cap: 105n, outstanding: 105n },
+      expected: { mint: 0n, mintMax: 105n, burn: 105n, burnMax: 105n },
+    },
+    {
+      // A burn is bound by what has been minted and not by the cap, which a
+      // router that was lowered below it can still burn that much of.
+      name: 'can mint nothing once its cap is lowered below what it has minted, and burn all it has minted',
       state: { authorized: true, cap: 20n, outstanding: 30n },
-      expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 20n },
+      expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 30n },
     },
   ];
 
@@ -502,7 +509,9 @@ describe('EvmHypAevoXERC20Adapter', () => {
         unpinnedHeights: [HEAD],
       });
 
-      expect(await adapter.getLimits()).to.deep.equal(c.expected);
+      const limits = await adapter.getLimits();
+      expect(limits).to.deep.equal(c.expected);
+      expect(limits.burn <= limits.burnMax).to.equal(true);
       expect(await adapter.getMintLimit()).to.equal(c.expected.mint);
       expect(await adapter.getMintMaxLimit()).to.equal(c.expected.mintMax);
       expect(await adapter.getBurnLimit()).to.equal(c.expected.burn);
@@ -577,7 +586,9 @@ describe('EvmHypAevoXERC20Adapter', () => {
     name: string;
     state: AevoTokenState;
     // Whether each way of asking reads what is outstanding, which is only
-    // where the answer is not decided by the authority and the cap.
+    // where the answer is not decided by the authority and the cap: the burn
+    // maximum of a router with a cap is its cap, or what is outstanding beyond
+    // it.
     reads: Record<
       | 'getLimits'
       | 'getMintLimit'
@@ -619,13 +630,13 @@ describe('EvmHypAevoXERC20Adapter', () => {
         getMintLimit: true,
         getMintMaxLimit: false,
         getBurnLimit: true,
-        getBurnMaxLimit: false,
+        getBurnMaxLimit: true,
       },
     },
   ];
 
-  // A read of what is outstanding that fails fails only what needs it: the
-  // maximums are the authority and the cap.
+  // A read of what is outstanding that fails fails only what needs it: the mint
+  // maximum is the authority and the cap.
   for (const c of readsCases) {
     for (const [getter, needsOutstanding] of Object.entries(c.reads)) {
       assert(

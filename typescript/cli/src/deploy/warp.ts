@@ -1071,17 +1071,14 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
-  // Resolved before any router of the extension is deployed, so a failed
-  // lookup aborts it first, and reused for the registry config. The chains that
-  // are skipped keep the standard of their registry token, and are not looked up.
-  const standards = await deriveOnChainStandards(
+  // The standards of the chains that exist are resolved before any router of the
+  // extension is deployed, so a failed lookup aborts it first, and are reused for
+  // the registry config. Those of the new chains are resolved below. The chains
+  // that are skipped keep the standard of their registry token, and are not
+  // looked up.
+  let standards = await deriveOnChainStandards(
     context.multiProvider,
-    objFilter(
-      warpDeployConfig,
-      (chainName, _): _ is (typeof warpDeployConfig)[string] =>
-        chainName in filteredExistingConfigs ||
-        chainName in filteredExtendedConfigs,
-    ),
+    filteredExistingConfigs,
   );
 
   // Derive metadata once for all new chains
@@ -1101,7 +1098,16 @@ export async function extendWarpRoute(
 
   if (Object.keys(hybridExtension).length > 0) {
     // Hybrid instances need every new router address before counterpart
-    // enrollment and surface wiring, so their extension is route-wide.
+    // enrollment and surface wiring, so their extension is route-wide, and so
+    // is the resolving of the standards of the new chains: none is deployed
+    // before they all are.
+    standards = {
+      ...standards,
+      ...(await deriveOnChainStandards(
+        context.multiProvider,
+        filteredExtendedConfigs,
+      )),
+    };
     newDeployedContracts = await executeWarpRouteExtensionDeploy(
       extendedConfigs,
       context.multiProvider,
@@ -1110,15 +1116,23 @@ export async function extendWarpRoute(
       apiKeys,
     );
   } else {
-    // Preserve partial-success retries for ordinary extensions.
-    const deployExtension = async (chain: ChainName) =>
-      executeWarpRouteExtensionDeploy(
+    // Preserve partial-success retries for ordinary extensions: the standard of
+    // a new chain is resolved before its router is deployed, and a lookup that
+    // fails fails that chain like its deployment does.
+    const deployExtension = async (chain: ChainName) => {
+      const chainStandards = await deriveOnChainStandards(
+        context.multiProvider,
+        { [chain]: filteredExtendedConfigs[chain] },
+      );
+      const contracts = await executeWarpRouteExtensionDeploy(
         { [chain]: extendedConfigs[chain] },
         context.multiProvider,
         context.altVmSigners,
         registryAddresses,
         apiKeys,
       );
+      return { contracts, chainStandards };
+    };
     const evmChains = filteredExtendedChains.filter((chain) =>
       isEVMLike(context.multiProvider.getProtocol(chain)),
     );
@@ -1130,8 +1144,9 @@ export async function extendWarpRoute(
       deployExtension,
       (chain) => chain,
     );
-    for (const [, contracts] of fulfilled) {
+    for (const [, { contracts, chainStandards }] of fulfilled) {
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
+      standards = { ...standards, ...chainStandards };
     }
     for (const [chain, error] of rejected) {
       errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
@@ -1139,10 +1154,9 @@ export async function extendWarpRoute(
     }
     for (const chain of nonEvmChains) {
       try {
-        newDeployedContracts = {
-          ...newDeployedContracts,
-          ...(await deployExtension(chain)),
-        };
+        const { contracts, chainStandards } = await deployExtension(chain);
+        newDeployedContracts = { ...newDeployedContracts, ...contracts };
+        standards = { ...standards, ...chainStandards };
       } catch (error) {
         errorRed(
           `Failed to deploy extension to ${chain}: ${formatError(error)}`,

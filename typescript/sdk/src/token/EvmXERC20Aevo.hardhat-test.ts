@@ -1312,9 +1312,9 @@ describe('Aevo xERC20 token', async () => {
           expected: { mint: 0n, mintMax: 105n, burn: 105n, burnMax: 105n },
         },
         {
-          name: 'can mint nothing when the cap is lowered below what the router has minted',
+          name: 'can mint nothing when the cap is lowered below what the router has minted, and burn all it has minted',
           state: { authorized: true, cap: 20n, outstanding: 30n },
-          expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 20n },
+          expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 30n },
         },
         {
           name: 'has the largest uint256 for the cap, and what is left of it, of a router with the largest cap',
@@ -1336,9 +1336,26 @@ describe('Aevo xERC20 token', async () => {
         it(c.name, async () => {
           await arrange(c.state);
 
-          expect(await limitsOf()).to.deep.equal(c.expected);
+          const limits = await limitsOf();
+          expect(limits).to.deep.equal(c.expected);
+          expect(limits.burn <= limits.burnMax).to.equal(true);
         });
       }
+
+      // The token bounds a burn by what the router has minted and not by its
+      // cap, so a router whose cap was lowered below that can burn all of it.
+      it('states what the token accepts of a burn once the cap is lowered below what the router has minted', async () => {
+        await arrange({ authorized: true, cap: 20n, outstanding: 30n });
+        const router = await impersonate(routerAddress);
+        await fund(holder, 1000n);
+
+        const burnMax = await adapter.getBurnMaxLimit();
+        expect(burnMax).to.equal(30n);
+        await (await router.burn(holder, burnMax)).wait();
+        await expect(router.burn(holder, 1)).to.be.rejectedWith(
+          BURN_BEYOND_MINTED_SELECTOR,
+        );
+      });
 
       // What the token enforces is what the limits state: what the router may
       // mint and burn is accepted and one more is refused.
