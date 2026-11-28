@@ -14,6 +14,7 @@ import {
 import {
   type Address,
   assert,
+  formatError,
   normalizeAddressEvm,
   objFilter,
 } from '@hyperlane-xyz/utils';
@@ -92,6 +93,7 @@ const apply: CommandModuleWithWriteContext<
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
     const transactions: AnnotatedEV5Transaction[] = [];
+    const failures: ChainName[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
@@ -122,9 +124,16 @@ const apply: CommandModuleWithWriteContext<
             `${chainName}: XERC20 config already matches on-chain state`,
           );
         }
-      } catch (error) {
-        logRed(`Failed for ${chainName}: ${error}`);
+      } catch (error: unknown) {
+        logRed(`Failed for ${chainName}: ${formatError(error)}`);
+        failures.push(chainName);
       }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(
+        `XERC20 apply failed for chain(s): ${failures.join(', ')}. Nothing was submitted: fix the config or re-run with --chains for the others.`,
+      );
     }
 
     if (transactions.length === 0) {
@@ -165,6 +174,7 @@ const read: CommandModuleWithContext<
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
     const allLimits: Record<string, XERC20ModuleConfig> = {};
+    const failures: ChainName[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
@@ -205,9 +215,16 @@ const read: CommandModuleWithContext<
           proxyAdmin: onChainConfig.proxyAdmin,
           limits,
         };
-      } catch (error) {
-        logRed(`Failed to read limits for ${chainName}: ${error}`);
+      } catch (error: unknown) {
+        logRed(`Failed to read limits for ${chainName}: ${formatError(error)}`);
+        failures.push(chainName);
       }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(
+        `XERC20 read failed for chain(s): ${failures.join(', ')}`,
+      );
     }
 
     logGreen('\n✅ XERC20 Limits:');

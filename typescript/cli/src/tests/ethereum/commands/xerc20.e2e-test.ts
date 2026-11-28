@@ -2,7 +2,6 @@ import { readFileSync, writeFileSync } from 'fs';
 
 import { expect } from 'chai';
 import { Contract, Wallet, constants, providers, utils } from 'ethers';
-import { $ } from 'zx';
 
 import {
   type ERC20Test,
@@ -40,7 +39,6 @@ import {
   CHAIN_NAME_3,
   DEFAULT_E2E_TEST_TIMEOUT,
   IS_TRON_TEST,
-  REGISTRY_PATH,
   TEMP_PATH,
   getCombinedWarpDeployPath,
   getCombinedWarpRoutePath,
@@ -55,7 +53,6 @@ import {
   deployXERC20LockboxToken,
   deployXERC20VSToken,
   getDeployedWarpAddress,
-  localTestRunCmdPrefix,
   restoreSnapshot,
 } from './helpers.js';
 import {
@@ -65,8 +62,7 @@ import {
   hyperlaneWarpReadRaw,
   readWarpConfig,
 } from './warp.js';
-
-$.verbose = true;
+import { hyperlaneXerc20ApplyRaw, hyperlaneXerc20ReadRaw } from './xerc20.js';
 
 describe('xerc20 e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -156,6 +152,37 @@ describe('xerc20 e2e tests', function () {
     bufferCap: '1000000000000000000000',
     rateLimitPerSecond: '1000000000000000000',
   };
+
+  const CHANGED_LIMITS = {
+    bufferCap: '2000000000000000000000',
+    rateLimitPerSecond: '2000000000000000000',
+  };
+
+  // The Velodrome route with new limits on anvil2 and, on anvil3, a token that
+  // is an address holding no code, so that the update and the read of that
+  // chain fail while anvil2 is fine.
+  function configWithFailingChain3(): WarpRouteDeployConfig {
+    return {
+      [CHAIN_NAME_2]: {
+        type: TokenType.XERC20,
+        token: xERC20VS2.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: ownerAddress,
+        xERC20: {
+          warpRouteLimits: { type: XERC20Type.Velo, ...CHANGED_LIMITS },
+        },
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.XERC20,
+        token: randomAddress(),
+        mailbox: chain3Addresses.mailbox,
+        owner: ownerAddress,
+        xERC20: {
+          warpRouteLimits: { type: XERC20Type.Velo, ...CHANGED_LIMITS },
+        },
+      },
+    };
+  }
 
   // xERC20VS tokens are shared across tests (deployed once in `before`), and the
   // owner-gated addBridge in every `beforeEach` reverts if ownership is stranded
@@ -281,12 +308,11 @@ describe('xerc20 e2e tests', function () {
 
   describe('apply', function () {
     it('reports no updates when config matches on-chain state', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+        privateKey: ANVIL_KEY,
+      });
 
       expect(result.stdout).to.include('No updates needed');
     });
@@ -322,25 +348,59 @@ describe('xerc20 e2e tests', function () {
       };
       writeYamlOrJson(XERC20_VS_REGISTRY_DEPLOY_PATH, configWithLimits);
 
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+        privateKey: ANVIL_KEY,
+      });
 
       expect(result.stdout).to.include('Generated');
     });
 
     it('applies to all chains when --chains is not specified', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        privateKey: ANVIL_KEY,
+      });
 
       expect(result.stdout).to.include(CHAIN_NAME_2);
       expect(result.stdout).to.include(CHAIN_NAME_3);
+    });
+
+    it('submits nothing and exits 1 when the update of a chain fails, and applies the others when they are asked for', async function () {
+      writeYamlOrJson(
+        XERC20_VS_REGISTRY_DEPLOY_PATH,
+        configWithFailingChain3(),
+      );
+      const blockBefore = await xERC20VS2.provider.getBlockNumber();
+
+      const failed = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        privateKey: ANVIL_KEY,
+      }).nothrow();
+
+      expect(failed.exitCode, failed.text()).to.equal(1);
+      expect(failed.text()).to.include(`Failed for ${CHAIN_NAME_3}`);
+      expect(failed.text()).to.include(
+        `XERC20 apply failed for chain(s): ${CHAIN_NAME_3}`,
+      );
+      expect(failed.text()).to.not.include('Successfully applied');
+      expect(failed.text()).to.not.include('No updates needed');
+      // Not a transaction on anvil2, whose limits are valid and were not applied.
+      expect(await xERC20VS2.provider.getBlockNumber()).to.equal(blockBefore);
+
+      const applied = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+        privateKey: ANVIL_KEY,
+      }).nothrow();
+
+      expect(applied.exitCode, applied.text()).to.equal(0);
+      expect(applied.text()).to.include('Successfully applied');
+      // The two transactions of the new limits, which the mock token ignores.
+      expect(await xERC20VS2.provider.getBlockNumber()).to.equal(
+        blockBefore + 2,
+      );
     });
   });
 
@@ -369,12 +429,11 @@ describe('xerc20 e2e tests', function () {
       expect(ownerBefore).to.equal(ownerAddress);
 
       try {
-        await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-          --registry ${REGISTRY_PATH} \
-          --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-          --chains ${CHAIN_NAME_2} \
-          --key ${ANVIL_KEY} \
-          --verbosity debug`;
+        await hyperlaneXerc20ApplyRaw({
+          warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+          chains: [CHAIN_NAME_2],
+          privateKey: ANVIL_KEY,
+        });
 
         const ownerAfter = await xERC20VS2.owner();
         expect(ownerAfter).to.equal(newOwner);
@@ -386,12 +445,11 @@ describe('xerc20 e2e tests', function () {
     });
 
     it('reports no updates when token owner already matches config', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ApplyRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+        privateKey: ANVIL_KEY,
+      });
 
       expect(result.stdout).to.include('No updates needed');
     });
@@ -412,46 +470,63 @@ describe('xerc20 e2e tests', function () {
       expect(read.text()).to.include('xERC20 Limits:');
     });
 
+    it('fails and prints no limits when a chain cannot be read', async function () {
+      writeYamlOrJson(
+        XERC20_VS_REGISTRY_DEPLOY_PATH,
+        configWithFailingChain3(),
+      );
+
+      const failed = await hyperlaneXerc20ReadRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+      }).nothrow();
+
+      expect(failed.exitCode, failed.text()).to.equal(1);
+      expect(failed.text()).to.include(
+        `Failed to read limits for ${CHAIN_NAME_3}`,
+      );
+      expect(failed.text()).to.include(
+        `XERC20 read failed for chain(s): ${CHAIN_NAME_3}`,
+      );
+      expect(failed.text()).to.not.include('XERC20 Limits:');
+    });
+
     it('displays the XERC20 token owner', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ReadRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+      });
 
       expect(result.stdout).to.include(ownerAddress);
     });
 
     it('displays current limits for Velodrome XERC20', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ReadRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+      });
 
       const output = result.stdout;
       expect(output).to.include('velo');
     });
 
     it('displays current limits for Standard XERC20', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_LOCKBOX_WARP_ROUTE_ID} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ReadRaw({
+        warpRouteId: XERC20_LOCKBOX_WARP_ROUTE_ID,
+      });
 
       const output = result.stdout;
       expect(output).to.include(CHAIN_NAME_2);
     });
 
     it('filters by chain when --chains is specified', async function () {
-      const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
-        --registry ${REGISTRY_PATH} \
-        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
-        --chains ${CHAIN_NAME_2} \
-        --verbosity debug`;
+      const result = await hyperlaneXerc20ReadRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+        chains: [CHAIN_NAME_2],
+      });
 
       const output = result.stdout;
       expect(output).to.include(CHAIN_NAME_2);
+      expect(output).to.not.include(CHAIN_NAME_3);
     });
   });
 
@@ -795,13 +870,12 @@ describe('xerc20 Aevo e2e tests', function () {
   }
 
   function applyXERC20() {
-    return $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
-      --registry ${REGISTRY_PATH} \
-      --warp-route-id ${AEVO_WARP_ROUTE_ID} \
-      --chains ${CHAIN_NAME_2} \
-      --key ${ANVIL_KEY} \
-      --receipts ${AEVO_RECEIPTS_DIR} \
-      --verbosity debug`;
+    return hyperlaneXerc20ApplyRaw({
+      warpRouteId: AEVO_WARP_ROUTE_ID,
+      chains: [CHAIN_NAME_2],
+      privateKey: ANVIL_KEY,
+      receiptsDir: AEVO_RECEIPTS_DIR,
+    });
   }
 
   describe('the token', function () {
@@ -1115,10 +1189,13 @@ describe('xerc20 Aevo e2e tests', function () {
       );
       const fromBlock = await currentBlock();
 
-      const refused = await applyXERC20();
+      const refused = await applyXERC20().nothrow();
 
-      expect(refused.stdout).to.include(`Failed for ${CHAIN_NAME_2}`);
-      expect(refused.stdout).to.include('whose ownership cannot be renounced');
+      expect(refused.exitCode, refused.text()).to.equal(1);
+      expect(refused.text()).to.include(`Failed for ${CHAIN_NAME_2}`);
+      expect(refused.text()).to.include('whose ownership cannot be renounced');
+      expect(refused.text()).to.not.include('No updates needed');
+      expect(refused.text()).to.not.include('Successfully applied');
       expect(await tokenCallsSince(fromBlock)).to.deep.equal([]);
       expectSameAddress(await aevoToken.owner(), deployer.address);
     });
