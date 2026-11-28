@@ -2,6 +2,7 @@
 import 'zod/compile';
 
 import { Wallet } from 'ethers';
+import path from 'path';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -48,7 +49,11 @@ async function main(): Promise<void> {
     const configLoader = KeyFunderConfigLoader.load(configFile);
     const config = configLoader.config;
     const configuredChains = configLoader.getConfiguredChains();
-    logger.info({ chains: configuredChains }, 'Loaded keyfunder configuration');
+    const signerChains = configLoader.getRequiredSignerChains();
+    logger.info(
+      { chains: configuredChains, signerChains },
+      'Loaded keyfunder configuration',
+    );
 
     const registryUri = process.env.REGISTRY_URI ?? DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
@@ -60,7 +65,7 @@ async function main(): Promise<void> {
 
     const chainMetadata = await registry.getMetadata();
     const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata, {
-      chainNames: configuredChains,
+      chainNames: signerChains,
     });
     if (overriddenChains.length > 0) {
       logger.info(
@@ -76,10 +81,10 @@ async function main(): Promise<void> {
     // Tron's JSON-RPC rejects eth_sendRawTransaction, so Tron chains need a
     // TronWallet (native HTTP wallet API) for the funding write path. Other
     // chains use a standard ethers Wallet. setSharedSigner can't be mixed with
-    // per-chain signers, so wire every configured chain explicitly.
+    // per-chain signers, so wire every destination and bridge-origin chain explicitly.
     const evmSigner = new Wallet(privateKey);
     const tronChains: string[] = [];
-    for (const chain of configuredChains) {
+    for (const chain of signerChains) {
       const metadata: ChainMetadata | undefined = chainMetadata[chain];
       assert(metadata, `Missing metadata for chain: ${chain}`);
       if (metadata.protocol === ProtocolType.Tron) {
@@ -95,7 +100,7 @@ async function main(): Promise<void> {
       }
     }
     logger.info(
-      { tronChains, totalChains: configuredChains.length },
+      { tronChains, totalChains: signerChains.length },
       'Initialized MultiProvider with per-chain signers',
     );
 
@@ -121,11 +126,20 @@ async function main(): Promise<void> {
       config.metrics?.labels,
     );
 
+    const bridgeStateFile =
+      config.bridgeStateFile ??
+      process.env.KEYFUNDER_BRIDGE_STATE_FILE ??
+      path.join(
+        path.dirname(path.resolve(configFile)),
+        '.keyfunder-bridge-state.json',
+      );
+
     const funder = new KeyFunder(multiProvider, config, {
       logger,
       metrics,
       skipIgpClaim: process.env.SKIP_IGP_CLAIM === 'true',
       igp,
+      bridgeStateFile,
     });
 
     let fundingError: Error | undefined;

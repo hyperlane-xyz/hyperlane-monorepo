@@ -122,6 +122,47 @@ chains: {}
     });
   });
 
+  describe('getRequiredSignerChains', () => {
+    it('should include bridge originChain values absent from configured destination chains', () => {
+      const loader = KeyFunderConfigLoader.fromObject({
+        version: '1',
+        roles: {
+          relayer: {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+        },
+        chains: {
+          mode: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: '0x3333333333333333333333333333333333333333',
+            },
+          },
+          xai: {
+            balances: { relayer: '1' },
+            bridge: {
+              stack: 'arbitrumOrbit',
+              originChain: 'arbitrum',
+              mode: 'retryableTicket',
+              inboxAddress: '0x5555555555555555555555555555555555555555',
+            },
+          },
+        },
+      });
+
+      expect(loader.getConfiguredChains()).to.deep.equal(['mode', 'xai']);
+      expect(loader.getRequiredSignerChains()).to.deep.equal([
+        'mode',
+        'xai',
+        'ethereum',
+        'arbitrum',
+      ]);
+    });
+  });
+
   describe('getChainsToProcess', () => {
     it('should exclude skipped chains', () => {
       const config = {

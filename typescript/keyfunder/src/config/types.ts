@@ -16,6 +16,59 @@ const BalanceStringSchema = z
     'Must be a valid non-negative decimal string with leading digit (e.g., "0.5" not ".5", up to 18 decimals)',
   );
 
+const MAX_UINT32 = 0xffffffff;
+
+function hasRepresentablePrecision(amount: string, decimals: number): boolean {
+  const dotIndex = amount.indexOf('.');
+  if (dotIndex === -1) {
+    return true;
+  }
+  return amount.length - dotIndex - 1 <= decimals;
+}
+
+function validateBridgeAmountLimits(
+  cfg: { minBridgeThreshold: string; maxBridgeAmount: string },
+  decimals: number,
+  ctx: z.RefinementCtx,
+  pathPrefix: (string | number)[] = [],
+): void {
+  let minRepresentable = true;
+  let maxRepresentable = true;
+
+  if (!hasRepresentablePrecision(cfg.minBridgeThreshold, decimals)) {
+    minRepresentable = false;
+    ctx.addIssue({
+      code: 'custom',
+      path: [...pathPrefix, 'minBridgeThreshold'],
+      message: `minBridgeThreshold ("${cfg.minBridgeThreshold}") exceeds token precision of ${decimals} decimals`,
+    });
+  }
+
+  if (!hasRepresentablePrecision(cfg.maxBridgeAmount, decimals)) {
+    maxRepresentable = false;
+    ctx.addIssue({
+      code: 'custom',
+      path: [...pathPrefix, 'maxBridgeAmount'],
+      message: `maxBridgeAmount ("${cfg.maxBridgeAmount}") exceeds token precision of ${decimals} decimals`,
+    });
+  }
+
+  if (!minRepresentable || !maxRepresentable) {
+    return;
+  }
+
+  const minUnits = ethers.utils.parseUnits(cfg.minBridgeThreshold, decimals);
+  const maxUnits = ethers.utils.parseUnits(cfg.maxBridgeAmount, decimals);
+  if (maxUnits.lt(minUnits)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...pathPrefix, 'maxBridgeAmount'],
+      message:
+        'maxBridgeAmount must be greater than or equal to minBridgeThreshold',
+    });
+  }
+}
+
 export const RoleConfigSchema = z.object({
   address: AddressSchema,
 });
@@ -71,7 +124,15 @@ export const SweepConfigSchema = z
 export const HyperlaneHookBridgeDeliverySchema = z.object({
   mailboxAddress: AddressSchema,
   hookAddress: AddressSchema,
-  destinationDomain: z.number().int().positive(),
+  recipientAddress: AddressSchema,
+  destinationDomain: z
+    .number()
+    .int()
+    .positive()
+    .max(
+      MAX_UINT32,
+      `destinationDomain must not exceed uint32 maximum (${MAX_UINT32})`,
+    ),
   gasLimit: z.number().int().min(50_000).max(5_000_000).default(250_000),
 });
 
@@ -87,25 +148,18 @@ export const OpStackBridgeConfigSchema = z
     originReserveBuffer: BalanceStringSchema.default('0.05'),
     hookDelivery: HyperlaneHookBridgeDeliverySchema.optional(),
   })
-  .refine(
-    (cfg) =>
-      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.bridgeContract,
-    {
-      message:
-        'OP Stack bridge requires bridgeContract for canonical modes or hookDelivery for hyperlaneHook mode',
-    },
-  )
-  .refine(
-    (cfg) =>
-      ethers.utils
-        .parseUnits(cfg.maxBridgeAmount, 18)
-        .gte(ethers.utils.parseUnits(cfg.minBridgeThreshold, 18)),
-    {
-      message:
-        'maxBridgeAmount must be greater than or equal to minBridgeThreshold',
-      path: ['maxBridgeAmount'],
-    },
-  );
+  .superRefine((cfg, ctx) => {
+    const hasModeConfig =
+      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.bridgeContract;
+    if (!hasModeConfig) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'OP Stack bridge requires bridgeContract for canonical modes or hookDelivery for hyperlaneHook mode',
+      });
+    }
+    validateBridgeAmountLimits(cfg, 18, ctx);
+  });
 
 export const ArbitrumOrbitBridgeConfigSchema = z
   .object({
@@ -132,51 +186,66 @@ export const ArbitrumOrbitBridgeConfigSchema = z
     originReserveBuffer: BalanceStringSchema.default('0.05'),
     hookDelivery: HyperlaneHookBridgeDeliverySchema.optional(),
   })
-  .refine(
-    (cfg) =>
-      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.inboxAddress,
-    {
-      message:
-        'Arbitrum Orbit bridge requires inboxAddress for canonical Inbox modes or hookDelivery for hyperlaneHook mode',
-    },
-  )
-  .refine((cfg) => cfg.mode !== 'erc20Inbox' || !!cfg.originGasToken, {
-    message:
-      'originGasToken is required when Arbitrum Orbit mode is erc20Inbox',
-    path: ['originGasToken'],
-  })
-  .refine(
-    (cfg) => {
-      const decimals = Math.min(cfg.originGasToken?.decimals ?? 18, 18);
-      return ethers.utils
-        .parseUnits(cfg.maxBridgeAmount, decimals)
-        .gte(ethers.utils.parseUnits(cfg.minBridgeThreshold, decimals));
-    },
-    {
-      message:
-        'maxBridgeAmount must be greater than or equal to minBridgeThreshold',
-      path: ['maxBridgeAmount'],
-    },
-  );
+  .superRefine((cfg, ctx) => {
+    const hasModeConfig =
+      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.inboxAddress;
+    if (!hasModeConfig) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Arbitrum Orbit bridge requires inboxAddress for canonical Inbox modes or hookDelivery for hyperlaneHook mode',
+      });
+    }
+
+    if (cfg.mode === 'erc20Inbox' && !cfg.originGasToken) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['originGasToken'],
+        message:
+          'originGasToken is required when Arbitrum Orbit mode is erc20Inbox',
+      });
+    }
+
+    const decimals = cfg.originGasToken?.decimals ?? 18;
+    validateBridgeAmountLimits(cfg, decimals, ctx);
+  });
 
 export const BridgeConfigSchema = z.union([
   OpStackBridgeConfigSchema,
   ArbitrumOrbitBridgeConfigSchema,
 ]);
 
-export const ChainConfigSchema = z.object({
-  // Explicit opt-in: some ERC20 native-token interfaces still support native sends.
-  erc20GasToken: z
-    .object({
-      address: AddressSchema,
-      decimals: z.number().int().min(0).max(255),
-    })
-    .optional(),
-  balances: z.record(z.string(), BalanceStringSchema).optional(),
-  igp: IgpConfigSchema.optional(),
-  sweep: SweepConfigSchema.optional(),
-  bridge: BridgeConfigSchema.optional(),
-});
+export const ChainConfigSchema = z
+  .object({
+    // Explicit opt-in: some ERC20 native-token interfaces still support native sends.
+    erc20GasToken: z
+      .object({
+        address: AddressSchema,
+        decimals: z.number().int().min(0).max(255),
+      })
+      .optional(),
+    balances: z.record(z.string(), BalanceStringSchema).optional(),
+    igp: IgpConfigSchema.optional(),
+    sweep: SweepConfigSchema.optional(),
+    bridge: BridgeConfigSchema.optional(),
+  })
+  .superRefine((chainCfg, ctx) => {
+    if (
+      chainCfg.bridge &&
+      chainCfg.erc20GasToken &&
+      !(
+        chainCfg.bridge.stack === 'arbitrumOrbit' &&
+        chainCfg.bridge.mode === 'erc20Inbox'
+      )
+    ) {
+      validateBridgeAmountLimits(
+        chainCfg.bridge,
+        chainCfg.erc20GasToken.decimals,
+        ctx,
+        ['bridge'],
+      );
+    }
+  });
 
 export const MetricsConfigSchema = z.object({
   jobName: z.string().default('keyfunder'),
@@ -190,6 +259,7 @@ export const KeyFunderConfigSchema = z
     chains: z.record(z.string(), ChainConfigSchema),
     metrics: MetricsConfigSchema.optional(),
     chainsToSkip: z.array(z.string()).optional(),
+    bridgeStateFile: z.string().min(1).optional(),
   })
   .refine(
     (data) => {
@@ -212,7 +282,7 @@ export const KeyFunderConfigSchema = z
   .refine(
     (data) => {
       for (const [chainName, chainConfig] of Object.entries(data.chains)) {
-        if (chainConfig.bridge && chainConfig.bridge.originChain === chainName) {
+        if (chainConfig.bridge?.originChain === chainName) {
           return false;
         }
       }

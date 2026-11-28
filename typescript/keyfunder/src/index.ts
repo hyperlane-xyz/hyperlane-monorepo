@@ -30,8 +30,19 @@ export {
   BRIDGE_INTERFACES,
   bridgeKeyFunding,
   formatStandardHookMetadata,
+  scaleUnitsCeil,
+  scaleUnitsFloor,
   type BridgeFundingResult,
 } from './core/BridgeFunder.js';
+export {
+  FileBridgeStateStore,
+  InMemoryBridgeStateStore,
+  reconcilePendingBridgeAttempt,
+  withRecipientBridgeLock,
+  type BridgeAttemptPhase,
+  type BridgeStateStore,
+  type PersistedBridgeAttempt,
+} from './core/BridgeStateStore.js';
 export {
   calculateMultipliedBalance,
   KeyFunder,

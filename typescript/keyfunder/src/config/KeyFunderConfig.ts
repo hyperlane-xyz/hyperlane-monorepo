@@ -36,6 +36,20 @@ export class KeyFunderConfigLoader {
     return Object.keys(this.config.chains);
   }
 
+  /**
+   * Returns the union of configured destination chains and any bridge
+   * originChain values so signers and RPC overrides cover bridge origins too.
+   */
+  getRequiredSignerChains(): string[] {
+    const chains = new Set<string>(Object.keys(this.config.chains));
+    for (const chainConfig of Object.values(this.config.chains)) {
+      if (chainConfig.bridge?.originChain) {
+        chains.add(chainConfig.bridge.originChain);
+      }
+    }
+    return Array.from(chains);
+  }
+
   getChainsToProcess(): string[] {
     const allChains = this.getConfiguredChains();
     const chainsToSkip = new Set(this.config.chainsToSkip ?? []);

@@ -17,6 +17,13 @@ import type {
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 import { bridgeKeyFunding } from './BridgeFunder.js';
+import {
+  type BridgeStateStore,
+  FileBridgeStateStore,
+  InMemoryBridgeStateStore,
+  reconcilePendingBridgeAttempt,
+  withRecipientBridgeLock,
+} from './BridgeStateStore.js';
 
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
@@ -28,16 +35,26 @@ export interface KeyFunderOptions {
   metrics?: KeyFunderMetrics;
   skipIgpClaim?: boolean;
   igp?: HyperlaneIgp;
+  bridgeStateFile?: string;
+  bridgeStateStore?: BridgeStateStore;
 }
 
 export class KeyFunder {
   private readonly validatedGasTokens = new Set<string>();
+  private readonly bridgeStateStore: BridgeStateStore;
 
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly config: KeyFunderConfig,
     private readonly options: KeyFunderOptions,
-  ) {}
+  ) {
+    const stateFilePath = options.bridgeStateFile ?? config.bridgeStateFile;
+    this.bridgeStateStore =
+      options.bridgeStateStore ??
+      (stateFilePath
+        ? new FileBridgeStateStore(stateFilePath)
+        : new InMemoryBridgeStateStore());
+  }
 
   /**
    * Funds chains independently; rejects only when every attempted chain fails.
@@ -312,6 +329,21 @@ export class KeyFunder {
   }
 
   private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
+    const bridgeConfig = this.config.chains[chain].bridge;
+    if (bridgeConfig) {
+      await withRecipientBridgeLock(chain, key.address, async () =>
+        this.fundKeyInternal(chain, key, true),
+      );
+      return;
+    }
+    await this.fundKeyInternal(chain, key, false);
+  }
+
+  private async fundKeyInternal(
+    chain: string,
+    key: ResolvedKeyConfig,
+    recipientLockHeld: boolean,
+  ): Promise<void> {
     const logger = this.options.logger.child({
       chain,
       address: key.address,
@@ -324,16 +356,29 @@ export class KeyFunder {
       decimals,
     );
     const currentBalance = await this.getBalance(chain, key.address);
-    const fundingAmount = this.calculateFundingAmount(
-      currentBalance,
-      desiredBalance,
-    );
 
     this.options.metrics?.recordWalletBalance(
       chain,
       key.address,
       key.role,
       parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
+    );
+
+    const bridgeConfig = this.config.chains[chain].bridge;
+    const pendingAttempt = bridgeConfig
+      ? await reconcilePendingBridgeAttempt({
+          multiProvider: this.multiProvider,
+          stateStore: this.bridgeStateStore,
+          destinationChain: chain,
+          recipient: key.address,
+          currentDestinationBalance: currentBalance,
+          logger,
+        })
+      : undefined;
+
+    const fundingAmount = this.calculateFundingAmount(
+      currentBalance,
+      desiredBalance,
     );
 
     if (fundingAmount.eq(0)) {
@@ -344,11 +389,26 @@ export class KeyFunder {
       return;
     }
 
+    if (pendingAttempt) {
+      logger.info(
+        {
+          originChain: pendingAttempt.originChain,
+          depositTxHash: pendingAttempt.depositTxHash,
+          phase: pendingAttempt.phase,
+          bridgedAmount: ethers.utils.formatUnits(
+            pendingAttempt.bridgedAmount,
+            decimals,
+          ),
+        },
+        'Pending bridge transfer still unsettled for recipient, skipping duplicate funding',
+      );
+      return;
+    }
+
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
     const funderBalance = await this.getFunderBalance(chain);
 
     if (funderBalance.lt(fundingAmount)) {
-      const bridgeConfig = this.config.chains[chain].bridge;
       if (bridgeConfig) {
         const bridgeResult = await bridgeKeyFunding({
           multiProvider: this.multiProvider,
@@ -357,6 +417,9 @@ export class KeyFunder {
           recipient: key.address,
           shortfallAmount: fundingAmount,
           destinationDecimals: decimals,
+          baselineDestinationBalance: currentBalance,
+          stateStore: this.bridgeStateStore,
+          recipientLockHeld,
           logger,
         });
         if (bridgeResult) {
