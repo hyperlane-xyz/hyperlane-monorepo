@@ -58,8 +58,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   collect: {
-    threshold: 1,
-    validators: [DEFAULT_AW_VALIDATOR],
+    threshold: 2,
+    validators: [
+      DEFAULT_AW_VALIDATOR,
+      {
+        address: '0x774ac679b8ccd9781213432ba19e8226301732f6',
+        alias: 'Luganodes',
+      },
+    ],
   },
   elysium: {
     threshold: 2,
@@ -140,7 +146,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   arc: {
     threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
+    validators: [
+      DEFAULT_AW_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xad5f240f0187d16281f407ed8f019569a5ae6c48',
+        alias: 'Luganodes',
+      },
+    ],
   },
 
   avalanche: {
@@ -663,7 +676,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   robinhood: {
     threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
+    validators: [
+      DEFAULT_AW_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xc9ec22da8648563a42882dfe3dcfc004e2d1e842',
+        alias: 'Luganodes',
+      },
+    ],
   },
 
   seismictestnet: {
