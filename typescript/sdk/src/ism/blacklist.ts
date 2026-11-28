@@ -178,9 +178,8 @@ export async function readBlacklistedIds(
   try {
     let fromBlock: number;
     try {
-      fromBlock = await logsReader.getContractDeploymentBlockFromExplorer(
-        address,
-      );
+      fromBlock =
+        await logsReader.getContractDeploymentBlockFromExplorer(address);
     } catch (error) {
       // The explorer could not supply the deployment block (no usable explorer,
       // or the lookup failed). Do not bisect `eth_getCode` over the RPC to derive
