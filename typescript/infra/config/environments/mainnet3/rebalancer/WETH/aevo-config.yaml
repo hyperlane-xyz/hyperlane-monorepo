@@ -1,0 +1,40 @@
+warpRouteId: WETH/aevo
+
+# DRAFT, observation only until the open items below are resolved.
+deployment:
+  monitorOnly: true
+
+# Same prod inventory signer as ETH/viction and USDC/eclipsemainnet. It must hold WETH
+# and native gas on optimism/arbitrum/base.
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+
+externalBridges:
+  lifi:
+    integrator: 'rebalancer'
+
+# Only the collateral-backed legs take part; the aevo leg (HypXERC20) is not rebalanced.
+# TODO(aevo-weights): placeholder even split, not a sizing decision.
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 33
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    base:
+      weighted:
+        weight: 34
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    optimism:
+      weighted:
+        weight: 33
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi

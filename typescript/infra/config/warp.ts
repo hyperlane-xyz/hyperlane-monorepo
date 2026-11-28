@@ -15,6 +15,8 @@ import { getRouterConfigsForAllVms } from '../scripts/core-utils.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
+import { getAevoUSDCStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getAevoUSDCWarpConfig.js';
+import { getAevoWETHStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getAevoWETHWarpConfig.js';
 import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
 
 import {
@@ -154,6 +156,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getUSDTCitreaMoonpayStagingWarpConfig,
   [WarpRouteIds.CROSSMoonpayLocalBridgeUSDT]:
     getCrossMoonpayLocalBridgeWarpConfig,
+  // Aevo prod routes (getAevoUSDCWarpConfig / getAevoWETHWarpConfig) are intentionally not
+  // registered until they are deployed and in the registry.
+  [WarpRouteIds.USDCAevoSTAGING]: getAevoUSDCStagingWarpConfig,
+  [WarpRouteIds.WETHAevoSTAGING]: getAevoWETHStagingWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
