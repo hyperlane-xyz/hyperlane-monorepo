@@ -1,5 +1,129 @@
 # @hyperlane-xyz/infra
 
+## 46.0.0
+
+### Patch Changes
+
+- bd98439: Raised the ETH/Viction Robinhood rebalance minimum to 0.5 ETH and the additional native-fee allowance to 0.0025 ETH, and enabled execution from the pinned deployment configuration.
+- 76ebef1: Persisted monitor-only deployment for ETH/viction and verified Helm RPC secrets against its pinned registry route.
+- fb40bb2: Persisted monitor-only deployment for USDT/eclipsemainnet and verified Helm RPC secrets against its pinned registry route.
+- 0e95b47: Persisted monitor-only deployment for USDT/eni and verified Helm RPC secrets against its pinned registry route.
+- 46bc521: Documented the accepted shared-inventory contention for USDC/Radix and pinned the tested merged runtime.
+  Enabled on-chain blacklist filtering so blocked messages no longer create rebalance demand.
+- fb40bb2: Removed Plasma from USDT/Eclipse monitoring, enabled relayer-denylist accounting, and pinned the tested merged runtime.
+- 76ebef1: Reduced the ETH/Viction additional native-fee allowance, enabled relayer-denylist accounting, and pinned the tested merged runtime.
+- 0e95b47: Enabled relayer-denylist accounting for USDT/eni and pinned the tested merged runtime.
+- 46781ac: Added route-specific rebalancer image and credential settings, monitor-only deployment, and local manifest rendering without cluster mutations.
+- fb40bb2: Pinned the USDT/eclipsemainnet rebalancer to the verified image rebuilt after integrating the latest main changes.
+- 76ebef1: Pinned the ETH/viction rebalancer to the verified image rebuilt after integrating the latest main changes.
+- 0e95b47: Pinned the USDT/eni rebalancer to the verified image rebuilt after integrating the latest main changes.
+- f18b00f: Pinned the USDC/eclipsemainnet rebalancer to the verified image rebuilt after integrating the latest main changes.
+- 94917ea: Migrated Safe-hosted governance proposals and pending transaction operations to the Safe Queue Service before the legacy endpoints retire. Preserved support for custom Safe Transaction Services.
+- f18b00f: Persisted monitor-only mode for the USDC Eclipse and Elysium inventory configuration so local validation cannot accidentally enable execution through ordinary deployment defaults.
+- f18b00f: Refreshed the USDC Eclipse monitor-only registry pin to include the Eclipse synthetic mint and the Elysium extension.
+- Updated dependencies [584d09a]
+- Updated dependencies [5ad5b80]
+- Updated dependencies [bb87f05]
+- Updated dependencies [584d09a]
+- Updated dependencies [e4d30ea]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [d61a29e]
+- Updated dependencies [46781ac]
+- Updated dependencies [866134f]
+- Updated dependencies [cdeacee]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [46781ac]
+- Updated dependencies [5b5ae98]
+- Updated dependencies [46781ac]
+- Updated dependencies [8c9f37c]
+- Updated dependencies [d61a29e]
+- Updated dependencies [99064c3]
+- Updated dependencies [584d09a]
+- Updated dependencies [ce47020]
+- Updated dependencies [ce47020]
+- Updated dependencies [99064c3]
+- Updated dependencies [cb922b6]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [866134f]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [f7976c2]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [46781ac]
+- Updated dependencies [e40bf51]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [584d09a]
+- Updated dependencies [699732b]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [584d09a]
+- Updated dependencies [46781ac]
+- Updated dependencies [584d09a]
+- Updated dependencies [f32ac07]
+- Updated dependencies [c317ae7]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [584d09a]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [9808703]
+- Updated dependencies [8509874]
+- Updated dependencies [c640d1f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [a300484]
+- Updated dependencies [e3b9c16]
+- Updated dependencies [f32ac07]
+- Updated dependencies [94917ea]
+- Updated dependencies [b88e58c]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [e41a746]
+- Updated dependencies [e41a746]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e41a746]
+- Updated dependencies [584d09a]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [866134f]
+- Updated dependencies [f7976c2]
+- Updated dependencies [f7976c2]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [311b28c]
+- Updated dependencies [e40bf51]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [78deaf4]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [d61a29e]
+- Updated dependencies [e927ec6]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/rebalancer@29.2.0
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/relayer@4.1.1
+  - @hyperlane-xyz/deploy-sdk@11.0.4
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/sealevel-sdk@46.0.0
+  - @hyperlane-xyz/http-registry-server@46.0.0
+  - @hyperlane-xyz/keyfunder@0.1.55
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/core@12.3.0
+
 ## 45.2.0
 
 ### Patch Changes

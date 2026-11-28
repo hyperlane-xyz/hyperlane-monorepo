@@ -1,5 +1,18 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 46.0.0
+
+### Patch Changes
+
+- b60bcbb: Updated warp send to confirm delivery directly on each destination chain through the SDK. Added CosmWasm delivery polling and Starknet RPC failover for delivery reads, and fixed Aleo RPC encoding for structured delivery keys.
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+
 ## 45.2.0
 
 ### Patch Changes

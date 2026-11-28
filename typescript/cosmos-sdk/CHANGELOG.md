@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 46.0.0
+
+### Patch Changes
+
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/cosmos-types@46.0.0
+
 ## 45.2.0
 
 ### Patch Changes

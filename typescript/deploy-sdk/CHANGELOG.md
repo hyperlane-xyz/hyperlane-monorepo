@@ -1,5 +1,28 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 11.0.4
+
+### Patch Changes
+
+- e927ec6: The minimum zod version was raised to 4.6.7, which bounds memory use when validating oversized constrained collections (GHSA-mrhx-c7xc-m3w5).
+- Updated dependencies [e40bf51]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/aleo-sdk@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/sealevel-sdk@46.0.0
+  - @hyperlane-xyz/cosmos-sdk@46.0.0
+  - @hyperlane-xyz/radix-sdk@46.0.0
+  - @hyperlane-xyz/starknet-sdk@30.0.7
+
 ## 11.0.3
 
 ### Patch Changes
