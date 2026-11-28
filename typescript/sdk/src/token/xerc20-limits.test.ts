@@ -13,7 +13,7 @@ import {
   aevoUnlimited,
 } from '../test/aevoTokenFixture.js';
 
-import { AevoMintAuthority } from './adapters/ITokenAdapter.js';
+import { AevoMintAuthority, toAevoLimits } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import {
   AevoXERC20Limits,
@@ -24,7 +24,6 @@ import {
   limitsAreZero,
   limitsMatch,
   readXERC20Limits,
-  toAevoLimits,
 } from './xerc20-limits.js';
 
 const standard = (mint: string, burn: string): StandardXERC20Limits => ({

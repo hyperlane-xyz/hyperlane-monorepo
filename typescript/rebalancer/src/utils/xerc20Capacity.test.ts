@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
+  EvmHypAevoXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   MultiProtocolProvider,
   Token,
@@ -99,32 +100,34 @@ describe('xERC20 execution capacity', () => {
     ).to.equal(0n);
   });
 
-  it('preserves the Velo per-transfer ceiling', async () => {
-    const source = token('source');
-    const destination = token(
-      'destination',
-      TokenStandard.EvmHypVSXERC20Lockbox,
-    );
-    limited(source, 1000n, 1000n);
-    limited(destination, 1000n, 1000n, 100n);
-    expect(
-      await getXerc20TransferCapacity({
-        source,
-        destination,
-        multiProvider: provider,
-        requested: 1000n,
-      }),
-    ).to.equal(50n);
-    expect(
-      await getXerc20TransferCapacity({
-        source,
-        destination,
-        multiProvider: provider,
-        requested: 1000n,
-        reservedMint: 100n,
-      }),
-    ).to.equal(50n);
-  });
+  for (const standard of [
+    TokenStandard.EvmHypVSXERC20,
+    TokenStandard.EvmHypVSXERC20Lockbox,
+  ]) {
+    it(`preserves the Velo per-transfer ceiling of a ${standard} destination`, async () => {
+      const source = token('source');
+      const destination = token('destination', standard);
+      limited(source, 1000n, 1000n);
+      limited(destination, 1000n, 1000n, 100n);
+      expect(
+        await getXerc20TransferCapacity({
+          source,
+          destination,
+          multiProvider: provider,
+          requested: 1000n,
+        }),
+      ).to.equal(50n);
+      expect(
+        await getXerc20TransferCapacity({
+          source,
+          destination,
+          multiProvider: provider,
+          requested: 1000n,
+          reservedMint: 100n,
+        }),
+      ).to.equal(50n);
+    });
+  }
 
   it('does not infer protocol scaling from display decimals', async () => {
     const source = new Token({
@@ -162,6 +165,85 @@ describe('xERC20 execution capacity', () => {
         requested: 100n,
       }),
     ).to.equal(1n);
+  });
+
+  describe('Aevo tokens', () => {
+    // An Aevo router states its limits as any other: what it may mint is what
+    // is left of its cap, and what it may burn is what it has minted.
+    function aevo(value: Token, limits: { mint: bigint; burn: bigint }) {
+      const adapter = sinon.createStubInstance(EvmHypAevoXERC20Adapter);
+      adapter.getMintLimit.resolves(limits.mint);
+      adapter.getBurnLimit.resolves(limits.burn);
+      sinon.stub(value, 'getHypAdapter').returns(adapter);
+      return adapter;
+    }
+
+    interface Case {
+      name: string;
+      // The source burns up to 500 and the destination mints up to 1000, unless
+      // it is the Aevo router.
+      source?: { mint: bigint; burn: bigint };
+      destination?: { mint: bigint; burn: bigint };
+      expected: bigint;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'has no capacity from a router that has minted nothing',
+        source: { mint: 100n, burn: 0n },
+        expected: 0n,
+      },
+      {
+        name: 'is bounded by what the router it is sent from has minted',
+        source: { mint: 100n, burn: 40n },
+        expected: 40n,
+      },
+      {
+        name: 'has no capacity to a router that is not authorized',
+        destination: { mint: 0n, burn: 0n },
+        expected: 0n,
+      },
+      {
+        name: 'is bounded by what is left of the cap of the router it is sent to',
+        destination: { mint: 80n, burn: 0n },
+        expected: 80n,
+      },
+      {
+        name: 'is not bounded by a router without a cap',
+        destination: { mint: 2n ** 256n - 1n, burn: 0n },
+        expected: 500n,
+      },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const source = token(
+          'source',
+          c.source
+            ? TokenStandard.EvmHypAevoXERC20
+            : TokenStandard.EvmHypXERC20Lockbox,
+        );
+        const destination = token(
+          'destination',
+          c.destination
+            ? TokenStandard.EvmHypAevoXERC20
+            : TokenStandard.EvmHypXERC20Lockbox,
+        );
+        if (c.source) aevo(source, c.source);
+        else limited(source, 500n, 1n);
+        if (c.destination) aevo(destination, c.destination);
+        else limited(destination, 1n, 1000n);
+
+        expect(
+          await getXerc20TransferCapacity({
+            source,
+            destination,
+            multiProvider: provider,
+            requested: 1000n,
+          }),
+        ).to.equal(c.expected);
+      });
+    }
   });
 
   it('does not query limits or balances for ordinary collateral', async () => {

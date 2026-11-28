@@ -13,6 +13,7 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type AevoXERC20Limits,
   type ChainMetadata,
+  TokenStandard,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -61,6 +62,7 @@ import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpCheckRaw,
   hyperlaneWarpDeploy,
+  hyperlaneWarpReadRaw,
   readWarpConfig,
 } from './warp.js';
 
@@ -396,6 +398,20 @@ describe('xerc20 e2e tests', function () {
   });
 
   describe('read', function () {
+    it('exports the routers of Velodrome tokens with the standard of their own, and logs their limits', async function () {
+      const core: WarpCoreConfig = readYamlOrJson(XERC20_VS_CORE_PATH);
+      expect(core.tokens.map(({ standard }) => standard)).to.deep.equal([
+        TokenStandard.EvmHypVSXERC20,
+        TokenStandard.EvmHypVSXERC20,
+      ]);
+
+      const read = await hyperlaneWarpReadRaw({
+        warpRouteId: XERC20_VS_WARP_ROUTE_ID,
+      }).nothrow();
+      expect(read.exitCode, read.stderr).to.equal(0);
+      expect(read.text()).to.include('xERC20 Limits:');
+    });
+
     it('displays the XERC20 token owner', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
@@ -766,6 +782,18 @@ describe('xerc20 Aevo e2e tests', function () {
     return chainConfig.xERC20?.warpRouteLimits;
   }
 
+  // The cells of the row that `warp read` logs for the router of a chain.
+  function loggedCells(output: string, chain: string): string[] {
+    const row = output
+      .split('\n')
+      .find((line) => line.startsWith('│') && line.includes(chain));
+    assert(row, `Expected a logged row for ${chain} in:\n${output}`);
+    return row
+      .split('│')
+      .map((cell) => cell.trim())
+      .filter((cell) => cell !== '');
+  }
+
   function applyXERC20() {
     return $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
       --registry ${REGISTRY_PATH} \
@@ -816,6 +844,9 @@ describe('xerc20 Aevo e2e tests', function () {
       driftBeforeApply: boolean;
       calls: (router: Address) => AevoCall[];
       onChain: { authorized: boolean; cap: string };
+      // The mint and burn cells `warp read` logs for the router, which has
+      // minted nothing, as console.table draws them.
+      logged: string[];
     }
 
     const cases: Case[] = [
@@ -829,6 +860,7 @@ describe('xerc20 Aevo e2e tests', function () {
           ['updateAuthority', router, 'true'],
         ],
         onChain: { authorized: true, cap: CAP_ABOVE_2_POW_53 },
+        logged: ["'123456789012345.678901'", "'0.0'"],
       },
       {
         name: 'an unlimited cap',
@@ -840,6 +872,10 @@ describe('xerc20 Aevo e2e tests', function () {
           ['updateAuthority', router, 'true'],
         ],
         onChain: { authorized: true, cap: '0' },
+        logged: [
+          "'115792089237316195423570985008687907853269984665640564039457584007913129.639935'",
+          "'0.0'",
+        ],
       },
       {
         name: 'a router that is not authorized',
@@ -848,12 +884,26 @@ describe('xerc20 Aevo e2e tests', function () {
         driftBeforeApply: false,
         calls: () => [],
         onChain: { authorized: false, cap: '0' },
+        logged: ["'0.0'", "'0.0'"],
       },
     ];
 
     for (const c of cases) {
       it(`loads what the deploy wrote for ${c.name}, applies it and reads it back`, async function () {
         const router = await deployRoute(c.declared);
+
+        // The router is exported with the standard of an Aevo router, which
+        // the generic xERC20 standard would not be: its token has none of the
+        // limit getters that standard is read through.
+        const core: WarpCoreConfig = readYamlOrJson(AEVO_REGISTRY_CORE_PATH);
+        expect(
+          Object.fromEntries(
+            core.tokens.map(({ chainName, standard }) => [chainName, standard]),
+          ),
+        ).to.deep.equal({
+          [CHAIN_NAME_2]: TokenStandard.EvmHypAevoXERC20,
+          [CHAIN_NAME_3]: TokenStandard.EvmHypCollateral,
+        });
 
         // The deploy parsed the declared limits and wrote what it parsed.
         const written = registryLimits();
@@ -888,6 +938,17 @@ describe('xerc20 Aevo e2e tests', function () {
         expect(await mintAuthority(router)).to.deep.equal(c.onChain);
         await expectCleanCheck();
         expect(await readRouterLimits()).to.deep.equal(c.written);
+
+        // Read by its warp route id, the route logs what its token holds for
+        // the router instead of failing on the limit getters it does not have.
+        const read = await hyperlaneWarpReadRaw({
+          warpRouteId: AEVO_WARP_ROUTE_ID,
+        }).nothrow();
+        expect(read.exitCode, read.stderr).to.equal(0);
+        expect(loggedCells(read.text(), CHAIN_NAME_2)).to.deep.equal([
+          CHAIN_NAME_2,
+          ...c.logged,
+        ]);
       });
     }
   });

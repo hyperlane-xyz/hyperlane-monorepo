@@ -63,6 +63,7 @@ import {
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
+  type TokenStandard,
   TokenType,
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
@@ -84,6 +85,7 @@ import {
   collectIsmAddresses,
   deriveCctpDomains,
   deriveDelayedFlowEnrollmentTargets,
+  deriveEvmXERC20Standard,
   enrollCrossChainRouters,
   executeWarpDeploy,
   executeWarpRouteExtensionDeploy,
@@ -203,6 +205,13 @@ export async function runWarpRouteDeploy({
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
 
+  // Resolved before anything is deployed, so a failed lookup aborts the run
+  // while no gas has been spent, and reused for the registry config below.
+  const standards = await deriveOnChainStandards(
+    multiProvider,
+    warpDeployConfig,
+  );
+
   const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -263,7 +272,11 @@ export async function runWarpRouteDeploy({
   deploymentParams.warpDeployConfig = effectiveWarpDeployConfig;
 
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
+  const { deployedContracts } = await executeDeploy(
+    deploymentParams,
+    apiKeys,
+    standards,
+  );
 
   const registryAddresses = await registry.getAddresses();
 
@@ -338,6 +351,7 @@ export async function runWarpRouteDeploy({
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
     deployedContracts,
+    standards,
   );
 
   // Use warpRouteId if provided, otherwise if the user is deploying
@@ -525,6 +539,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
+  standards: ChainMap<TokenStandard>,
 ): Promise<{
   deployedContracts: ChainMap<Address>;
   deployments: WarpCoreConfig;
@@ -547,6 +562,7 @@ async function executeDeploy(
   const { warpCoreConfig: deployments } = await getWarpCoreConfig(
     { context: params.context, warpDeployConfig },
     deployedContracts,
+    standards,
   );
 
   logGreen('✅ Warp contract deployments complete');
@@ -563,9 +579,10 @@ async function writeDeploymentArtifacts(
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
-async function getWarpCoreConfig(
+export async function getWarpCoreConfig(
   params: DeployParams,
   contracts: ChainMap<Address>,
+  standards: ChainMap<TokenStandard>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions: AddWarpRouteConfigOptions;
@@ -595,6 +612,7 @@ async function getWarpCoreConfig(
     deployedWarpConfig,
     contracts,
     tokenMetadataMap,
+    standards,
   );
 
   fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
@@ -605,7 +623,34 @@ async function getWarpCoreConfig(
 }
 
 /**
- * Creates token configs.
+ * The standards that the token a router wraps decides: an EVM xERC20 router has
+ * the standard of its token, one of its own for a Velodrome or an Aevo token.
+ * The chains of any other route are left out, as their token type alone decides
+ * their standard.
+ */
+export async function deriveOnChainStandards(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+): Promise<ChainMap<TokenStandard>> {
+  const entries = await Promise.all(
+    Object.entries(warpDeployConfig).flatMap(([chain, config]) =>
+      config.type === TokenType.XERC20 &&
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+        ? [
+            deriveEvmXERC20Standard(multiProvider, chain, config.token).then(
+              (standard) => [chain, standard] as const,
+            ),
+          ]
+        : [],
+    ),
+  );
+
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Creates token configs. A chain in `standards` has the standard it gives,
+ * the others have the one of their token type.
  */
 export function generateTokenConfigs(
   multiProvider: MultiProvider,
@@ -613,6 +658,7 @@ export function generateTokenConfigs(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: ChainMap<Address>,
   tokenMetadataMap: TokenMetadataMap,
+  standards?: ChainMap<TokenStandard>,
 ): void {
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -629,7 +675,9 @@ export function generateTokenConfigs(
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      standard:
+        standards?.[chainName] ??
+        tokenTypeToStandard(protocol as ProtocolType, config.type),
       tokenType: config.type,
       decimals: tokenMetadataMap.getDecimals(chainName)!,
       scale: tokenMetadataMap.getScale(chainName),
@@ -1023,6 +1071,16 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
+  // The standards of the chains that exist are resolved before any router of the
+  // extension is deployed, so a failed lookup aborts it first, and are reused for
+  // the registry config. Those of the new chains are resolved below. The chains
+  // that are skipped keep the standard of their registry token, and are not
+  // looked up.
+  let standards = await deriveOnChainStandards(
+    context.multiProvider,
+    filteredExistingConfigs,
+  );
+
   // Derive metadata once for all new chains
   const extendedConfigs = await deriveMetadataFromExisting(
     context.multiProvider,
@@ -1040,7 +1098,16 @@ export async function extendWarpRoute(
 
   if (Object.keys(hybridExtension).length > 0) {
     // Hybrid instances need every new router address before counterpart
-    // enrollment and surface wiring, so their extension is route-wide.
+    // enrollment and surface wiring, so their extension is route-wide, and so
+    // is the resolving of the standards of the new chains: none is deployed
+    // before they all are.
+    standards = {
+      ...standards,
+      ...(await deriveOnChainStandards(
+        context.multiProvider,
+        filteredExtendedConfigs,
+      )),
+    };
     newDeployedContracts = await executeWarpRouteExtensionDeploy(
       extendedConfigs,
       context.multiProvider,
@@ -1049,15 +1116,23 @@ export async function extendWarpRoute(
       apiKeys,
     );
   } else {
-    // Preserve partial-success retries for ordinary extensions.
-    const deployExtension = async (chain: ChainName) =>
-      executeWarpRouteExtensionDeploy(
+    // Preserve partial-success retries for ordinary extensions: the standard of
+    // a new chain is resolved before its router is deployed, and a lookup that
+    // fails fails that chain like its deployment does.
+    const deployExtension = async (chain: ChainName) => {
+      const chainStandards = await deriveOnChainStandards(
+        context.multiProvider,
+        { [chain]: filteredExtendedConfigs[chain] },
+      );
+      const contracts = await executeWarpRouteExtensionDeploy(
         { [chain]: extendedConfigs[chain] },
         context.multiProvider,
         context.altVmSigners,
         registryAddresses,
         apiKeys,
       );
+      return { contracts, chainStandards };
+    };
     const evmChains = filteredExtendedChains.filter((chain) =>
       isEVMLike(context.multiProvider.getProtocol(chain)),
     );
@@ -1069,8 +1144,9 @@ export async function extendWarpRoute(
       deployExtension,
       (chain) => chain,
     );
-    for (const [, contracts] of fulfilled) {
+    for (const [, { contracts, chainStandards }] of fulfilled) {
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
+      standards = { ...standards, ...chainStandards };
     }
     for (const [chain, error] of rejected) {
       errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
@@ -1078,10 +1154,9 @@ export async function extendWarpRoute(
     }
     for (const chain of nonEvmChains) {
       try {
-        newDeployedContracts = {
-          ...newDeployedContracts,
-          ...(await deployExtension(chain)),
-        };
+        const { contracts, chainStandards } = await deployExtension(chain);
+        newDeployedContracts = { ...newDeployedContracts, ...contracts };
+        standards = { ...standards, ...chainStandards };
       } catch (error) {
         errorRed(
           `Failed to deploy extension to ${chain}: ${formatError(error)}`,
@@ -1109,7 +1184,7 @@ export async function extendWarpRoute(
   );
 
   const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
-    await getWarpCoreConfig(params, mergedRouters);
+    await getWarpCoreConfig(params, mergedRouters, standards);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
   // Re-add the non compatible chains to the warp core config so that expanding the config

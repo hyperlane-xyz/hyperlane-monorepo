@@ -1,4 +1,5 @@
 import {
+  EvmHypAevoXERC20Adapter,
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
   EvmHypOwnerCollateralAdapter,
@@ -34,6 +35,7 @@ export function createEvmLikeHypAdapter(
     hypSyntheticRebase: TokenStandard;
     hypXerc20: readonly TokenStandard[];
     hypXerc20Lockbox: readonly TokenStandard[];
+    hypAevoXerc20: TokenStandard | undefined;
   },
 ): IHypTokenAdapter<unknown> | undefined {
   const { standard, chainName, addressOrDenom } = token;
@@ -107,6 +109,12 @@ export function createEvmLikeHypAdapter(
 
   if (standards.hypXerc20Lockbox.some((candidate) => candidate === standard)) {
     return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standards.hypAevoXerc20 && standard === standards.hypAevoXerc20) {
+    return new EvmHypAevoXERC20Adapter(chainName, multiProvider, {
       token: addressOrDenom,
     });
   }

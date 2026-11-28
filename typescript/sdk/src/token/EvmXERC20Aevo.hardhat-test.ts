@@ -23,13 +23,16 @@ import {
   eqAddress,
   isNullish,
   normalizeAddressEvm,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
+import { UIN256_MAX_VALUE } from '../consts/numbers.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import {
@@ -49,6 +52,7 @@ import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { revertToSnapshot, snapshot } from '../utils/fork.js';
 
+import { EvmHypAevoXERC20Adapter } from './adapters/EvmTokenAdapter.js';
 import { EvmWarpModule } from './EvmWarpModule.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module, XERC20ModuleConfig } from './EvmXERC20Module.js';
@@ -62,7 +66,11 @@ import {
   XERC20TokenMetadata,
   XERC20Type,
 } from './types.js';
-import { deriveXERC20TokenType } from './xerc20.js';
+import {
+  AEVO_OUTSTANDING_SELECTOR,
+  AEVO_XERC20_SELECTORS,
+} from './xerc20-abi.js';
+import { deriveEvmXERC20Standard, deriveXERC20TokenType } from './xerc20.js';
 import { checkWarpRouteDeployConfig } from './warpCheck.js';
 
 chai.use(chaiAsPromised);
@@ -74,6 +82,13 @@ const UNAUTHORIZED_SELECTOR = '0x82b42900';
 // with, and `0x09113c3a(address)`, which it reverts a mint beyond the cap with.
 const NOT_AUTHORITY_SELECTOR = '0x31212686';
 const CAP_EXCEEDED_SELECTOR = '0x09113c3a';
+// `0x40f0c8f6(address)`, which it reverts a burn beyond what the minter has
+// minted and not burned with.
+const BURN_BEYOND_MINTED_SELECTOR = '0x40f0c8f6';
+// The mapping of the balances of the token, and the one of what each minter has
+// minted and not burned, the slots of the recorded token.
+const BALANCES_SLOT = 8;
+const OUTSTANDING_SLOT = 11;
 // What it reverts setOwner of the zero address with.
 const TOKEN_ZERO_ADDRESS_ERROR_SELECTOR = '0xd92e233d';
 
@@ -110,6 +125,22 @@ describe('Aevo xERC20 token', async () => {
       aevoToken.caps(minter),
     ]);
     return { authorized, cap: cap.toString() };
+  }
+
+  // A mint credits no wallet, so the one that burns is credited in the storage
+  // of the token.
+  async function fund(holder: Address, amount: bigint) {
+    await hre.network.provider.send('hardhat_setStorageAt', [
+      AEVO_USDC_PROXY,
+      ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [holder, BALANCES_SLOT],
+        ),
+      ),
+      ethers.utils.hexZeroPad(ethers.BigNumber.from(amount).toHexString(), 32),
+    ]);
+    expect((await aevoToken.balanceOf(holder)).toBigInt()).to.equal(amount);
   }
 
   // A minter the test can mint as: an address that signs.
@@ -152,6 +183,11 @@ describe('Aevo xERC20 token', async () => {
         'function setCap(address minter, uint256 cap)',
         'function mint(address to, uint256 amount)',
         'function setOwner(address newOwner)',
+        'function burn(address from, uint256 amount)',
+        'function totalSupply() view returns (uint256)',
+        'function balanceOf(address account) view returns (uint256)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function approve(address spender, uint256 amount) returns (bool)',
       ],
       signer,
     );
@@ -480,6 +516,31 @@ describe('Aevo xERC20 token', async () => {
     ).to.equal(XERC20Type.Aevo);
   });
 
+  it('is exported with the standard of an Aevo router', async () => {
+    expect(
+      await deriveEvmXERC20Standard(multiProvider, chain, AEVO_USDC_PROXY),
+    ).to.equal(TokenStandard.EvmHypAevoXERC20);
+  });
+
+  // A token whose code carries the four selectors that identify an Aevo token
+  // and reverts every call, as it does the call of a getter it does not have.
+  it('is not exported with the standard of an Aevo router when it has no outstanding getter', async () => {
+    const token = randomAddress();
+    await hre.network.provider.send('hardhat_setCode', [
+      token,
+      `0x60006000fd${AEVO_XERC20_SELECTORS.map(strip0x).join('')}`,
+    ]);
+
+    expect(await deriveXERC20TokenType(multiProvider, chain, token)).to.equal(
+      XERC20Type.Aevo,
+    );
+    await expect(
+      deriveEvmXERC20Standard(multiProvider, chain, token),
+    ).to.be.rejectedWith(
+      `Unable to derive the standard of ${token}. It carries the Aevo XERC20 limit selectors but not the outstanding getter ${AEVO_OUTSTANDING_SELECTOR}`,
+    );
+  });
+
   // The reading of the config rests on what the token does on a mint, which
   // is shown here on the real code instead of assumed.
   describe('what the token enforces on a mint', () => {
@@ -502,7 +563,7 @@ describe('Aevo xERC20 token', async () => {
       }
     });
 
-    it('bounds an authorized minter by its cap, counting what it has minted', async () => {
+    it('bounds an authorized minter by its cap, counting what it has minted and not burned', async () => {
       const address = randomAddress();
       const minter = await impersonate(address);
       await authorize(address, 105);
@@ -539,6 +600,51 @@ describe('Aevo xERC20 token', async () => {
       });
       await expect(minter.mint(randomAddress(), 106)).to.be.rejectedWith(
         CAP_EXCEEDED_SELECTOR,
+      );
+    });
+
+    it('lowers what a minter has outstanding with a burn, which makes room under its cap', async () => {
+      const address = randomAddress();
+      const minter = await impersonate(address);
+      const holder = randomAddress();
+      await authorize(address, 105);
+      await fund(holder, 1000n);
+
+      await (await minter.mint(randomAddress(), 100)).wait();
+      await (await minter.burn(holder, 60)).wait();
+      await (await minter.mint(randomAddress(), 65)).wait();
+
+      await expect(minter.mint(randomAddress(), 1)).to.be.rejectedWith(
+        CAP_EXCEEDED_SELECTOR,
+      );
+    });
+
+    it('refuses a burn beyond what the minter has minted and not burned, whatever its cap', async () => {
+      for (const cap of [105, 0]) {
+        const address = randomAddress();
+        const minter = await impersonate(address);
+        const holder = randomAddress();
+        await authorize(address, cap);
+        await fund(holder, 1000n);
+        await (await minter.mint(randomAddress(), 50)).wait();
+
+        await expect(minter.burn(holder, 51)).to.be.rejectedWith(
+          BURN_BEYOND_MINTED_SELECTOR,
+        );
+        await (await minter.burn(holder, 50)).wait();
+        await expect(minter.burn(holder, 1)).to.be.rejectedWith(
+          BURN_BEYOND_MINTED_SELECTOR,
+        );
+      }
+    });
+
+    it('refuses a burn of a minter that is not authorized', async () => {
+      const minter = await impersonate(randomAddress());
+      const holder = randomAddress();
+      await fund(holder, 1000n);
+
+      await expect(minter.burn(holder, 1)).to.be.rejectedWith(
+        NOT_AUTHORITY_SELECTOR,
       );
     });
   });
@@ -837,7 +943,7 @@ describe('Aevo xERC20 token', async () => {
             {
               addressOrDenom: routerAddress,
               chainName: chain,
-              standard: TokenStandard.EvmHypXERC20,
+              standard: TokenStandard.EvmHypAevoXERC20,
               decimals: 6,
               symbol: 'USDC',
               name: 'USDC',
@@ -1089,6 +1195,300 @@ describe('Aevo xERC20 token', async () => {
 
       expect(tokenTxs(txs)).to.have.lengthOf(0);
       expect(await mintAuthority(routerAddress)).to.deep.equal(held);
+    });
+
+    // These come last: each one sets the state of the router it reads.
+    describe('its adapter', () => {
+      let adapter: EvmHypAevoXERC20Adapter;
+      const holder = randomAddress();
+
+      before(() => {
+        adapter = new EvmHypAevoXERC20Adapter(
+          chain,
+          MultiProtocolProvider.fromMultiProvider(multiProvider),
+          { token: routerAddress },
+        );
+      });
+
+      const outstandingOf = async (minter: Address) =>
+        (
+          await aevoToken.provider.call({
+            to: AEVO_USDC_PROXY,
+            data: `${AEVO_OUTSTANDING_SELECTOR}${abiWord(minter)}`,
+          })
+        ).toString();
+
+      // Brings the router to the state: authorized or not, with a cap (zero for
+      // none), and having minted and not burned `outstanding`.
+      async function arrange({
+        authorized,
+        cap,
+        outstanding,
+      }: {
+        authorized: boolean;
+        cap: bigint;
+        outstanding: bigint;
+      }) {
+        const router = await impersonate(routerAddress);
+        await (await aevoToken.updateAuthority(routerAddress, true)).wait();
+        await (await aevoToken.setCap(routerAddress, 0)).wait();
+        const current = await adapter.getBridgedSupply();
+        if (outstanding > current) {
+          await (
+            await router.mint(randomAddress(), outstanding - current)
+          ).wait();
+        } else if (outstanding < current) {
+          await fund(holder, current - outstanding);
+          await (await router.burn(holder, current - outstanding)).wait();
+        }
+        await (await aevoToken.setCap(routerAddress, cap)).wait();
+        await (
+          await aevoToken.updateAuthority(routerAddress, authorized)
+        ).wait();
+      }
+
+      const limitsOf = async () => ({
+        mint: await adapter.getMintLimit(),
+        mintMax: await adapter.getMintMaxLimit(),
+        burn: await adapter.getBurnLimit(),
+        burnMax: await adapter.getBurnMaxLimit(),
+      });
+
+      interface LimitsCase {
+        name: string;
+        state: { authorized: boolean; cap: bigint; outstanding: bigint };
+        expected: {
+          mint: bigint;
+          mintMax: bigint;
+          burn: bigint;
+          burnMax: bigint;
+        };
+      }
+
+      const cases: LimitsCase[] = [
+        {
+          name: 'has none for a router that is not authorized, whatever it keeps',
+          state: { authorized: false, cap: 105n, outstanding: 30n },
+          expected: { mint: 0n, mintMax: 0n, burn: 0n, burnMax: 0n },
+        },
+        {
+          name: 'has no cap to mint under, and nothing to burn, for a router without a cap that has minted nothing',
+          state: { authorized: true, cap: 0n, outstanding: 0n },
+          expected: {
+            mint: UIN256_MAX_VALUE,
+            mintMax: UIN256_MAX_VALUE,
+            burn: 0n,
+            burnMax: UIN256_MAX_VALUE,
+          },
+        },
+        {
+          name: 'can burn what a router without a cap has minted',
+          state: { authorized: true, cap: 0n, outstanding: 30n },
+          expected: {
+            mint: UIN256_MAX_VALUE,
+            mintMax: UIN256_MAX_VALUE,
+            burn: 30n,
+            burnMax: UIN256_MAX_VALUE,
+          },
+        },
+        {
+          name: 'can mint the whole cap of a router that has minted nothing',
+          state: { authorized: true, cap: 105n, outstanding: 0n },
+          expected: { mint: 105n, mintMax: 105n, burn: 0n, burnMax: 105n },
+        },
+        {
+          name: 'can mint what is left of the cap, and burn what the router has minted',
+          state: { authorized: true, cap: 105n, outstanding: 30n },
+          expected: { mint: 75n, mintMax: 105n, burn: 30n, burnMax: 105n },
+        },
+        {
+          name: 'can mint the one unit left under the cap',
+          state: { authorized: true, cap: 31n, outstanding: 30n },
+          expected: { mint: 1n, mintMax: 31n, burn: 30n, burnMax: 31n },
+        },
+        {
+          name: 'can mint nothing once the router has minted the cap',
+          state: { authorized: true, cap: 105n, outstanding: 105n },
+          expected: { mint: 0n, mintMax: 105n, burn: 105n, burnMax: 105n },
+        },
+        {
+          name: 'can mint nothing when the cap is lowered below what the router has minted, and burn all it has minted',
+          state: { authorized: true, cap: 20n, outstanding: 30n },
+          expected: { mint: 0n, mintMax: 20n, burn: 30n, burnMax: 30n },
+        },
+        {
+          name: 'has the largest uint256 for the cap, and what is left of it, of a router with the largest cap',
+          state: {
+            authorized: true,
+            cap: UIN256_MAX_VALUE,
+            outstanding: 30n,
+          },
+          expected: {
+            mint: UIN256_MAX_VALUE - 30n,
+            mintMax: UIN256_MAX_VALUE,
+            burn: 30n,
+            burnMax: UIN256_MAX_VALUE,
+          },
+        },
+      ];
+
+      for (const c of cases) {
+        it(c.name, async () => {
+          await arrange(c.state);
+
+          const limits = await limitsOf();
+          expect(limits).to.deep.equal(c.expected);
+          expect(limits.burn <= limits.burnMax).to.equal(true);
+        });
+      }
+
+      // The token bounds a burn by what the router has minted and not by its
+      // cap, so a router whose cap was lowered below that can burn all of it.
+      it('states what the token accepts of a burn once the cap is lowered below what the router has minted', async () => {
+        await arrange({ authorized: true, cap: 20n, outstanding: 30n });
+        const router = await impersonate(routerAddress);
+        await fund(holder, 1000n);
+
+        const burnMax = await adapter.getBurnMaxLimit();
+        expect(burnMax).to.equal(30n);
+        await (await router.burn(holder, burnMax)).wait();
+        await expect(router.burn(holder, 1)).to.be.rejectedWith(
+          BURN_BEYOND_MINTED_SELECTOR,
+        );
+      });
+
+      // What the token enforces is what the limits state: what the router may
+      // mint and burn is accepted and one more is refused.
+      it('states what the token accepts of a mint and of a burn', async () => {
+        await arrange({ authorized: true, cap: 105n, outstanding: 30n });
+        const router = await impersonate(routerAddress);
+        await fund(holder, 1000n);
+
+        const mint = await adapter.getMintLimit();
+        await (await router.mint(randomAddress(), mint)).wait();
+        await expect(router.mint(randomAddress(), 1)).to.be.rejectedWith(
+          CAP_EXCEEDED_SELECTOR,
+        );
+
+        const burn = await adapter.getBurnLimit();
+        expect(burn).to.equal(105n);
+        await (await router.burn(holder, burn)).wait();
+        await expect(router.burn(holder, 1)).to.be.rejectedWith(
+          BURN_BEYOND_MINTED_SELECTOR,
+        );
+        expect(await limitsOf()).to.deep.equal({
+          mint: 105n,
+          mintMax: 105n,
+          burn: 0n,
+          burnMax: 105n,
+        });
+      });
+
+      it('accepts a mint of the one unit left under the cap, and refuses the next', async () => {
+        await arrange({ authorized: true, cap: 31n, outstanding: 30n });
+        const router = await impersonate(routerAddress);
+        expect(await adapter.getMintLimit()).to.equal(1n);
+
+        await (await router.mint(randomAddress(), 1)).wait();
+
+        await expect(router.mint(randomAddress(), 1)).to.be.rejectedWith(
+          CAP_EXCEEDED_SELECTOR,
+        );
+        expect(await adapter.getMintLimit()).to.equal(0n);
+      });
+
+      // The router burns from the holder with no allowance of the holder, so it
+      // needs none, and any other spender is checked as an allowance of the token.
+      for (const allowance of [0n, 5n]) {
+        it(`needs no approval of the token to burn through the router, for an amount of 30 with an allowance of ${allowance}`, async () => {
+          await arrange({ authorized: true, cap: 105n, outstanding: 30n });
+          const router = await impersonate(routerAddress);
+          await fund(holder, 30n);
+          await (
+            await (await impersonate(holder)).approve(routerAddress, allowance)
+          ).wait();
+          const spender = randomAddress();
+
+          expect(
+            await adapter.isApproveRequired(holder, routerAddress, 30n),
+          ).to.equal(false);
+          expect(
+            await adapter.isRevokeApprovalRequired(holder, routerAddress),
+          ).to.equal(false);
+          await (await router.burn(holder, 30)).wait();
+
+          expect(
+            (await aevoToken.allowance(holder, routerAddress)).toBigInt(),
+          ).to.equal(allowance);
+          await (await (await impersonate(holder)).approve(spender, 1)).wait();
+          expect(
+            await adapter.isApproveRequired(holder, spender, 30n),
+          ).to.equal(true);
+          expect(
+            await adapter.isRevokeApprovalRequired(holder, spender),
+          ).to.equal(true);
+        });
+      }
+
+      it('makes room to mint again when the router burns', async () => {
+        await arrange({ authorized: true, cap: 105n, outstanding: 100n });
+        const router = await impersonate(routerAddress);
+        await fund(holder, 1000n);
+        expect(await adapter.getMintLimit()).to.equal(5n);
+
+        await (await router.burn(holder, 60)).wait();
+
+        expect(await adapter.getMintLimit()).to.equal(65n);
+        await (await router.mint(randomAddress(), 65)).wait();
+      });
+
+      // The supply of the token is what every minter has minted: when the token
+      // had been minted by another one before the router, which has nothing yet,
+      // none of it is the router's to burn or to have bridged.
+      it('states nothing of what another minter has minted', async () => {
+        await arrange({ authorized: true, cap: 105n, outstanding: 0n });
+        const other = randomAddress();
+        await authorize(other);
+        const supplyBefore = (await aevoToken.totalSupply()).toBigInt();
+        await (
+          await (await impersonate(other)).mint(randomAddress(), 1000)
+        ).wait();
+
+        expect((await aevoToken.totalSupply()).toBigInt()).to.equal(
+          supplyBefore + 1000n,
+        );
+        expect(await adapter.getBurnLimit()).to.equal(0n);
+        expect(await adapter.getBridgedSupply()).to.equal(0n);
+      });
+
+      it('reports what the router has bridged as what it has minted and not burned, at the block asked for', async () => {
+        await arrange({ authorized: true, cap: 0n, outstanding: 20n });
+        const router = await impersonate(routerAddress);
+        const blockBefore = await hre.ethers.provider.getBlockNumber();
+
+        await (await router.mint(randomAddress(), 700)).wait();
+
+        expect(await adapter.getBridgedSupply()).to.equal(720n);
+        expect(
+          await adapter.getBridgedSupply({ blockTag: blockBefore }),
+        ).to.equal(20n);
+        // What the token keeps at its slot for the counts, which its getter
+        // answers.
+        expect(
+          BigInt(
+            await hre.ethers.provider.getStorageAt(
+              AEVO_USDC_PROXY,
+              ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                  ['address', 'uint256'],
+                  [routerAddress, OUTSTANDING_SLOT],
+                ),
+              ),
+            ),
+          ),
+        ).to.equal(720n);
+        expect(BigInt(await outstandingOf(routerAddress))).to.equal(720n);
+      });
     });
   });
 });

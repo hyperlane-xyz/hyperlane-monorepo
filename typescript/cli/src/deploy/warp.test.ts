@@ -1,18 +1,23 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  type HypERC20,
   type IPostDispatchHook,
   IPostDispatchHook__factory,
   type Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import {
   ProtocolType,
   addressToBytes32,
+  isNullish,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import {
+  type ChainMap,
   ContractVerifier,
   type DerivedTokenRouterConfig,
   EvmLayerZeroV2HookIsmModule,
@@ -22,6 +27,7 @@ import {
   type HookConfig,
   HyperlaneDeployer,
   HookType,
+  HypERC20Deployer,
   type IsmConfig,
   IsmType,
   LayerZeroV2ConfigMode,
@@ -34,18 +40,45 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WormholeConsistencyType,
+  contractDouble,
   testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
 import {
+  deriveOnChainStandards,
+  extendWarpRoute,
   fullyConnectTokens,
   generateTokenConfigs,
+  getWarpCoreConfig,
   runWarpRouteApply,
   runWarpRouteCombine,
+  runWarpRouteDeploy,
   runWarpUpdatePlanning,
   transformDeployConfigForDisplay,
   withIntermediateWarpOwner,
 } from './warp.js';
+
+// The standard of an Aevo token is derived with a call of the getter of what a
+// minter has minted: a token that has it answers, and one that has not reverts
+// without data. Any other call to the provider is one that is not expected.
+function stubOutstandingGetter(
+  provider: ethers.providers.Provider,
+  getters: { answering: string[]; reverting: string[] },
+): void {
+  sinon.stub(provider, 'call').callsFake(async (transaction) => {
+    const to = await transaction.to;
+    if (!isNullish(to) && getters.answering.includes(to)) {
+      return ethers.utils.hexZeroPad('0x00', 32);
+    }
+    if (!isNullish(to) && getters.reverting.includes(to)) {
+      throw Object.assign(new Error('call revert exception'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+    }
+    throw new Error(`Unexpected call to ${to}`);
+  });
+}
 
 describe('generateTokenConfigs', () => {
   for (const scale of [1e12, undefined]) {
@@ -95,6 +128,731 @@ describe('generateTokenConfigs', () => {
       });
     });
   }
+
+  interface StandardsCase {
+    name: string;
+    standards?: ChainMap<TokenStandard>;
+    expected: TokenStandard;
+  }
+
+  const standardsCases: StandardsCase[] = [
+    {
+      name: 'gives the standard of the token type when no standards are derived',
+      expected: TokenStandard.EvmHypXERC20,
+    },
+    {
+      name: 'gives the standard that was derived for the chain',
+      standards: { [TestChainName.test1]: TokenStandard.EvmHypAevoXERC20 },
+      expected: TokenStandard.EvmHypAevoXERC20,
+    },
+    {
+      name: 'gives the standard that was derived for a Velodrome router',
+      standards: { [TestChainName.test1]: TokenStandard.EvmHypVSXERC20 },
+      expected: TokenStandard.EvmHypVSXERC20,
+    },
+    {
+      name: 'gives the standard of the token type to a chain with none derived',
+      standards: { [TestChainName.test2]: TokenStandard.EvmHypAevoXERC20 },
+      expected: TokenStandard.EvmHypXERC20,
+    },
+  ];
+
+  for (const c of standardsCases) {
+    it(`${c.name}`, () => {
+      const address = '0x1111111111111111111111111111111111111111';
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [TestChainName.test1]: {
+          type: TokenType.XERC20,
+          token: address,
+          owner: address,
+          mailbox: address,
+        },
+      };
+      const metadata = new TokenMetadataMap();
+      metadata.set(TestChainName.test1, {
+        name: 'USD Coin',
+        symbol: 'USDC',
+        decimals: 6,
+      });
+      const core: WarpCoreConfig = { tokens: [] };
+
+      generateTokenConfigs(
+        MultiProvider.createTestMultiProvider(),
+        core,
+        config,
+        { [TestChainName.test1]: address },
+        metadata,
+        c.standards,
+      );
+
+      expect(core.tokens[0]).to.include({
+        chainName: TestChainName.test1,
+        standard: c.expected,
+        tokenType: TokenType.XERC20,
+      });
+    });
+  }
+});
+
+describe('deriveOnChainStandards', () => {
+  const address = '0x1111111111111111111111111111111111111111';
+  const standardToken = '0x2222222222222222222222222222222222222222';
+  const aevoToken = '0x3333333333333333333333333333333333333333';
+  const veloToken = '0x4444444444444444444444444444444444444444';
+  const aevoWithoutGetterToken = '0x5555555555555555555555555555555555555555';
+  // The selectors the recorded Aevo token carries: authorities, caps,
+  // updateAuthority and setCap, and the getter of what a minter has minted.
+  const AEVO_CODE_WITHOUT_GETTER = '0x91223d6966d97b21' + '6cd22eaf80ad2cf3';
+  const AEVO_CODE = AEVO_CODE_WITHOUT_GETTER + '963aee20';
+  const STANDARD_CODE = `0x${ethers.utils
+    .id('setLimits(address,uint256,uint256)')
+    .slice(2, 10)}`;
+  const VELO_CODE = `0x${ethers.utils
+    .id('setBufferCap(address,uint256)')
+    .slice(2, 10)}`;
+  const codes: Record<string, string> = {
+    [standardToken]: STANDARD_CODE,
+    [aevoToken]: AEVO_CODE,
+    [veloToken]: VELO_CODE,
+    [aevoWithoutGetterToken]: AEVO_CODE_WITHOUT_GETTER,
+  };
+
+  const xerc20 = (
+    token: string,
+  ): WarpRouteDeployConfigMailboxRequired[string] => ({
+    type: TokenType.XERC20,
+    token,
+    owner: address,
+    mailbox: address,
+  });
+
+  let multiProvider: MultiProvider;
+
+  beforeEach(() => {
+    multiProvider = new MultiProvider({
+      ...testChainMetadata,
+      aleo: {
+        name: 'aleo',
+        protocol: ProtocolType.Aleo,
+        chainId: 1,
+        domainId: 1634493807,
+        nativeToken: { name: 'Aleo', symbol: 'ALEO', decimals: 6 },
+        rpcUrls: [{ http: 'http://127.0.0.1:13030' }],
+      },
+      tron: {
+        name: 'tron',
+        protocol: ProtocolType.Tron,
+        chainId: 2494104990,
+        domainId: 728126428,
+        nativeToken: { name: 'Tron', symbol: 'TRX', decimals: 6 },
+        rpcUrls: [{ http: 'http://127.0.0.1:8090' }],
+      },
+    });
+    // Answers the bytecode of the tokens above, and fails for any other
+    // address: a chain that needs no derivation must not be read.
+    for (const chain of [
+      TestChainName.test1,
+      TestChainName.test2,
+      TestChainName.test3,
+    ]) {
+      stubOutstandingGetter(multiProvider.getProvider(chain), {
+        answering: [aevoToken],
+        reverting: [aevoWithoutGetterToken],
+      });
+      sinon
+        .stub(multiProvider.getProvider(chain), 'getCode')
+        .callsFake(async (addressOrName) => {
+          const target = await addressOrName;
+          const code = codes[target];
+          if (code === undefined) {
+            throw new Error(`Unexpected getCode call for ${target}`);
+          }
+          return code;
+        });
+    }
+  });
+
+  afterEach(() => sinon.restore());
+
+  it('derives the standard of the token an EVM xERC20 router wraps', async () => {
+    expect(
+      await deriveOnChainStandards(multiProvider, {
+        [TestChainName.test1]: xerc20(aevoToken),
+        [TestChainName.test2]: xerc20(standardToken),
+        [TestChainName.test3]: xerc20(veloToken),
+      }),
+    ).to.deep.equal({
+      [TestChainName.test1]: TokenStandard.EvmHypAevoXERC20,
+      [TestChainName.test2]: TokenStandard.EvmHypXERC20,
+      [TestChainName.test3]: TokenStandard.EvmHypVSXERC20,
+    });
+  });
+
+  it('rejects an Aevo token whose standard cannot read its limits', async () => {
+    let error: unknown;
+    try {
+      await deriveOnChainStandards(multiProvider, {
+        [TestChainName.test1]: xerc20(aevoToken),
+        [TestChainName.test2]: xerc20(aevoWithoutGetterToken),
+      });
+    } catch (e) {
+      error = e;
+    }
+
+    if (!(error instanceof Error)) throw error;
+    expect(error.message).to.include(
+      `Unable to derive the standard of ${aevoWithoutGetterToken}`,
+    );
+    expect(error.message).to.include('0x963aee20');
+  });
+
+  it('leaves out the chains whose token type alone decides their standard', async () => {
+    expect(
+      await deriveOnChainStandards(multiProvider, {
+        [TestChainName.test1]: {
+          type: TokenType.collateral,
+          token: aevoToken,
+          owner: address,
+          mailbox: address,
+        },
+        [TestChainName.test2]: {
+          type: TokenType.synthetic,
+          owner: address,
+          mailbox: address,
+          name: 'USD Coin',
+          symbol: 'USDC',
+          decimals: 6,
+        },
+        aleo: {
+          type: TokenType.XERC20,
+          token: aevoToken,
+          owner: 'aleo1owner',
+          mailbox: 'aleo1mailbox',
+        },
+        // Its standard stays the one of its token type, TronHypXERC20.
+        tron: xerc20(aevoToken),
+      }),
+    ).to.deep.equal({});
+  });
+});
+
+// The standards of the routers are resolved from the tokens before any router
+// is deployed, and the registry config reuses them: a lookup that failed after
+// the deployment would leave routers on chain that no config points to.
+describe('the standards of the routers of a route', () => {
+  const OWNER = '0x1111111111111111111111111111111111111111';
+  const MAILBOX = '0x2222222222222222222222222222222222222222';
+  const aevoToken = '0x3333333333333333333333333333333333333333';
+  const standardToken = '0x4444444444444444444444444444444444444444';
+  const veloToken = '0x5555555555555555555555555555555555555555';
+  const failingToken = '0x6666666666666666666666666666666666666666';
+  const STANDARD_CODE = `0x${ethers.utils
+    .id('setLimits(address,uint256,uint256)')
+    .slice(2, 10)}`;
+  const lookupError = new Error('RPC unreachable');
+  type DeployedContracts = Awaited<
+    ReturnType<HypERC20Deployer['deploy']>
+  >[string];
+  const ROUTER = '0x7777777777777777777777777777777777777777';
+  const AEVO_CODE = '0x91223d6966d97b216cd22eaf80ad2cf3963aee20';
+  const VELO_CODE = `0x${ethers.utils
+    .id('setBufferCap(address,uint256)')
+    .slice(2, 10)}`;
+  const chains = [
+    TestChainName.test1,
+    TestChainName.test2,
+    TestChainName.test3,
+  ];
+
+  const xerc20 = (
+    token: string,
+  ): WarpRouteDeployConfigMailboxRequired[string] => ({
+    type: TokenType.XERC20,
+    token,
+    owner: OWNER,
+    mailbox: MAILBOX,
+  });
+
+  let multiProvider: MultiProvider;
+  let getCodes: sinon.SinonStub[];
+  let metadata: TokenMetadataMap;
+
+  beforeEach(() => {
+    multiProvider = new MultiProvider(testChainMetadata);
+    metadata = new TokenMetadataMap();
+    for (const chain of chains) {
+      metadata.set(chain, { name: 'USD Coin', symbol: 'USDC', decimals: 6 });
+    }
+    sinon.stub(HypERC20Deployer, 'deriveTokenMetadata').resolves(metadata);
+    getCodes = chains.map((chain) =>
+      sinon.stub(multiProvider.getProvider(chain), 'getCode'),
+    );
+  });
+
+  afterEach(() => sinon.restore());
+
+  describe('getWarpCoreConfig', () => {
+    interface Case {
+      name: string;
+      deployed: string[];
+      expected: [string, TokenStandard][];
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'gives each deployed router the standard resolved for its chain',
+        deployed: chains,
+        expected: [
+          [TestChainName.test1, TokenStandard.EvmHypAevoXERC20],
+          [TestChainName.test2, TokenStandard.EvmHypXERC20],
+          [TestChainName.test3, TokenStandard.EvmHypVSXERC20],
+        ],
+      },
+      {
+        name: 'leaves out a chain whose router did not deploy',
+        deployed: [TestChainName.test1, TestChainName.test3],
+        expected: [
+          [TestChainName.test1, TokenStandard.EvmHypAevoXERC20],
+          [TestChainName.test3, TokenStandard.EvmHypVSXERC20],
+        ],
+      },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const params = {
+          context: { multiProvider },
+          warpDeployConfig: {
+            [TestChainName.test1]: xerc20(aevoToken),
+            [TestChainName.test2]: xerc20(standardToken),
+            [TestChainName.test3]: xerc20(veloToken),
+          },
+          // CAST: getWarpCoreConfig reads only the multi provider of the context.
+        } as unknown as Parameters<typeof getWarpCoreConfig>[0];
+        const contracts: ChainMap<string> = {};
+        for (const chain of c.deployed) contracts[chain] = MAILBOX;
+
+        // A bytecode read below is a standard that is derived a second time.
+        for (const getCode of getCodes) getCode.rejects(lookupError);
+        const { warpCoreConfig } = await getWarpCoreConfig(params, contracts, {
+          [TestChainName.test1]: TokenStandard.EvmHypAevoXERC20,
+          [TestChainName.test2]: TokenStandard.EvmHypXERC20,
+          [TestChainName.test3]: TokenStandard.EvmHypVSXERC20,
+        });
+
+        expect(
+          warpCoreConfig.tokens.map((token) => [
+            token.chainName,
+            token.standard,
+          ]),
+        ).to.deep.equal(c.expected);
+        for (const getCode of getCodes) expect(getCode.called).to.equal(false);
+      });
+    }
+  });
+
+  describe('extendWarpRoute', () => {
+    it('writes the standards resolved before the deployment, derived once per chain', async () => {
+      const existing: WarpCoreConfig['tokens'][number] = {
+        chainName: TestChainName.test1,
+        standard: TokenStandard.EvmHypAevoXERC20,
+        tokenType: TokenType.XERC20,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MAILBOX,
+        collateralAddressOrDenom: aevoToken,
+      };
+      const warpCoreConfig: WarpCoreConfig = { tokens: [existing] };
+      const addWarpRoute = sinon.stub().resolves();
+      sinon
+        .stub(multiProvider, 'getSigner')
+        .returns(ethers.Wallet.createRandom());
+      sinon.stub(HypERC20Deployer.prototype, 'deploy').resolves({
+        [TestChainName.test2]: contractDouble<DeployedContracts>({
+          synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+        }),
+      });
+      getCodes[0].resolves(AEVO_CODE);
+      getCodes[1].resolves(VELO_CODE);
+      stubOutstandingGetter(multiProvider.getProvider(chains[0]), {
+        answering: [aevoToken],
+        reverting: [],
+      });
+
+      await extendWarpRoute(
+        {
+          context: {
+            altVmSigners: {},
+            multiProvider,
+            registry: {
+              addWarpRoute,
+              addWarpRouteConfig: sinon.stub().resolves(),
+              getAddresses: sinon
+                .stub()
+                .resolves(
+                  Object.fromEntries(chains.map((chain) => [chain, {}])),
+                ),
+            },
+            supportedProtocols: [ProtocolType.Ethereum],
+            // CAST: the extension reads only these members of the context.
+          } as unknown as Parameters<typeof extendWarpRoute>[0]['context'],
+          receiptsDir: '',
+          warpCoreConfig,
+          warpDeployConfig: {
+            [TestChainName.test1]: xerc20(aevoToken),
+            [TestChainName.test2]: xerc20(veloToken),
+          },
+        },
+        {},
+        warpCoreConfig,
+        {},
+      );
+
+      expect(
+        addWarpRoute.firstCall.args[0].tokens.map(
+          (token: WarpCoreConfig['tokens'][number]) => [
+            token.chainName,
+            token.standard,
+          ],
+        ),
+      ).to.deep.equal([
+        [TestChainName.test1, TokenStandard.EvmHypAevoXERC20],
+        [TestChainName.test2, TokenStandard.EvmHypVSXERC20],
+      ]);
+      expect(getCodes[0].callCount).to.equal(1);
+      expect(getCodes[1].callCount).to.equal(1);
+      expect(getCodes[2].called).to.equal(false);
+    });
+
+    // A chain of a protocol the context does not support is left out of the
+    // extension, and its token is not looked up either: a lookup that failed for
+    // it would stop the extension of the chains that are supported.
+    it('does not look up the token of a chain it skips, and extends the supported chains', async () => {
+      const extendedMultiProvider = new MultiProvider({
+        ...testChainMetadata,
+        tron: {
+          name: 'tron',
+          protocol: ProtocolType.Tron,
+          chainId: 2494104990,
+          domainId: 728126428,
+          nativeToken: { name: 'Tron', symbol: 'TRX', decimals: 6 },
+          rpcUrls: [{ http: 'http://127.0.0.1:8090' }],
+        },
+      });
+      metadata.set('tron', { name: 'USD Coin', symbol: 'USDC', decimals: 6 });
+      const skippedGetCode = sinon
+        .stub(extendedMultiProvider.getProvider(TestChainName.test1), 'getCode')
+        .rejects(lookupError);
+      const skipped: WarpCoreConfig['tokens'][number] = {
+        chainName: TestChainName.test1,
+        standard: TokenStandard.EvmHypAevoXERC20,
+        tokenType: TokenType.XERC20,
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        addressOrDenom: MAILBOX,
+        collateralAddressOrDenom: failingToken,
+      };
+      const warpCoreConfig: WarpCoreConfig = { tokens: [skipped] };
+      const addWarpRoute = sinon.stub().resolves();
+      sinon
+        .stub(extendedMultiProvider, 'getSigner')
+        .returns(ethers.Wallet.createRandom());
+      const deploy = sinon.stub(HypERC20Deployer.prototype, 'deploy').resolves({
+        tron: contractDouble<DeployedContracts>({
+          synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+        }),
+      });
+
+      await extendWarpRoute(
+        {
+          context: {
+            altVmSigners: {},
+            multiProvider: extendedMultiProvider,
+            registry: {
+              addWarpRoute,
+              addWarpRouteConfig: sinon.stub().resolves(),
+              getAddresses: sinon.stub().resolves({ tron: {} }),
+            },
+            supportedProtocols: [ProtocolType.Tron],
+            // CAST: the extension reads only these members of the context.
+          } as unknown as Parameters<typeof extendWarpRoute>[0]['context'],
+          receiptsDir: '',
+          warpCoreConfig,
+          warpDeployConfig: {
+            [TestChainName.test1]: xerc20(failingToken),
+            tron: {
+              type: TokenType.synthetic,
+              owner: OWNER,
+              mailbox: MAILBOX,
+              name: 'USD Coin',
+              symbol: 'USDC',
+              decimals: 6,
+            },
+          },
+        },
+        {},
+        warpCoreConfig,
+        {},
+      );
+
+      expect(skippedGetCode.called).to.equal(false);
+      expect(deploy.calledOnce).to.equal(true);
+      expect(
+        addWarpRoute.firstCall.args[0].tokens.map(
+          (token: WarpCoreConfig['tokens'][number]) => [
+            token.chainName,
+            token.standard,
+          ],
+        ),
+      ).to.deep.equal([
+        ['tron', TokenStandard.TronHypSynthetic],
+        [TestChainName.test1, TokenStandard.EvmHypAevoXERC20],
+      ]);
+    });
+  });
+
+  // What stops a run that cannot resolve a standard: the routers are what a
+  // run deploys, and each one is deployed through a signer of the multi provider.
+  describe('a standard that cannot be resolved', () => {
+    let getSigner: sinon.SinonStub;
+    let getAddresses: sinon.SinonStub;
+    let addWarpRoute: sinon.SinonStub;
+    let addWarpRouteConfig: sinon.SinonStub;
+    let deploy: sinon.SinonStub;
+
+    beforeEach(() => {
+      addWarpRoute = sinon.stub().resolves();
+      addWarpRouteConfig = sinon.stub().resolves();
+      getSigner = sinon
+        .stub(multiProvider, 'getSigner')
+        .returns(ethers.Wallet.createRandom());
+      getAddresses = sinon
+        .stub()
+        .resolves(Object.fromEntries(chains.map((chain) => [chain, {}])));
+      deploy = sinon
+        .stub(HypERC20Deployer.prototype, 'deploy')
+        .rejects(new Error('A router was deployed'));
+      for (const [index, chain] of chains.entries()) {
+        const provider = multiProvider.getProvider(chain);
+        sinon.stub(provider, 'getGasPrice').resolves(ethers.BigNumber.from(1));
+        sinon
+          .stub(provider, 'getBalance')
+          .resolves(ethers.utils.parseEther('1000'));
+        getCodes[index].callsFake(async (addressOrName) => {
+          const target = await addressOrName;
+          if (target === failingToken) throw lookupError;
+          if (target === standardToken) return STANDARD_CODE;
+          if (target === veloToken) return VELO_CODE;
+          throw new Error(`Unexpected getCode call for ${target}`);
+        });
+      }
+    });
+
+    async function rejection(run: Promise<unknown>): Promise<unknown> {
+      try {
+        await run;
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    }
+
+    function expectNothingDeployed() {
+      expect(getSigner.called).to.equal(false);
+      expect(getAddresses.called).to.equal(false);
+      expect(deploy.called).to.equal(false);
+    }
+
+    it('aborts a deployment before anything is deployed', async () => {
+      const error = await rejection(
+        runWarpRouteDeploy({
+          context: {
+            altVmSigners: {},
+            chainMetadata: testChainMetadata,
+            multiProvider,
+            registry: { getAddresses },
+            skipConfirmation: true,
+            // CAST: the deployment stops at the lookup, before the rest of the context is read.
+          } as unknown as Parameters<typeof runWarpRouteDeploy>[0]['context'],
+          warpDeployConfig: {
+            [TestChainName.test1]: xerc20(standardToken),
+            [TestChainName.test2]: xerc20(failingToken),
+          },
+        }),
+      );
+
+      expect(error).to.equal(lookupError);
+      expectNothingDeployed();
+    });
+
+    const existingToken = (
+      chainName: string,
+      token: string,
+    ): WarpCoreConfig['tokens'][number] => ({
+      chainName,
+      standard: TokenStandard.EvmHypXERC20,
+      tokenType: TokenType.XERC20,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: MAILBOX,
+      collateralAddressOrDenom: token,
+    });
+
+    function extend(
+      existing: WarpCoreConfig['tokens'],
+      warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+    ) {
+      const warpCoreConfig: WarpCoreConfig = { tokens: existing };
+      return extendWarpRoute(
+        {
+          context: contractDouble<
+            Parameters<typeof extendWarpRoute>[0]['context']
+          >({
+            altVmSigners: {},
+            multiProvider,
+            registry: contractDouble<IRegistry>({
+              addWarpRoute,
+              addWarpRouteConfig,
+              getAddresses,
+            }),
+            supportedProtocols: [ProtocolType.Ethereum],
+          }),
+          receiptsDir: '',
+          warpCoreConfig,
+          warpDeployConfig,
+        },
+        {},
+        warpCoreConfig,
+        {},
+      );
+    }
+
+    // A router is deployed for each chain of the extension that the deployer is
+    // asked for, answering the router of that chain.
+    function deployEachChain() {
+      deploy.callsFake(async (configMap) =>
+        Object.fromEntries(
+          Object.keys(configMap).map((chain) => [
+            chain,
+            contractDouble<DeployedContracts>({
+              synthetic: contractDouble<HypERC20>({ address: ROUTER }),
+            }),
+          ]),
+        ),
+      );
+    }
+
+    // The standard of a chain that exists is what the registry config is made
+    // from, so it is resolved before any router of the extension is deployed.
+    it('aborts an extension before any router is deployed when the token of an existing chain cannot be read', async () => {
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, failingToken)], {
+          [TestChainName.test1]: xerc20(failingToken),
+          [TestChainName.test2]: xerc20(standardToken),
+        }),
+      );
+
+      expect(error).to.equal(lookupError);
+      expectNothingDeployed();
+    });
+
+    // The standard of a new chain is resolved with its deployment, and a lookup
+    // that fails fails that chain like its deployment would.
+    it('fails an extension whose new chains all fail their lookup, deploying and writing nothing', async () => {
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: xerc20(failingToken),
+        }),
+      );
+
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.equal(
+        `Extension deployment failed for all chains: ${TestChainName.test2}. Re-run to retry.`,
+      );
+      expect(getSigner.called).to.equal(false);
+      expect(deploy.called).to.equal(false);
+      expect(addWarpRoute.called).to.equal(false);
+      expect(addWarpRouteConfig.called).to.equal(false);
+    });
+
+    it('deploys and saves the new chains whose lookup succeeds when another new chain fails its lookup', async () => {
+      deployEachChain();
+
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: xerc20(veloToken),
+          [TestChainName.test3]: xerc20(failingToken),
+        }),
+      );
+
+      if (!(error instanceof Error)) throw error;
+      expect(error.message).to.include(
+        `Extension deployment failed for chain(s): ${TestChainName.test3}.`,
+      );
+      expect(deploy.calledOnce).to.equal(true);
+      expect(Object.keys(deploy.firstCall.args[0])).to.deep.equal([
+        TestChainName.test2,
+      ]);
+      expect(
+        addWarpRoute.firstCall.args[0].tokens.map(
+          (token: WarpCoreConfig['tokens'][number]) => [
+            token.chainName,
+            token.standard,
+          ],
+        ),
+      ).to.deep.equal([
+        [TestChainName.test1, TokenStandard.EvmHypXERC20],
+        [TestChainName.test2, TokenStandard.EvmHypVSXERC20],
+      ]);
+      expect(addWarpRouteConfig.calledOnce).to.equal(true);
+    });
+
+    // The routers of a hybrid extension are deployed together, or none is.
+    it('aborts a hybrid extension before the routers are deployed when the token of a new chain cannot be read', async () => {
+      deployEachChain();
+
+      const error = await rejection(
+        extend([existingToken(TestChainName.test1, standardToken)], {
+          [TestChainName.test1]: xerc20(standardToken),
+          [TestChainName.test2]: {
+            type: TokenType.native,
+            mailbox: MAILBOX,
+            owner: OWNER,
+            hook: {
+              type: HookType.NET_FLOW_RATE_LIMITED,
+              thresholdBps: 500,
+              duration: 86400n,
+              owner: OWNER,
+            },
+            interchainSecurityModule: {
+              type: IsmType.AGGREGATION,
+              threshold: 2,
+              modules: [
+                { type: IsmType.TRUSTED_RELAYER, relayer: OWNER },
+                {
+                  type: IsmType.NET_FLOW_RATE_LIMITED,
+                  thresholdBps: 500,
+                  duration: 86400n,
+                  owner: OWNER,
+                },
+              ],
+            },
+          },
+          [TestChainName.test3]: xerc20(failingToken),
+        }),
+      );
+
+      expect(error).to.equal(lookupError);
+      expect(getSigner.called).to.equal(false);
+      expect(deploy.called).to.equal(false);
+      expect(addWarpRoute.called).to.equal(false);
+    });
+  });
 });
 
 describe('fullyConnectTokens', () => {

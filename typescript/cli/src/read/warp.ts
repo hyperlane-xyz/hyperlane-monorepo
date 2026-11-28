@@ -11,8 +11,10 @@ import {
   type ChainMap,
   type ChainName,
   type DerivedWarpRouteDeployConfig,
+  EvmHypAevoXERC20Adapter,
   EvmWarpRouteReader,
   type HypTokenRouterConfig,
+  MultiProtocolProvider,
   type MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
@@ -21,14 +23,16 @@ import {
 import {
   type Address,
   ProtocolType,
+  formatError,
   isEVMLike,
+  isNullish,
   objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
-import { logGray, logRed, logTable } from '../logger.js';
+import { logGray, logRed, logTable, warnYellow } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
@@ -173,6 +177,9 @@ function validateCompatibility(
   }
 }
 
+// The limits of an xERC20 router, in the units of its token, by chain.
+type LimitsRow = [ChainName, Record<string, string>];
+
 /**
  * Logs XERC20 token limits for the given warp core config
  */
@@ -183,7 +190,9 @@ export async function logXERC20Limits(
   const xerc20Tokens = warpCoreConfig.tokens.filter(
     (t) =>
       t.standard === TokenStandard.EvmHypXERC20 ||
-      t.standard === TokenStandard.EvmHypXERC20Lockbox,
+      t.standard === TokenStandard.EvmHypVSXERC20 ||
+      t.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      t.standard === TokenStandard.EvmHypAevoXERC20,
   );
 
   if (xerc20Tokens.length === 0) {
@@ -191,26 +200,61 @@ export async function logXERC20Limits(
   }
 
   // TODO: merge with XERC20TokenAdapter and WarpRouteReader
-  const xerc20Limits = await Promise.all(
-    xerc20Tokens.map(async (t) => {
-      const provider = multiProvider.getProvider(t.chainName);
-      const router = t.addressOrDenom!;
-      const xerc20Address =
-        t.standard === TokenStandard.EvmHypXERC20Lockbox
-          ? await HypXERC20Lockbox__factory.connect(router, provider).xERC20()
-          : await HypXERC20__factory.connect(router, provider).wrappedToken();
+  //
+  // The limits are only logged, so a chain whose limits cannot be read is warned
+  // of and left out, where the configs that follow do not depend on them.
+  const rows = await Promise.all(
+    xerc20Tokens.map(async (t): Promise<LimitsRow | undefined> => {
+      try {
+        const provider = multiProvider.getProvider(t.chainName);
+        const router = t.addressOrDenom;
 
-      const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-      const mint = await xerc20.mintingCurrentLimitOf(router);
-      const burn = await xerc20.burningCurrentLimitOf(router);
+        // An Aevo token has none of the limit getters below: the limits of its
+        // router are what its adapter derives from what the token holds for it,
+        // read at one block.
+        if (t.standard === TokenStandard.EvmHypAevoXERC20) {
+          const adapter = new EvmHypAevoXERC20Adapter(
+            t.chainName,
+            MultiProtocolProvider.fromMultiProvider(multiProvider),
+            { token: router },
+          );
+          const { mint, burn } = await adapter.getLimits();
 
-      const formattedLimits = objMap({ mint, burn }, (_, v) =>
-        ethers.utils.formatUnits(v, t.decimals),
-      );
+          return [
+            t.chainName,
+            objMap({ mint, burn }, (_, v) =>
+              ethers.utils.formatUnits(v, t.decimals),
+            ),
+          ];
+        }
 
-      return [t.chainName, formattedLimits];
+        const xerc20Address =
+          t.standard === TokenStandard.EvmHypXERC20Lockbox
+            ? await HypXERC20Lockbox__factory.connect(router, provider).xERC20()
+            : await HypXERC20__factory.connect(router, provider).wrappedToken();
+
+        const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+        const mint = await xerc20.mintingCurrentLimitOf(router);
+        const burn = await xerc20.burningCurrentLimitOf(router);
+
+        const formattedLimits = objMap({ mint, burn }, (_, v) =>
+          ethers.utils.formatUnits(v, t.decimals),
+        );
+
+        return [t.chainName, formattedLimits];
+      } catch (error: unknown) {
+        warnYellow(
+          `Failed to read the xERC20 limits of ${t.chainName}, which are left out of the table: ${formatError(error)}`,
+        );
+        return undefined;
+      }
     }),
   );
+  const xerc20Limits = rows.filter((row): row is LimitsRow => !isNullish(row));
+
+  if (xerc20Limits.length === 0) {
+    return;
+  }
 
   logGray('xERC20 Limits:');
   logTable(Object.fromEntries(xerc20Limits));
