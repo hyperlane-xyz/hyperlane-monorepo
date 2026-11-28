@@ -25,6 +25,7 @@ hex.workspace = true
 itertools.workspace = true
 prometheus.workspace = true
 rand.workspace = true
+reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -54,7 +55,6 @@ tokio = { workspace = true, features = ["test-util"] }
 tokio-test.workspace = true
 tower.workspace = true
 tracing-test.workspace = true
-reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }

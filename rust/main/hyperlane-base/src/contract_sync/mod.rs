@@ -1358,15 +1358,15 @@ pub type SequenceAwareLogStore<T> = Arc<dyn HyperlaneSequenceAwareIndexerStore<T
 pub type SequencedDataContractSync<T> =
     SequenceAwareContractSync<T, Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>>;
 
-#[async_trait]
-impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
+impl<T> SequencedDataContractSync<T>
 where
     T: Indexable + Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
-    /// Returns a new cursor to be used for syncing dispatched messages from the indexer
-    async fn cursor(
+    /// Stop backward indexing at the authenticated sequence even when RPC ranges use blocks.
+    pub async fn cursor_from_sequence(
         &self,
         index_settings: IndexSettings,
+        first_sequence: u32,
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
@@ -1379,8 +1379,22 @@ where
                 index_settings.mode,
                 index_settings.idle_sleep_duration,
             )
-            .await?,
+            .await?
+            .with_sequence_floor(first_sequence),
         ))
+    }
+}
+
+#[async_trait]
+impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
+where
+    T: Indexable + Send + Sync + Debug + Clone + Eq + Hash + 'static,
+{
+    async fn cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>> {
+        self.cursor_from_sequence(index_settings, 0).await
     }
 
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {

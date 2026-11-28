@@ -936,6 +936,22 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .never()
     .optional()
     .describe('Removed: RPC indexing is required.'),
+  skipAnnounce: z
+    .boolean()
+    .optional()
+    .describe(
+      'Test only. Skip on-chain announcement. With a verified on-chain frontier, publish from its tip and skip pre-start history. Otherwise use normal sync.',
+    ),
+  allowRpcIndexingFallback: z
+    .boolean()
+    .optional()
+    .describe(
+      'Allow routine RPC insertion indexing when Explorer is unavailable. Defaults to true. Recovery from failed Explorer reads or root mismatches still uses RPC logs. Checkpoint verification always uses configured RPCs.',
+    ),
+  explorerApiUrl: z
+    .url({ protocol: /^https?$/ })
+    .optional()
+    .describe('Explorer GraphQL endpoint for confirmed Merkle insertions.'),
   websocketUrl: z
     .url()
     .refine((url) => WEBSOCKET_URL_PREFIX_REGEX.test(url), {
@@ -955,7 +971,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     }, 'Must use /validators without query parameters')
     .optional()
     .describe(
-      'Live Merkle tree insertions from /validators without query parameters. RPC indexes history and recovers gaps before an RPC-verified live-start handoff. Checkpoint roots are verified through configured RPCs before signing.',
+      'Live Merkle tree insertions from /validators without query parameters. Explorer or RPC supplies history before an RPC-verified live-start handoff. Checkpoint roots are verified through configured RPCs before signing.',
     ),
 });
 

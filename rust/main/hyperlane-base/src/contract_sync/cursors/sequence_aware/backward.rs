@@ -40,6 +40,8 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// This is used to check if there are new logs to index and to
     /// establish targets to index towards.
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
+    /// First sequence needed by the caller in either indexing mode.
+    pub(super) sequence_floor: u32,
     /// The lowest block height or sequence of an entity which should be indexed.
     pub lowest_block_height_or_sequence: i64,
     /// A store used to check which logs have already been indexed.
@@ -151,6 +153,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         Self {
             chunk_size,
             latest_sequence_querier,
+            sequence_floor: 0,
             lowest_block_height_or_sequence,
             store,
             persisted_progress,
@@ -416,7 +419,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
-        let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
+        let lowest_block_height_or_sequence = self
+            .get_lowest_block_height_or_sequence()
+            .await?
+            .max(self.sequence_floor);
 
         // Query the sequence range ending at the current_indexing_snapshot's sequence.
         // When current sequence equals lowest sequence, we still need to index it
@@ -490,6 +496,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         while let Some(current_indexing_sequence) =
             self.current_indexing_snapshot.as_ref().map(|s| s.sequence)
         {
+            if current_indexing_sequence < self.sequence_floor {
+                self.current_indexing_snapshot = None;
+                break;
+            }
             // Jump across a previously verified range, then continue below it.
             // Reading its lower endpoint still supplies the block for floor checks.
             let current_indexing_sequence = self
@@ -498,7 +508,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                     range.first <= current_indexing_sequence
                         && current_indexing_sequence <= range.last
                 })
-                .map_or(current_indexing_sequence, |range| range.first);
+                .map_or(current_indexing_sequence, |range| {
+                    range.first.max(self.sequence_floor)
+                });
             // Require the block number as well.
             if let Some(block_number) = self
                 .get_sequence_log_block_number(current_indexing_sequence)
@@ -2150,6 +2162,19 @@ mod test {
         async fn get_cursor() -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
             get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, CHUNK_SIZE, LOWEST_SEQUENCE)
                 .await
+        }
+
+        #[tokio::test]
+        async fn missing_leaf_respects_both_sequence_floors() {
+            for (configured, resume, expected) in [(95, 98, 98), (97, 0, 97)] {
+                let mut cursor =
+                    get_test_backward_sequence_aware_sync_cursor(INDEX_MODE, 20, configured).await;
+                cursor.sequence_floor = resume;
+                assert_eq!(
+                    cursor.get_next_range().await.expect("sequence range"),
+                    Some(expected..=99)
+                );
+            }
         }
 
         #[tracing_test::traced_test]

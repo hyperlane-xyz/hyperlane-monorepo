@@ -275,6 +275,31 @@ impl CheckpointSyncer for S3Storage {
         ret
     }
 
+    async fn has_checkpoint_objects(&self) -> Result<bool> {
+        let prefix = self.get_composite_key("checkpoint_".to_owned());
+        let mut pages = self
+            .anonymous_client()
+            .await
+            .list_objects_v2()
+            .bucket(&self.bucket)
+            .prefix(&prefix)
+            .into_paginator()
+            .send();
+        while let Some(page) = pages.next().await {
+            for object in page?.contents() {
+                if object
+                    .key()
+                    .and_then(|key| key.strip_prefix(&prefix))
+                    .and_then(|name| name.strip_suffix("_with_id.json"))
+                    .is_some_and(|index| index.parse::<u32>().is_ok())
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let serialized_index = serde_json::to_vec(&index)?;
         self.write_to_bucket(S3Storage::latest_index_key(), serialized_index)

@@ -587,6 +587,17 @@ describe('ValidatorAgentConfigSchema live indexing', () => {
     }
   });
 
+  it('accepts disabled RPC indexing fallback and HTTP(S) Explorer endpoints', () => {
+    const { skipAnnounce, allowRpcIndexingFallback, explorerApiUrl } =
+      ValidatorAgentConfigSchema.shape;
+    expect(skipAnnounce.safeParse(true).success).to.be.true;
+    expect(allowRpcIndexingFallback.safeParse(false).success).to.be.true;
+    expect(explorerApiUrl.safeParse('http://localhost:8080/graphql').success).to
+      .be.true;
+    expect(explorerApiUrl.safeParse('wss://localhost/validators').success).to.be
+      .false;
+  });
+
   it('accepts optional, query-free validator WebSocket endpoints', () => {
     const schema = ValidatorAgentConfigSchema.shape.websocketUrl;
     for (const url of [

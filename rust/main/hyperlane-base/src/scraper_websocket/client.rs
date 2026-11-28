@@ -72,15 +72,8 @@ pub fn stream_retry_delay(result: &Result<()>, retry_delay: Duration) -> Duratio
 pub async fn reconnect_after(result: Result<()>, retry_delay: Duration) {
     let delay = stream_retry_delay(&result, retry_delay);
     match result {
-        Ok(()) => tracing::warn!(
-            ?delay,
-            "Scraper WebSocket closed; reconnecting with RPC indexing active"
-        ),
-        Err(error) => tracing::warn!(
-            ?error,
-            ?delay,
-            "Scraper WebSocket failed; reconnecting with RPC indexing active"
-        ),
+        Ok(()) => tracing::warn!(?delay, "Scraper WebSocket closed; reconnecting"),
+        Err(error) => tracing::warn!(?error, ?delay, "Scraper WebSocket failed; reconnecting"),
     }
     sleep(delay).await;
 }
@@ -253,7 +246,10 @@ impl ScraperWebSocket {
                 _ => error,
             }
         })?;
-        match socket.receive::<ValidatorHandshake>().await? {
+        let handshake = timeout(read_timeout, socket.receive::<ValidatorHandshake>())
+            .await
+            .context("Validator WebSocket ready timed out")??;
+        match handshake {
             Some(ValidatorHandshake::Ready {
                 domain: actual_domain,
                 confirmations: actual_confirmations,

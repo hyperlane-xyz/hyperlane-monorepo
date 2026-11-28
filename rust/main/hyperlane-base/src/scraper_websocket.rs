@@ -191,13 +191,22 @@ impl StringOrNumber {
     }
 }
 
-/// Canonical wire projection for Merkle insertion streams consumed by both agents.
+fn deserialize_domain<'de, D: serde::Deserializer<'de>>(
+    de: D,
+) -> std::result::Result<u32, D::Error> {
+    StringOrNumber::deserialize(de)?
+        .as_u32("domain")
+        .map_err(serde::de::Error::custom)
+}
+
+/// Merkle insertion projection shared by scraper-proxy GraphQL and WebSocket.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MerkleEventData {
     /// Origin block containing the insertion.
     pub block_number: StringOrNumber,
     /// Hyperlane origin domain.
+    #[serde(deserialize_with = "deserialize_domain")]
     pub domain: u32,
     /// Merkle leaf index, also the stream sequence.
     pub leaf_index: StringOrNumber,
@@ -216,7 +225,7 @@ impl MerkleEventData {
         sequence: u32,
     ) -> Result<(hyperlane_core::MerkleTreeInsertion, u64)> {
         use eyre::bail;
-        use hyperlane_core::{MerkleTreeInsertion, H256};
+        use hyperlane_core::MerkleTreeInsertion;
         if self.domain != domain {
             bail!("Merkle payload domain does not match event envelope");
         }
@@ -227,12 +236,8 @@ impl MerkleEventData {
         if leaf_index != sequence {
             bail!("Merkle leaf index does not match stream sequence");
         }
-        let bytes = parse_hex(&self.message_id)?;
-        if bytes.len() != 32 {
-            bail!("Invalid Merkle message ID length {}", bytes.len());
-        }
         Ok((
-            MerkleTreeInsertion::new(leaf_index, H256::from_slice(&bytes)),
+            MerkleTreeInsertion::new(leaf_index, parse_hash(&self.message_id)?),
             self.block_number.as_u64("Merkle block number")?,
         ))
     }
@@ -243,12 +248,23 @@ pub fn parse_address(value: &str) -> Result<hyperlane_core::H256> {
     hyperlane_core::bytes_to_address(parse_hex(value)?).context("Invalid scraper event address")
 }
 
+/// Decode a 32-byte scraper hash in hex or PostgreSQL bytea form.
+pub fn parse_hash(value: &str) -> Result<hyperlane_core::H256> {
+    let mut hash = hyperlane_core::H256::zero();
+    hex::decode_to_slice(strip_hex_prefix(value), hash.as_bytes_mut())
+        .context("Invalid scraper hash")?;
+    Ok(hash)
+}
+
 fn parse_hex(value: &str) -> Result<Vec<u8>> {
-    let value = value
+    hex::decode(strip_hex_prefix(value)).context("Invalid hexadecimal scraper field")
+}
+
+fn strip_hex_prefix(value: &str) -> &str {
+    value
         .strip_prefix("0x")
         .or_else(|| value.strip_prefix("\\x"))
-        .unwrap_or(value);
-    hex::decode(value).context("Invalid hexadecimal WebSocket event field")
+        .unwrap_or(value)
 }
 
 #[cfg(test)]

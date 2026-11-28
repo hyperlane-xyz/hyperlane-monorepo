@@ -211,6 +211,12 @@ impl CheckpointSyncer for GcsStorageClient {
             .transpose()
     }
 
+    async fn has_checkpoint_objects(&self) -> Result<bool> {
+        self.inner
+            .has_checkpoint_objects(&self.bucket, &self.object_path("checkpoint_"))
+            .await
+    }
+
     /// Writes the highest index of this Syncer
     #[instrument(skip(self, index))]
     async fn write_latest_index(&self, index: u32) -> Result<()> {

@@ -27,6 +27,11 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     }
     /// Read the highest index of this Syncer
     async fn latest_index(&self) -> Result<Option<u32>>;
+    /// Check for checkpoint objects written before the first latest-index update.
+    /// Unimplemented stores fail closed and rebuild history on restart.
+    async fn has_checkpoint_objects(&self) -> Result<bool> {
+        Err(Report::msg("Checkpoint inventory is unavailable"))
+    }
     /// Writes the highest index of this Syncer
     async fn write_latest_index(&self, index: u32) -> Result<()>;
     /// Update the latest index of this syncer if necessary

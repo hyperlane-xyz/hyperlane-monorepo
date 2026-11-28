@@ -17,7 +17,8 @@ use hyperlane_base::{
     },
 };
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainType,
+    ReorgPeriod,
 };
 use itertools::Itertools;
 use redact::Secret;
@@ -64,18 +65,53 @@ pub struct ValidatorSettings {
     pub interval: Duration,
     /// Live Merkle tree insertion source. Leaves are verified
     /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
-    /// RPC indexes history and resumes on stream failure or checkpoint mismatch.
+    /// Explorer or the configured fallback supplies missing history.
     pub websocket_url: Option<Secret<url::Url>>,
+    /// Explorer endpoint for confirmed Merkle insertions.
+    pub explorer_api_url: Option<Secret<url::Url>>,
+    /// Permit insertion log scans through configured RPCs when Explorer cannot supply them.
+    pub allow_rpc_indexing_fallback: bool,
     /// Root verification policy; single/fallback retain the classic signing path.
     pub(crate) checkpoint_consensus: Option<CheckpointConsensus>,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
-    /// Test-only: skips on-chain self-announce. Never use in production.
+    /// Skip on-chain announcement and pre-start publication when the on-chain frontier is verified.
     pub skip_announce: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
+}
+
+const PUBLIC_WS: &str = "wss://explorer-api.hyperlane.xyz/validators";
+const PUBLIC_GRAPHQL: &str = "https://explorer-api.hyperlane.xyz/graphql";
+
+fn explorer_endpoints(
+    public_domain: bool,
+    websocket: Option<url::Url>,
+    graphql: Option<url::Url>,
+) -> (Option<url::Url>, Option<url::Url>) {
+    let websocket = websocket.or_else(|| {
+        if let Some(api) = &graphql {
+            let mut ws = api.clone();
+            ws.set_scheme(if api.scheme() == "https" { "wss" } else { "ws" })
+                .ok()?;
+            ws.set_path("/validators");
+            ws.set_query(None);
+            ws.set_fragment(None);
+            Some(ws)
+        } else {
+            public_domain.then(|| PUBLIC_WS.parse().expect("public WebSocket URL"))
+        }
+    });
+    // Preserve explicit WebSocket-only installations. Only pair the public endpoints by default.
+    let graphql = graphql.or_else(|| {
+        websocket
+            .as_ref()
+            .filter(|url| url.as_str() == PUBLIC_WS)
+            .map(|_| PUBLIC_GRAPHQL.parse().expect("public GraphQL URL"))
+    });
+    (websocket, graphql)
 }
 
 #[derive(Debug, Deserialize)]
@@ -282,6 +318,26 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             }
         }
 
+        let allow_rpc_indexing_fallback = p
+            .chain(&mut err)
+            .get_opt_key("allowRpcIndexingFallback")
+            .parse_bool()
+            .unwrap_or(true);
+        let api_url: Option<url::Url> = p
+            .chain(&mut err)
+            .get_opt_key("explorerApiUrl")
+            .parse_from_str("Expected a valid Explorer GraphQL URL")
+            .end();
+        if api_url
+            .as_ref()
+            .is_some_and(|url| !matches!(url.scheme(), "http" | "https"))
+        {
+            err.push(
+                cwp.add("explorerapiurl"),
+                eyre!("Expected http:// or https://"),
+            );
+        }
+
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
         rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
@@ -321,6 +377,17 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             }
         }
 
+        let public_domain = matches!(
+            origin_chain.domain_type(),
+            HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet
+        );
+        let (websocket_url, api_url) = explorer_endpoints(public_domain, websocket_url, api_url);
+        if !allow_rpc_indexing_fallback && api_url.is_none() {
+            err.push(
+                cwp.add("allowrpcindexingfallback"),
+                eyre!("Configure explorerApiUrl for Explorer-only indexing on this domain"),
+            );
+        }
         err.into_result(Self {
             base,
             db,
@@ -330,6 +397,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             websocket_url: websocket_url.map(Secret::new),
+            explorer_api_url: api_url.map(Secret::new),
+            allow_rpc_indexing_fallback,
             checkpoint_consensus,
             rpcs,
             allow_public_rpcs,
@@ -510,6 +579,28 @@ mod test {
     use super::*;
 
     #[test]
+    fn explorer_defaults_and_overrides() {
+        let ws: url::Url = PUBLIC_WS.parse().expect("WebSocket URL");
+        let api: url::Url = PUBLIC_GRAPHQL.parse().expect("GraphQL URL");
+        assert_eq!(explorer_endpoints(true, None, None), (Some(ws), Some(api)));
+        assert_eq!(explorer_endpoints(false, None, None), (None, None));
+        let private: url::Url = "ws://localhost:9000/validators"
+            .parse()
+            .expect("WebSocket URL");
+        assert_eq!(
+            explorer_endpoints(true, Some(private.clone()), None),
+            (Some(private.clone()), None)
+        );
+        let api: url::Url = "http://localhost:9000/private/graphql"
+            .parse()
+            .expect("GraphQL URL");
+        assert_eq!(
+            explorer_endpoints(false, None, Some(api.clone())),
+            (Some(private), Some(api))
+        );
+    }
+
+    #[test]
     fn max_sign_concurrency_is_bounded() {
         let cwp = ConfigPath::default();
         let max_sign_concurrency =
@@ -650,6 +741,32 @@ mod test {
                 "merkletreehook": "0x0000000000000000000000000000000000000004"
             }}
         })
+    }
+
+    #[test]
+    fn rpc_indexing_fallback_defaults_on_and_explorer_only_requires_a_history_source() {
+        let parse = |raw: Value| {
+            ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw.into()),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            )
+        };
+        let mut raw = validator_settings_fixture();
+        assert!(
+            parse(raw.clone())
+                .expect("default config")
+                .allow_rpc_indexing_fallback
+        );
+        raw["allowrpcindexingfallback"] = false.into();
+        assert!(parse(raw.clone()).is_err());
+        raw["explorerapiurl"] = "http://127.0.0.1:8080/graphql".into();
+        assert!(
+            !parse(raw)
+                .expect("Explorer-only config")
+                .allow_rpc_indexing_fallback
+        );
     }
 
     #[test]
