@@ -33,6 +33,7 @@ export const DELIVERY_EVENT_INTERFACES = {
     'error NoTicketWithID()',
   ]),
   hyperlaneMailboxEvents: new ethers.utils.Interface([
+    'event Dispatch(address indexed sender, uint32 indexed destination, bytes32 indexed recipient, bytes message)',
     'event DispatchId(bytes32 indexed messageId)',
     'function delivered(bytes32 messageId) view returns (bool)',
   ]),
@@ -485,7 +486,189 @@ export async function resolveDestinationMailboxAddress(params: {
     typeof code === 'string' && code !== '0x' && code.length > 2,
     `Resolved destination Hyperlane Mailbox ${mailboxAddress} has no deployed contract code on ${destinationChain}`,
   );
+
+  // Verify before dispatch that the resolved address implements `delivered(bytes32)`
+  // and returns a decodable boolean so delivery reconciliation cannot wedge on a
+  // misconfigured contract (such as pointing destinationMailboxAddress at the forwarder).
+  const probeData =
+    DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.encodeFunctionData(
+      'delivered',
+      [ethers.constants.HashZero],
+    );
+  const rawProbe = await destinationProvider.call({
+    to: mailboxAddress,
+    data: probeData,
+  });
+  const decodedProbe =
+    DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.decodeFunctionResult(
+      'delivered',
+      rawProbe,
+    );
+  const probeDelivered: unknown = decodedProbe[0];
+  assert(
+    typeof probeDelivered === 'boolean',
+    `Resolved destination Hyperlane Mailbox ${mailboxAddress} on ${destinationChain} did not return a boolean for delivered(bytes32)`,
+  );
+
   return mailboxAddress;
+}
+
+/**
+ * Validates that a candidate replacement receipt matches the original deposit's
+ * recipient and bridged/transferred amount using protocol-emitted receipt logs.
+ * Returns `false` if no verifiable protocol evidence is present.
+ */
+export function verifyReceiptMatchesDepositIntent(params: {
+  receipt: providers.TransactionReceipt;
+  txValue: BigNumber;
+  funderAddress: string;
+  recipient: string;
+  expectedBridgedAmount: BigNumber;
+  expectedOriginNativeValue: BigNumber;
+  bridge?: BridgeConfig;
+}): boolean {
+  const {
+    receipt,
+    txValue,
+    funderAddress,
+    recipient,
+    expectedBridgedAmount,
+    expectedOriginNativeValue,
+    bridge,
+  } = params;
+
+  if (!bridge || !Array.isArray(receipt.logs) || receipt.logs.length === 0) {
+    return false;
+  }
+
+  const isHookMode =
+    (bridge.stack === BridgeStack.OpStack &&
+      bridge.mode === OpStackBridgeMode.HyperlaneHook) ||
+    (bridge.stack === BridgeStack.ArbitrumOrbit &&
+      bridge.mode === ArbitrumOrbitBridgeMode.HyperlaneHook);
+
+  if (isHookMode) {
+    if (!txValue.eq(expectedOriginNativeValue)) {
+      return false;
+    }
+    const dispatchTopic =
+      DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.getEventTopic(
+        'Dispatch',
+      );
+    for (const log of receipt.logs) {
+      if (log.topics[0] !== dispatchTopic) {
+        continue;
+      }
+      const parsed =
+        DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.parseLog(log);
+      const sender: unknown = parsed.args.sender;
+      const message: unknown = parsed.args.message;
+      // Hyperlane v3 message layout: 77-byte header + 32-byte padded key address body (109 bytes)
+      if (
+        typeof sender === 'string' &&
+        eqAddress(sender, funderAddress) &&
+        typeof message === 'string' &&
+        ethers.utils.hexDataLength(message) >= 109
+      ) {
+        const bodyRecipient = ethers.utils.getAddress(
+          ethers.utils.hexDataSlice(message, 89, 109),
+        );
+        if (eqAddress(bodyRecipient, recipient)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  if (bridge.stack === BridgeStack.OpStack) {
+    if (!txValue.eq(expectedOriginNativeValue)) {
+      return false;
+    }
+    const depositTopic = DELIVERY_EVENT_INTERFACES.opStackPortal.getEventTopic(
+      'TransactionDeposited',
+    );
+    for (const log of receipt.logs) {
+      if (log.topics[0] !== depositTopic) {
+        continue;
+      }
+      const parsed = DELIVERY_EVENT_INTERFACES.opStackPortal.parseLog(log);
+      const version: unknown = parsed.args.version;
+      const to: unknown = parsed.args.to;
+      const opaqueData: unknown = parsed.args.opaqueData;
+      if (
+        BigNumber.isBigNumber(version) &&
+        version.eq(0) &&
+        typeof to === 'string' &&
+        eqAddress(to, recipient) &&
+        typeof opaqueData === 'string' &&
+        ethers.utils.hexDataLength(opaqueData) >= 64
+      ) {
+        const mint = BigNumber.from(
+          ethers.utils.hexDataSlice(opaqueData, 0, 32),
+        );
+        if (mint.eq(expectedBridgedAmount)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  const msgDeliveredTopic =
+    DELIVERY_EVENT_INTERFACES.arbitrumBridge.getEventTopic('MessageDelivered');
+  const inboxDeliveredTopic =
+    DELIVERY_EVENT_INTERFACES.arbitrumInboxEvents.getEventTopic(
+      'InboxMessageDelivered',
+    );
+  const inboxDataByMsgNum = new Map<string, string>();
+  for (const log of receipt.logs) {
+    if (log.topics[0] === inboxDeliveredTopic) {
+      const parsed =
+        DELIVERY_EVENT_INTERFACES.arbitrumInboxEvents.parseLog(log);
+      const msgNum: unknown = parsed.args.messageNum;
+      const data: unknown = parsed.args.data;
+      if (BigNumber.isBigNumber(msgNum) && typeof data === 'string') {
+        inboxDataByMsgNum.set(msgNum.toString(), data);
+      }
+    }
+  }
+
+  for (const log of receipt.logs) {
+    if (log.topics[0] !== msgDeliveredTopic) {
+      continue;
+    }
+    const parsed = DELIVERY_EVENT_INTERFACES.arbitrumBridge.parseLog(log);
+    const messageIndex: unknown = parsed.args.messageIndex;
+    const kind: unknown = parsed.args.kind;
+    if (!BigNumber.isBigNumber(messageIndex) || typeof kind !== 'number') {
+      continue;
+    }
+    const inboxData = inboxDataByMsgNum.get(messageIndex.toString());
+    if (!inboxData) {
+      continue;
+    }
+
+    if (kind === ARB_MESSAGE_KIND_ETH_DEPOSIT && inboxData.length >= 44) {
+      const toAddress = ethers.utils.getAddress(`0x${inboxData.slice(2, 42)}`);
+      const value = BigNumber.from(`0x${inboxData.slice(42)}`);
+      if (eqAddress(toAddress, recipient) && value.eq(expectedBridgedAmount)) {
+        return true;
+      }
+    }
+
+    if (kind === ARB_MESSAGE_KIND_SUBMIT_RETRYABLE) {
+      const retryableParams = parseArbitrumRetryableEventData(inboxData);
+      if (
+        eqAddress(retryableParams.destAddress, recipient) &&
+        retryableParams.l2CallValue.eq(expectedBridgedAmount)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**

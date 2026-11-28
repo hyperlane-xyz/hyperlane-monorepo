@@ -299,10 +299,22 @@ function createMockSetup(params?: {
   destProvider.getCode.resolves(params?.destCode ?? MOCK_CONTRACT_CODE);
   destProvider.call.callsFake(async (tx) => {
     const to = (await tx.to)?.toLowerCase();
+    const data = await extractTxCallData(tx);
+    const deliveredSig =
+      DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.getSighash('delivered');
     if (to === FORWARDER_ADDR.toLowerCase()) {
       return DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.encodeFunctionResult(
         'mailbox',
         [MAILBOX_ADDR],
+      );
+    }
+    if (
+      to === MAILBOX_ADDR.toLowerCase() &&
+      data.toLowerCase().startsWith(deliveredSig.toLowerCase())
+    ) {
+      return DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.encodeFunctionResult(
+        'delivered',
+        [false],
       );
     }
     return '0x';
@@ -987,6 +999,9 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
     sinon.stub(originProvider, 'getCode').resolves(MOCK_CONTRACT_CODE);
     sinon.stub(originProvider, 'getBlockNumber').resolves(100);
     sinon
+      .stub(originProvider, 'getBlock')
+      .resolves(buildBlock({ number: 100 }));
+    sinon
       .stub(originProvider, 'getGasPrice')
       .resolves(BigNumber.from(1_000_000_000));
     stubErc20InboxOriginCalls({
@@ -1180,6 +1195,9 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
     const originProvider = new ethers.providers.JsonRpcProvider();
     sinon.stub(originProvider, 'getCode').resolves(MOCK_CONTRACT_CODE);
     sinon.stub(originProvider, 'getBlockNumber').resolves(100);
+    sinon
+      .stub(originProvider, 'getBlock')
+      .resolves(buildBlock({ number: 100 }));
     sinon
       .stub(originProvider, 'getGasPrice')
       .resolves(BigNumber.from(1_000_000_000));
@@ -1861,13 +1879,20 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
     );
     sinon.assert.notCalled(setupFail.sendTransaction);
 
-    // Explicit destinationMailboxAddress succeeds even when recipient lacks mailbox()
-    const explicitDestMailbox = '0x9999999999999999999999999999999999999999';
-    const setupExplicit = createMockSetup();
-    setupExplicit.destProvider.call.rejects(
-      new Error('execution reverted: no mailbox() getter'),
-    );
-    setupExplicit.originProvider.call.resolves(
+    // Explicit destinationMailboxAddress (distinct from FORWARDER_ADDR) succeeds only when
+    // deployed code exists AND `delivered(bytes32)` decodes as a boolean
+    const explicitDestMailbox = '0xabababababababababababababababababababab';
+    expect(explicitDestMailbox).to.not.equal(FORWARDER_ADDR);
+
+    // (a) Stops before dispatch when explicitDestMailbox has no deployed code on destination
+    const setupExplicitNoCode = createMockSetup();
+    setupExplicitNoCode.destProvider.getCode.callsFake(async (addr) => {
+      const resolved = (await addr).toLowerCase();
+      return resolved === FORWARDER_ADDR.toLowerCase()
+        ? MOCK_CONTRACT_CODE
+        : '0x';
+    });
+    setupExplicitNoCode.originProvider.call.resolves(
       BRIDGE_INTERFACES.hyperlaneMailbox.encodeFunctionResult('quoteDispatch', [
         ethers.utils.parseEther('0.3'),
       ]),
@@ -1894,6 +1919,67 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
         },
       },
     });
+
+    const kfExplicitNoCode = new KeyFunder(
+      setupExplicitNoCode.multiProvider,
+      explicitConfig,
+      { logger: pino({ level: 'silent' }) },
+    );
+    await expect(kfExplicitNoCode.fundChain('base')).to.be.rejectedWith(
+      `Resolved destination Hyperlane Mailbox ${explicitDestMailbox} has no deployed contract code on base`,
+    );
+    sinon.assert.notCalled(setupExplicitNoCode.sendTransaction);
+
+    // (b) Stops before dispatch when explicitDestMailbox has code (e.g. pointed at forwarder)
+    //     but cannot answer `delivered(bytes32)` with a boolean
+    const setupExplicitBadProbe = createMockSetup();
+    setupExplicitBadProbe.destProvider.getCode.callsFake(async (addr) => {
+      const resolved = (await addr).toLowerCase();
+      return resolved === FORWARDER_ADDR.toLowerCase() ||
+        resolved === explicitDestMailbox.toLowerCase()
+        ? MOCK_CONTRACT_CODE
+        : '0x';
+    });
+    setupExplicitBadProbe.destProvider.call.callsFake(async () => '0x');
+    const kfExplicitBadProbe = new KeyFunder(
+      setupExplicitBadProbe.multiProvider,
+      explicitConfig,
+      { logger: pino({ level: 'silent' }) },
+    );
+    await expect(kfExplicitBadProbe.fundChain('base')).to.be.rejected;
+    sinon.assert.notCalled(setupExplicitBadProbe.sendTransaction);
+
+    // (c) Succeeds when explicitDestMailbox has code AND answers `delivered(bytes32)` with boolean,
+    //     even when FORWARDER_ADDR lacks `mailbox()`
+    const setupExplicit = createMockSetup();
+    setupExplicit.destProvider.getCode.callsFake(async (addr) => {
+      const resolved = (await addr).toLowerCase();
+      return resolved === FORWARDER_ADDR.toLowerCase() ||
+        resolved === explicitDestMailbox.toLowerCase()
+        ? MOCK_CONTRACT_CODE
+        : '0x';
+    });
+    const deliveredSig =
+      DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.getSighash('delivered');
+    setupExplicit.destProvider.call.callsFake(async (tx) => {
+      const to = (await tx.to)?.toLowerCase();
+      const data = await extractTxCallData(tx);
+      if (
+        to === explicitDestMailbox.toLowerCase() &&
+        data.toLowerCase().startsWith(deliveredSig.toLowerCase())
+      ) {
+        return DELIVERY_EVENT_INTERFACES.hyperlaneMailboxEvents.encodeFunctionResult(
+          'delivered',
+          [false],
+        );
+      }
+      throw new Error('execution reverted: no mailbox() getter');
+    });
+    setupExplicit.originProvider.call.resolves(
+      BRIDGE_INTERFACES.hyperlaneMailbox.encodeFunctionResult('quoteDispatch', [
+        ethers.utils.parseEther('0.3'),
+      ]),
+    );
 
     const kfExplicit = new KeyFunder(
       setupExplicit.multiProvider,
@@ -2260,6 +2346,7 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
         hash: replacementHash,
         confirmations: 40,
         from: FUNDER_ADDR,
+        to: PORTAL_ADDR,
         nonce: 8,
         gasLimit: BigNumber.from(100_000),
         data: depositCalldata,
@@ -2527,6 +2614,300 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
         timeoutMs: 500,
       });
       expect(await podStore.get('mode', RELAYER_ADDR)).to.equal(undefined);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fences out stale lock generations at commit, rejects mismatched-recipient replacements, tolerates finality RPC errors, and keeps unfinalized reorged spends reserved', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-r4-fencing-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      // 1. Atomic lock-generation fencing: stalled writer A loses lease before commit;
+      //    writer B claims generation 2 and commits `zora`; writer A resumes and is fenced out!
+      let stallOnce = true;
+      const storeStalled = new FileBridgeStateStore(stateFile, {
+        leaseMs: 40,
+        heartbeatMs: 10_000,
+        timeoutMs: 500,
+        beforeCommitHook: async () => {
+          if (!stallOnce) return;
+          stallOnce = false;
+          await new Promise((r) => setTimeout(r, 90));
+          const contender = new FileBridgeStateStore(stateFile, {
+            leaseMs: 5_000,
+            timeoutMs: 500,
+          });
+          await contender.set({
+            originChain: 'ethereum',
+            destinationChain: 'zora',
+            recipient: VALIDATOR_ADDR,
+            funderAddress: FUNDER_ADDR,
+            stack: BridgeStack.OpStack,
+            mode: OpStackBridgeMode.OptimismPortal,
+            bridgedAmount: '200',
+            baselineDestinationBalance: '0',
+            originNativeValue: '200',
+            originGasBudget: '10',
+            broadcastStage: 'submitted',
+            approvalTxHashes: [],
+            phase: 'submitted',
+            createdAtMs: 2,
+            updatedAtMs: 2,
+          });
+        },
+      });
+
+      await expect(
+        storeStalled.set({
+          originChain: 'ethereum',
+          destinationChain: 'mode',
+          recipient: RELAYER_ADDR,
+          funderAddress: FUNDER_ADDR,
+          stack: BridgeStack.OpStack,
+          mode: OpStackBridgeMode.OptimismPortal,
+          bridgedAmount: '100',
+          baselineDestinationBalance: '0',
+          originNativeValue: '100',
+          originGasBudget: '10',
+          broadcastStage: 'submitted',
+          approvalTxHashes: [],
+          phase: 'submitted',
+          createdAtMs: 1,
+          updatedAtMs: 1,
+        }),
+      ).to.be.rejectedWith('Bridge state commit fenced out');
+
+      const inspector = new FileBridgeStateStore(stateFile);
+      expect(
+        (await inspector.get('zora', VALIDATOR_ADDR))?.bridgedAmount,
+      ).to.equal('200');
+      expect(await inspector.get('mode', RELAYER_ADDR)).to.equal(undefined);
+      await inspector.delete('zora', VALIDATOR_ADDR);
+
+      // 2. Replacement at same nonce that sends to a DIFFERENT recipient (VALIDATOR_ADDR instead of RELAYER_ADDR)
+      //    must NOT be adopted for RELAYER_ADDR, even without stored depositCalldata!
+      const origHash = `0x${'21'.repeat(32)}`;
+      const wrongRecipientHash = `0x${'22'.repeat(32)}`;
+      const builtWrongRecipient = buildOpStackDepositLog({
+        to: VALIDATOR_ADDR,
+        mint: ethers.utils.parseEther('0.5'),
+      });
+      const wrongLogs: ethers.providers.Log[] = [
+        { ...builtWrongRecipient.log, transactionHash: wrongRecipientHash },
+      ];
+
+      await inspector.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        depositTarget: PORTAL_ADDR,
+        createdAtOriginBlock: 150,
+        bridgedAmount: ethers.utils.parseEther('0.5').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.5').toString(),
+        originGasBudget: '0',
+        originNonce: 8,
+        broadcastStage: 'submitted',
+        depositTxHash: origHash,
+        approvalTxHashes: [],
+        phase: 'submitted',
+        createdAtMs: Date.now() - 10_000,
+        updatedAtMs: Date.now() - 10_000,
+      });
+
+      const opConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+              originReserveBuffer: '0.5',
+            },
+          },
+        },
+      });
+
+      const setupWrongRep = createMockSetup({ originNonce: 9 });
+      setupWrongRep.originProvider.getBlockNumber.resolves(200);
+      setupWrongRep.originProvider.getTransactionCount.resolves(9);
+      setupWrongRep.originProvider.getLogs.resolves(wrongLogs);
+      setupWrongRep.originProvider.getTransaction.callsFake(async (h) => {
+        const resolved = await h;
+        if (resolved.toLowerCase() === wrongRecipientHash.toLowerCase()) {
+          return {
+            hash: wrongRecipientHash,
+            confirmations: 40,
+            from: FUNDER_ADDR,
+            to: PORTAL_ADDR,
+            nonce: 8,
+            gasLimit: BigNumber.from(100_000),
+            data: '0x1234',
+            value: ethers.utils.parseEther('0.5'),
+            chainId: 1,
+            wait: async () =>
+              buildContractReceipt({ transactionHash: wrongRecipientHash }),
+          };
+        }
+        const nullTx: ethers.providers.TransactionResponse = JSON.parse('null');
+        return nullTx;
+      });
+      setupWrongRep.originProvider.getTransactionReceipt.callsFake(
+        async (h) => {
+          const resolved = await h;
+          if (resolved.toLowerCase() === wrongRecipientHash.toLowerCase()) {
+            return buildContractReceipt({
+              transactionHash: wrongRecipientHash,
+              blockNumber: 160,
+              logs: wrongLogs,
+            });
+          }
+          const nullRec: ethers.providers.TransactionReceipt =
+            JSON.parse('null');
+          return nullRec;
+        },
+      );
+
+      const kfWrongRep = new KeyFunder(setupWrongRep.multiProvider, opConfig, {
+        logger: pino({ level: 'silent' }),
+        bridgeStateFile: stateFile,
+      });
+      await kfWrongRep.fundChain('mode');
+      // Treated as canceled for RELAYER_ADDR -> submitted a fresh deposit for RELAYER_ADDR!
+      sinon.assert.calledOnce(setupWrongRep.sendTransaction);
+
+      // 3. Historical `getTransactionCount` finality error does NOT block destination delivery clearing
+      const deliveredOriginHash = `0x${'31'.repeat(32)}`;
+      const { log: deliveredOpLog, l2TxHash: deliveredOpL2Hash } =
+        buildOpStackDepositLog({});
+      await inspector.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        bridgedAmount: ethers.utils.parseEther('0.5').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.5').toString(),
+        originGasBudget: '0',
+        originNonce: 9,
+        broadcastStage: 'submitted',
+        depositTxHash: deliveredOriginHash,
+        approvalTxHashes: [],
+        phase: 'submitted',
+        createdAtMs: Date.now() - 5_000,
+        updatedAtMs: Date.now() - 5_000,
+      });
+
+      const setupFinalityErr = createMockSetup({
+        destRoleBalance: ethers.utils.parseEther('0.5'),
+      });
+      setupFinalityErr.originProvider.getBlockNumber.resolves(200);
+      setupFinalityErr.originProvider.getTransactionCount.rejects(
+        new Error('missing trie node for historical block'),
+      );
+      setupFinalityErr.originProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({
+          transactionHash: deliveredOriginHash,
+          blockNumber: 198,
+          logs: [deliveredOpLog],
+        }),
+      );
+      setupFinalityErr.destProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({ transactionHash: deliveredOpL2Hash, status: 1 }),
+      );
+
+      const kfFinalityErr = new KeyFunder(
+        setupFinalityErr.multiProvider,
+        opConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          bridgeStateFile: stateFile,
+        },
+      );
+      await kfFinalityErr.fundChain('mode');
+      expect(await inspector.get('mode', RELAYER_ADDR)).to.equal(undefined);
+
+      // 4. Unfinalized confirmed attempt whose receipt disappeared after a reorg stays reserved in assertOriginNativeReserve!
+      const reorgedUnfinalizedHash = `0x${'41'.repeat(32)}`;
+      await inspector.set({
+        originChain: 'ethereum',
+        destinationChain: 'zora',
+        recipient: VALIDATOR_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        confirmedOriginBlock: 100,
+        originFinalized: false,
+        bridgedAmount: ethers.utils.parseEther('0.7').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.7').toString(),
+        originGasBudget: '0',
+        originNonce: 10,
+        broadcastStage: 'submitted',
+        depositTxHash: reorgedUnfinalizedHash,
+        approvalTxHashes: [],
+        phase: 'confirmed',
+        createdAtMs: Date.now() - 2_000,
+        updatedAtMs: Date.now() - 2_000,
+      });
+
+      const setupReorgReserve = createMockSetup({
+        originFunderBalance: ethers.utils.parseEther('1.5'),
+      });
+      setupReorgReserve.originProvider.getBlock.resolves(
+        buildBlock({ number: 101, hash: `0x${'f2'.repeat(32)}` }),
+      );
+      // Receipt for reorgedUnfinalizedHash is missing on the new fork (`null`)!
+      setupReorgReserve.originProvider.getTransactionReceipt.callsFake(
+        async () => {
+          const nullRec: ethers.providers.TransactionReceipt =
+            JSON.parse('null');
+          return nullRec;
+        },
+      );
+
+      const reserveConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '0.7' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+              originReserveBuffer: '0.5',
+            },
+          },
+        },
+      });
+
+      const kfReorgReserve = new KeyFunder(
+        setupReorgReserve.multiProvider,
+        reserveConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          bridgeStateFile: stateFile,
+        },
+      );
+      await expect(kfReorgReserve.fundChain('mode')).to.be.rejectedWith(
+        'Insufficient origin balance on ethereum',
+      );
+      sinon.assert.notCalled(setupReorgReserve.sendTransaction);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

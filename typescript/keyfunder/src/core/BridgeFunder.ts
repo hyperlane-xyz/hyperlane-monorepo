@@ -23,6 +23,7 @@ import {
 
 import {
   extractBridgeDeliveryRefFromReceipt,
+  fetchBlock,
   resolveDestinationMailboxAddress,
 } from './BridgeDelivery.js';
 import {
@@ -357,12 +358,19 @@ async function assertOriginNativeReserve(params: {
     multiProvider.getChainMetadata(originChain).nativeToken?.decimals ?? 18;
   const originProvider = multiProvider.getProvider(originChain);
   const signer = multiProvider.getSigner(originChain);
-  const rawBlockNumber =
-    typeof originProvider.getBlockNumber === 'function'
-      ? await originProvider.getBlockNumber()
-      : undefined;
-  const snapshotBlockNumber =
-    typeof rawBlockNumber === 'number' ? rawBlockNumber : undefined;
+
+  let snapshotBlockNumber: number | undefined;
+  let snapshotBlockHash: string | undefined;
+  const latestBlock = await fetchBlock(originProvider, 'latest');
+  if (latestBlock != null && typeof latestBlock.number === 'number') {
+    snapshotBlockNumber = latestBlock.number;
+    snapshotBlockHash = latestBlock.hash;
+  } else if (typeof originProvider.getBlockNumber === 'function') {
+    const rawBlockNumber = await originProvider.getBlockNumber();
+    if (typeof rawBlockNumber === 'number') {
+      snapshotBlockNumber = rawBlockNumber;
+    }
+  }
 
   const [originBalance, unresolvedSpend] = await Promise.all([
     snapshotBlockNumber !== undefined
@@ -374,6 +382,7 @@ async function assertOriginNativeReserve(params: {
       originChain,
       funderAddress,
       snapshotBlockNumber,
+      snapshotBlockHash,
       excludeDestinationChain: destinationChain,
       excludeRecipient: recipient,
     }),
@@ -457,13 +466,21 @@ async function submitTrackedDepositTransaction(params: {
   } = params;
   const { stateStore } = persistence;
 
-  const originProvider = multiProvider.getProvider(originChain);
-  const rawOriginBlock =
-    typeof originProvider.getBlockNumber === 'function'
-      ? await originProvider.getBlockNumber()
-      : undefined;
-  const createdAtOriginBlock =
-    typeof rawOriginBlock === 'number' ? rawOriginBlock : undefined;
+  let createdAtOriginBlock: number | undefined;
+  if (stateStore) {
+    const originProvider = multiProvider.getProvider(originChain);
+    if (typeof originProvider.getBlockNumber === 'function') {
+      try {
+        const rawOriginBlock = await originProvider.getBlockNumber();
+        if (typeof rawOriginBlock === 'number') {
+          createdAtOriginBlock = rawOriginBlock;
+        }
+      } catch {
+        // Best-effort block hint for bounded replacement log scanning;
+        // do not abort submission if an auxiliary block lookup fails after approvals.
+      }
+    }
+  }
 
   const signer = multiProvider.getSigner(originChain);
   let signedTransaction: string | undefined;

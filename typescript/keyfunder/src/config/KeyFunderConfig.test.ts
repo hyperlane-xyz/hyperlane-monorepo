@@ -210,6 +210,20 @@ chains: {}
           envBridgeStateFile: '/state/bridge-state.json',
         }),
       ).to.equal('/state/bridge-state.json');
+
+      const conflictingLoader = KeyFunderConfigLoader.fromObject({
+        version: '1',
+        roles: {},
+        bridgeStateFile: '/tmp/ephemeral-state.json',
+        chains: {},
+      });
+      expect(() =>
+        resolveBridgeStateFilePath({
+          config: conflictingLoader.config,
+          configFile: path.join(os.tmpdir(), 'keyfunder.yaml'),
+          envBridgeStateFile: '/state/bridge-state.json',
+        }),
+      ).to.throw('Conflicting bridge state file configuration');
     });
   });
 

@@ -54,7 +54,9 @@ export class KeyFunder {
     this.bridgeStateStore =
       options.bridgeStateStore ??
       (stateFilePath
-        ? new FileBridgeStateStore(stateFilePath)
+        ? new FileBridgeStateStore(stateFilePath, {
+            logger: options.logger,
+          })
         : new InMemoryBridgeStateStore());
   }
 

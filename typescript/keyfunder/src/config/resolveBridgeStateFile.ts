@@ -7,9 +7,10 @@ import type { KeyFunderConfig } from '../config/types.js';
 
 /**
  * Resolves the bridge state journal file path, rejecting an explicitly empty
- * KEYFUNDER_BRIDGE_STATE_FILE env var and ensuring read-only ConfigMap mounts
- * (such as /config in Kubernetes) fail fast when bridges are configured without
- * a writable state volume.
+ * KEYFUNDER_BRIDGE_STATE_FILE env var, rejecting conflicting env vs YAML state
+ * paths so container volume mounts stay authoritative, and ensuring read-only
+ * ConfigMap mounts (such as /config in Kubernetes) fail fast when bridges are
+ * configured without a writable state volume.
  */
 export function resolveBridgeStateFilePath(params: {
   config: KeyFunderConfig;
@@ -18,17 +19,23 @@ export function resolveBridgeStateFilePath(params: {
 }): string {
   const { config, configFile, envBridgeStateFile } = params;
 
-  if (config.bridgeStateFile !== undefined) {
-    return config.bridgeStateFile;
-  }
-
   if (envBridgeStateFile !== undefined) {
     const trimmed = envBridgeStateFile.trim();
     assert(
       trimmed.length > 0,
       'KEYFUNDER_BRIDGE_STATE_FILE environment variable must not be empty when set',
     );
+    if (config.bridgeStateFile !== undefined) {
+      assert(
+        path.resolve(config.bridgeStateFile) === path.resolve(trimmed),
+        `Conflicting bridge state file configuration: KEYFUNDER_BRIDGE_STATE_FILE ("${trimmed}") does not match config.bridgeStateFile ("${config.bridgeStateFile}")`,
+      );
+    }
     return trimmed;
+  }
+
+  if (config.bridgeStateFile !== undefined) {
+    return config.bridgeStateFile;
   }
 
   const defaultDir = path.dirname(path.resolve(configFile));

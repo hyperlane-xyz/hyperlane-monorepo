@@ -6,7 +6,7 @@ import path from 'path';
 import type { Logger } from 'pino';
 
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, eqAddress, sleep } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import {
   ArbitrumOrbitBridgeMode,
@@ -23,6 +23,7 @@ import {
   extractBridgeDeliveryRefFromReceipt,
   fetchBlock,
   fetchTransactionReceipt,
+  verifyReceiptMatchesDepositIntent,
 } from './BridgeDelivery.js';
 
 export type BridgeAttemptPhase = 'prepared' | 'submitted' | 'confirmed';
@@ -485,15 +486,31 @@ export class InMemoryBridgeStateStore implements BridgeStateStore {
 
 interface SerializedBridgeStateFile {
   version: 1;
+  lockGeneration?: number;
   attempts: Record<string, PersistedBridgeAttempt | undefined>;
 }
 
 interface LockOwnershipRecord {
   ownerId: string;
+  generation: number;
   hostId: string;
   pid: number;
   createdAtMs: number;
   expiresAtMs: number;
+}
+
+interface ReapGuardRecord {
+  ownerId: string;
+  hostId: string;
+  pid: number;
+  createdAtMs: number;
+  expiresAtMs: number;
+}
+
+interface ActiveFileLock {
+  ownerId: string;
+  generation: number;
+  release: () => void;
 }
 
 const LOCK_TIMEOUT_MS = 10_000;
@@ -620,11 +637,52 @@ function tryAtomicPublishStagingFile(
   }
 }
 
+function readLockOwnershipRecord(
+  lockPath: string,
+): LockOwnershipRecord | undefined {
+  try {
+    const raw = fs.readFileSync(lockPath, 'utf8');
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      isPlainRecord(parsed) &&
+      typeof parsed.ownerId === 'string' &&
+      parsed.ownerId.length > 0 &&
+      typeof parsed.hostId === 'string' &&
+      typeof parsed.pid === 'number' &&
+      typeof parsed.createdAtMs === 'number' &&
+      typeof parsed.expiresAtMs === 'number'
+    ) {
+      const generation =
+        typeof parsed.generation === 'number' &&
+        Number.isInteger(parsed.generation) &&
+        parsed.generation >= 0
+          ? parsed.generation
+          : 0;
+      return {
+        ownerId: parsed.ownerId,
+        generation,
+        hostId: parsed.hostId,
+        pid: parsed.pid,
+        createdAtMs: parsed.createdAtMs,
+        expiresAtMs: parsed.expiresAtMs,
+      };
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function inspectLockFile(
   lockPath: string,
   nowMs: number,
   leaseMs: number,
-): { exists: boolean; isStale: boolean; ownerKey?: string } {
+): {
+  exists: boolean;
+  isStale: boolean;
+  ownerKey?: string;
+  generation?: number;
+} {
   try {
     const stat = fs.statSync(lockPath);
     const raw = fs.readFileSync(lockPath, 'utf8');
@@ -642,10 +700,17 @@ function inspectLockFile(
       // cross-pod locks (e.g. PID 1 in a previous CronJob pod) rely strictly on lease expiry.
       const deadLocalOwner =
         parsed.hostId === LOCAL_LOCK_HOST_ID && !isProcessAlive(parsed.pid);
+      const generation =
+        typeof parsed.generation === 'number' &&
+        Number.isInteger(parsed.generation) &&
+        parsed.generation >= 0
+          ? parsed.generation
+          : 0;
       return {
         exists: true,
         isStale: expired || deadLocalOwner,
         ownerKey: parsed.ownerId,
+        generation,
       };
     }
     // Unrecognized/corrupt lock content: only treat as stale after a full lease window
@@ -672,17 +737,21 @@ function inspectLockFile(
   }
 }
 
+export interface FileBridgeStateStoreOptions {
+  leaseMs?: number;
+  heartbeatMs?: number;
+  timeoutMs?: number;
+  logger?: Pick<Logger, 'warn'>;
+  beforeCommitHook?: () => Promise<void> | void;
+}
+
 export class FileBridgeStateStore implements BridgeStateStore {
   private writeLock: Promise<void> = Promise.resolve();
   private tempCounter = 0;
 
   constructor(
     private readonly filePath: string,
-    private readonly lockOptions?: {
-      leaseMs?: number;
-      heartbeatMs?: number;
-      timeoutMs?: number;
-    },
+    private readonly lockOptions?: FileBridgeStateStoreOptions,
   ) {}
 
   private get lockFilePath(): string {
@@ -693,11 +762,62 @@ export class FileBridgeStateStore implements BridgeStateStore {
     return `${this.filePath}.lock.reap`;
   }
 
+  private get generationFilePath(): string {
+    return `${this.filePath}.lock.gen`;
+  }
+
+  private readMaxPersistedGeneration(): number {
+    let maxGen = 0;
+    try {
+      if (fs.existsSync(this.generationFilePath)) {
+        const rawGen = fs.readFileSync(this.generationFilePath, 'utf8').trim();
+        const parsedGen = Number(rawGen);
+        if (Number.isInteger(parsedGen) && parsedGen > maxGen) {
+          maxGen = parsedGen;
+        }
+      }
+    } catch {
+      // Ignore unreadable generation marker; state/lock files still carry generation
+    }
+
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const parsedState: unknown = JSON.parse(
+          fs.readFileSync(this.filePath, 'utf8'),
+        );
+        if (
+          isPlainRecord(parsedState) &&
+          typeof parsedState.lockGeneration === 'number' &&
+          Number.isInteger(parsedState.lockGeneration) &&
+          parsedState.lockGeneration > maxGen
+        ) {
+          maxGen = parsedState.lockGeneration;
+        }
+      }
+    } catch {
+      // Corrupt state file is surfaced by readStateFromDisk
+    }
+
+    const currentLock = readLockOwnershipRecord(this.lockFilePath);
+    if (currentLock && currentLock.generation > maxGen) {
+      maxGen = currentLock.generation;
+    }
+    return maxGen;
+  }
+
+  private writeGenerationMarker(dir: string, generation: number): void {
+    this.tempCounter += 1;
+    const stageGen = `${this.generationFilePath}.${process.pid}.${this.tempCounter}.stage`;
+    writeCompleteStagingFile(stageGen, String(generation));
+    fs.renameSync(stageGen, this.generationFilePath);
+    syncParentDirectory(dir);
+  }
+
   private tryAcquireReapGuard(dir: string): (() => void) | undefined {
     const now = Date.now();
     const guardOwner = crypto.randomUUID();
     const stagePath = `${this.reapGuardPath}.${guardOwner}.stage`;
-    const record: LockOwnershipRecord = {
+    const record: ReapGuardRecord = {
       ownerId: guardOwner,
       hostId: LOCAL_LOCK_HOST_ID,
       pid: process.pid,
@@ -769,9 +889,25 @@ export class FileBridgeStateStore implements BridgeStateStore {
     }
   }
 
+  private acquireReapGuardSync(dir: string, timeoutMs = 2_000): () => void {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const guard = this.tryAcquireReapGuard(dir);
+      if (guard) {
+        return guard;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Timed out acquiring commit fence guard for bridge state file ${this.filePath}`,
+        );
+      }
+    }
+  }
+
   private refreshOwnedLockLease(
     dir: string,
     ownerId: string,
+    generation: number,
     createdAtMs: number,
     leaseMs: number,
   ): void {
@@ -781,12 +917,17 @@ export class FileBridgeStateStore implements BridgeStateStore {
     }
     const stagePath = `${this.lockFilePath}.${ownerId}.refresh.stage`;
     try {
-      const current = inspectLockFile(this.lockFilePath, Date.now(), leaseMs);
-      if (!current.exists || current.ownerKey !== ownerId) {
+      const current = readLockOwnershipRecord(this.lockFilePath);
+      if (
+        !current ||
+        current.ownerId !== ownerId ||
+        current.generation !== generation
+      ) {
         return;
       }
       const refreshed: LockOwnershipRecord = {
         ownerId,
+        generation,
         hostId: LOCAL_LOCK_HOST_ID,
         pid: process.pid,
         createdAtMs,
@@ -794,21 +935,25 @@ export class FileBridgeStateStore implements BridgeStateStore {
       };
       writeCompleteStagingFile(stagePath, JSON.stringify(refreshed));
       fs.renameSync(stagePath, this.lockFilePath);
-    } catch {
-      // Best-effort heartbeat renewal
+    } catch (error) {
+      // Log renewal failure with path and owner ID while keeping heartbeat best-effort.
+      (this.lockOptions?.logger ?? rootLogger).warn(
+        { stateFilePath: this.filePath, ownerId, generation, error },
+        'Failed to renew bridge state lock lease; will retry on next heartbeat',
+      );
     } finally {
       try {
         if (fs.existsSync(stagePath)) {
           fs.unlinkSync(stagePath);
         }
       } catch {
-        // Ignore
+        // Ignore staging cleanup error
       }
       releaseGuard();
     }
   }
 
-  private async acquireInterprocessLock(): Promise<() => void> {
+  private async acquireInterprocessLock(): Promise<ActiveFileLock> {
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -817,103 +962,104 @@ export class FileBridgeStateStore implements BridgeStateStore {
     const timeoutMs = this.lockOptions?.timeoutMs ?? LOCK_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
 
-    const makeReleaseHandle = (
+    const makeActiveLock = (
       ownerId: string,
+      generation: number,
       createdAtMs: number,
-    ): (() => void) => {
+    ): ActiveFileLock => {
       const timer = setInterval(() => {
-        this.refreshOwnedLockLease(dir, ownerId, createdAtMs, leaseMs);
+        this.refreshOwnedLockLease(
+          dir,
+          ownerId,
+          generation,
+          createdAtMs,
+          leaseMs,
+        );
       }, heartbeatMs);
       timer.unref();
 
-      return () => {
-        clearInterval(timer);
-        const releaseDeadline = Date.now() + 500;
-        for (;;) {
-          const releaseGuard = this.tryAcquireReapGuard(dir);
-          if (releaseGuard) {
-            try {
-              const current = inspectLockFile(
-                this.lockFilePath,
-                Date.now(),
-                leaseMs,
-              );
-              if (current.exists && current.ownerKey === ownerId) {
-                fs.unlinkSync(this.lockFilePath);
-                syncParentDirectory(dir);
+      return {
+        ownerId,
+        generation,
+        release: () => {
+          clearInterval(timer);
+          const releaseDeadline = Date.now() + 500;
+          for (;;) {
+            const releaseGuard = this.tryAcquireReapGuard(dir);
+            if (releaseGuard) {
+              try {
+                const current = readLockOwnershipRecord(this.lockFilePath);
+                if (
+                  current?.ownerId === ownerId &&
+                  current.generation === generation
+                ) {
+                  fs.unlinkSync(this.lockFilePath);
+                  syncParentDirectory(dir);
+                }
+              } catch {
+                // Lock already removed
+              } finally {
+                releaseGuard();
               }
-            } catch {
-              // Lock already removed
-            } finally {
-              releaseGuard();
+              return;
             }
-            return;
+            if (Date.now() >= releaseDeadline) {
+              return;
+            }
           }
-          if (Date.now() >= releaseDeadline) {
-            return;
-          }
-        }
+        },
       };
     };
 
     for (;;) {
-      const now = Date.now();
-      const ownerId = crypto.randomUUID();
-      const stagePath = `${this.lockFilePath}.${ownerId}.stage`;
-      const record: LockOwnershipRecord = {
-        ownerId,
-        hostId: LOCAL_LOCK_HOST_ID,
-        pid: process.pid,
-        createdAtMs: now,
-        expiresAtMs: now + leaseMs,
-      };
-      const payload = JSON.stringify(record);
+      const releaseGuard = this.tryAcquireReapGuard(dir);
+      if (releaseGuard) {
+        const now = Date.now();
+        const ownerId = crypto.randomUUID();
+        const stagePath = `${this.lockFilePath}.${ownerId}.stage`;
+        try {
+          const observed = inspectLockFile(this.lockFilePath, now, leaseMs);
+          if (!observed.exists || observed.isStale) {
+            const nextGeneration = this.readMaxPersistedGeneration() + 1;
+            const record: LockOwnershipRecord = {
+              ownerId,
+              generation: nextGeneration,
+              hostId: LOCAL_LOCK_HOST_ID,
+              pid: process.pid,
+              createdAtMs: now,
+              expiresAtMs: now + leaseMs,
+            };
+            const payload = JSON.stringify(record);
+            writeCompleteStagingFile(stagePath, payload);
+            this.writeGenerationMarker(dir, nextGeneration);
 
-      writeCompleteStagingFile(stagePath, payload);
-      try {
-        const publishResult = tryAtomicPublishStagingFile(
-          stagePath,
-          this.lockFilePath,
-          payload,
-        );
-        if (publishResult === 'acquired') {
-          syncParentDirectory(dir);
-          return makeReleaseHandle(ownerId, now);
-        }
-
-        const observed = inspectLockFile(this.lockFilePath, now, leaseMs);
-        if (observed.exists && observed.isStale) {
-          const releaseGuard = this.tryAcquireReapGuard(dir);
-          if (releaseGuard) {
-            try {
-              const verified = inspectLockFile(
+            if (!observed.exists) {
+              const publishResult = tryAtomicPublishStagingFile(
+                stagePath,
                 this.lockFilePath,
-                Date.now(),
-                leaseMs,
+                payload,
               );
-              if (
-                verified.exists &&
-                verified.isStale &&
-                verified.ownerKey === observed.ownerKey
-              ) {
-                // Atomically replace the verified stale lockfile without an unlink gap
-                // so a competing contender can never unlink a new owner's live lock.
-                fs.renameSync(stagePath, this.lockFilePath);
+              if (publishResult === 'acquired') {
                 syncParentDirectory(dir);
-                return makeReleaseHandle(ownerId, now);
+                return makeActiveLock(ownerId, nextGeneration, now);
               }
-            } finally {
-              releaseGuard();
+            } else {
+              // Atomically replace the verified stale lockfile under reapGuard
+              // without an unlink gap so a competing contender never unlinks a live lock.
+              fs.renameSync(stagePath, this.lockFilePath);
+              syncParentDirectory(dir);
+              return makeActiveLock(ownerId, nextGeneration, now);
             }
           }
-        }
-      } finally {
-        try {
-          if (fs.existsSync(stagePath)) {
-            fs.unlinkSync(stagePath);
+        } finally {
+          try {
+            if (fs.existsSync(stagePath)) {
+              fs.unlinkSync(stagePath);
+            }
+          } catch {
+            // Ignore staging cleanup error
           }
-        } catch {
-          // Ignore staging cleanup error
+          releaseGuard();
         }
       }
 
@@ -926,13 +1072,15 @@ export class FileBridgeStateStore implements BridgeStateStore {
     }
   }
 
-  private async withExclusiveLock<T>(operation: () => Promise<T>): Promise<T> {
+  private async withExclusiveLock<T>(
+    operation: (activeLock: ActiveFileLock) => Promise<T>,
+  ): Promise<T> {
     const execution = this.writeLock.then(async () => {
-      const releaseProcessLock = await this.acquireInterprocessLock();
+      const activeLock = await this.acquireInterprocessLock();
       try {
-        return await operation();
+        return await operation(activeLock);
       } finally {
-        releaseProcessLock();
+        activeLock.release();
       }
     });
     this.writeLock = execution.then(
@@ -966,6 +1114,13 @@ export class FileBridgeStateStore implements BridgeStateStore {
       `Unsupported bridge state file version at ${this.filePath}: expected 1, got ${String(parsed.version)}`,
     );
     assert(
+      parsed.lockGeneration === undefined ||
+        (typeof parsed.lockGeneration === 'number' &&
+          Number.isInteger(parsed.lockGeneration) &&
+          parsed.lockGeneration >= 0),
+      `Invalid bridge state file at ${this.filePath}: invalid lockGeneration`,
+    );
+    assert(
       isPlainRecord(parsed.attempts),
       `Invalid bridge state file at ${this.filePath}: attempts must be an object`,
     );
@@ -980,19 +1135,67 @@ export class FileBridgeStateStore implements BridgeStateStore {
 
     return {
       version: 1,
+      ...(parsed.lockGeneration !== undefined
+        ? { lockGeneration: parsed.lockGeneration }
+        : {}),
       attempts: validatedAttempts,
     };
   }
 
-  private writeStateToDisk(state: SerializedBridgeStateFile): void {
+  private async commitStateToDisk(
+    state: SerializedBridgeStateFile,
+    activeLock: ActiveFileLock,
+  ): Promise<void> {
+    await this.lockOptions?.beforeCommitHook?.();
+
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true });
     this.tempCounter += 1;
     const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.${this.tempCounter}.tmp`;
 
-    writeCompleteStagingFile(tempPath, JSON.stringify(state, null, 2));
-    fs.renameSync(tempPath, this.filePath);
-    syncParentDirectory(dir);
+    const fencedState: SerializedBridgeStateFile = {
+      version: 1,
+      lockGeneration: activeLock.generation,
+      attempts: state.attempts,
+    };
+
+    writeCompleteStagingFile(tempPath, JSON.stringify(fencedState, null, 2));
+    try {
+      // Acquire the same reapGuard mutex required by lock acquisition/reaping so
+      // generation & ownership validation and `fs.renameSync` execute atomically
+      // with respect to any competing writer claiming a newer generation.
+      const releaseGuard = this.acquireReapGuardSync(dir);
+      try {
+        const now = Date.now();
+        const currentOwner = readLockOwnershipRecord(this.lockFilePath);
+        assert(
+          currentOwner !== undefined &&
+            currentOwner.ownerId === activeLock.ownerId &&
+            currentOwner.generation === activeLock.generation &&
+            now <= currentOwner.expiresAtMs,
+          `Bridge state commit fenced out for ${this.filePath}: lock ownership (${activeLock.ownerId} gen ${activeLock.generation}) lost or expired`,
+        );
+
+        const maxGeneration = this.readMaxPersistedGeneration();
+        assert(
+          maxGeneration <= activeLock.generation,
+          `Bridge state commit fenced out for ${this.filePath}: writer generation ${activeLock.generation} superseded by generation ${maxGeneration}`,
+        );
+
+        fs.renameSync(tempPath, this.filePath);
+        syncParentDirectory(dir);
+      } finally {
+        releaseGuard();
+      }
+    } finally {
+      try {
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+      } catch {
+        // Ignore temp cleanup error
+      }
+    }
   }
 
   async get(
@@ -1008,19 +1211,19 @@ export class FileBridgeStateStore implements BridgeStateStore {
   }
 
   async set(attempt: PersistedBridgeAttempt): Promise<void> {
-    return this.withExclusiveLock(async () => {
+    return this.withExclusiveLock(async (activeLock) => {
       const state = this.readStateFromDisk();
       const key = makeRecipientScopeKey(
         attempt.destinationChain,
         attempt.recipient,
       );
       state.attempts[key] = cloneAttempt(attempt);
-      this.writeStateToDisk(state);
+      await this.commitStateToDisk(state, activeLock);
     });
   }
 
   async delete(destinationChain: string, recipient: string): Promise<void> {
-    return this.withExclusiveLock(async () => {
+    return this.withExclusiveLock(async (activeLock) => {
       if (!fs.existsSync(this.filePath)) {
         return;
       }
@@ -1028,7 +1231,7 @@ export class FileBridgeStateStore implements BridgeStateStore {
       const key = makeRecipientScopeKey(destinationChain, recipient);
       if (Object.prototype.hasOwnProperty.call(state.attempts, key)) {
         delete state.attempts[key];
-        this.writeStateToDisk(state);
+        await this.commitStateToDisk(state, activeLock);
       }
     });
   }
@@ -1242,6 +1445,33 @@ async function findRepricedReplacementReceipt(params: {
       return { receipt };
     }
 
+    const txValue = BigNumber.from(tx.value);
+    const expectedOriginValue = BigNumber.from(attempt.originNativeValue);
+
+    let matchesOriginalIntent = false;
+    if (attempt.depositCalldata !== undefined) {
+      matchesOriginalIntent =
+        tx.to !== undefined &&
+        eqAddress(tx.to, targetAddress) &&
+        typeof tx.data === 'string' &&
+        tx.data.toLowerCase() === attempt.depositCalldata.toLowerCase() &&
+        txValue.eq(expectedOriginValue);
+    } else {
+      matchesOriginalIntent = verifyReceiptMatchesDepositIntent({
+        receipt,
+        txValue,
+        funderAddress: attempt.funderAddress,
+        recipient: attempt.recipient,
+        expectedBridgedAmount: BigNumber.from(attempt.bridgedAmount),
+        expectedOriginNativeValue: expectedOriginValue,
+        bridge: effectiveBridge,
+      });
+    }
+
+    if (!matchesOriginalIntent) {
+      continue;
+    }
+
     const deliveryRef = effectiveBridge
       ? extractBridgeDeliveryRefFromReceipt({
           receipt,
@@ -1251,14 +1481,7 @@ async function findRepricedReplacementReceipt(params: {
         })
       : undefined;
 
-    const calldataMatches =
-      attempt.depositCalldata !== undefined &&
-      typeof tx.data === 'string' &&
-      tx.data.toLowerCase() === attempt.depositCalldata.toLowerCase();
-
-    if (calldataMatches || deliveryRef !== undefined) {
-      return { receipt, deliveryRef };
-    }
+    return { receipt, deliveryRef };
   }
 
   return undefined;
@@ -1401,11 +1624,25 @@ export async function reconcilePendingBridgeAttempt(params: {
         : undefined;
       const nextDeliveryRef = refreshedRef ?? attempt.deliveryRef;
 
-      const { finalizedBlockNumber } = await resolveFinalizedOriginState(
-        multiProvider,
-        attempt.originChain,
-        attempt.funderAddress,
-      );
+      let finalizedBlockNumber: number | undefined;
+      try {
+        const finalizedState = await resolveFinalizedOriginState(
+          multiProvider,
+          attempt.originChain,
+          attempt.funderAddress,
+        );
+        finalizedBlockNumber = finalizedState.finalizedBlockNumber;
+      } catch (error) {
+        logger.warn(
+          {
+            error,
+            originChain: attempt.originChain,
+            destinationChain,
+            depositTxHash: currentDepositTxHash,
+          },
+          'Failed to resolve finalized origin block height; keeping originFinalized false and continuing delivery check',
+        );
+      }
       const isOriginFinalized =
         finalizedBlockNumber !== undefined &&
         typeof receipt.blockNumber === 'number' &&
@@ -1625,6 +1862,7 @@ export async function getUnresolvedOriginNativeSpend(params: {
   originChain: string;
   funderAddress: string;
   snapshotBlockNumber?: number;
+  snapshotBlockHash?: string;
   excludeDestinationChain?: string;
   excludeRecipient?: string;
 }): Promise<BigNumber> {
@@ -1634,6 +1872,7 @@ export async function getUnresolvedOriginNativeSpend(params: {
     originChain,
     funderAddress,
     snapshotBlockNumber,
+    snapshotBlockHash,
     excludeDestinationChain,
     excludeRecipient,
   } = params;
@@ -1663,16 +1902,15 @@ export async function getUnresolvedOriginNativeSpend(params: {
       continue;
     }
 
+    // Only trust cached `confirmedOriginBlock` without re-verifying the receipt
+    // when origin inclusion has reached finality (`originFinalized === true`).
     if (
       entry.phase === 'confirmed' &&
+      entry.originFinalized === true &&
       entry.confirmedOriginBlock !== undefined &&
       (snapshotBlockNumber === undefined ||
         entry.confirmedOriginBlock <= snapshotBlockNumber)
     ) {
-      continue;
-    }
-
-    if (entry.phase === 'confirmed' && snapshotBlockNumber === undefined) {
       continue;
     }
 
@@ -1686,7 +1924,36 @@ export async function getUnresolvedOriginNativeSpend(params: {
         (snapshotBlockNumber === undefined ||
           receipt.blockNumber <= snapshotBlockNumber)
       ) {
-        continue;
+        let onCanonicalFork = true;
+        if (
+          snapshotBlockNumber !== undefined &&
+          receipt.blockNumber === snapshotBlockNumber &&
+          snapshotBlockHash &&
+          receipt.blockHash &&
+          receipt.blockHash.toLowerCase() !== snapshotBlockHash.toLowerCase()
+        ) {
+          onCanonicalFork = false;
+        } else if (
+          snapshotBlockNumber !== undefined &&
+          receipt.blockNumber < snapshotBlockNumber
+        ) {
+          const canonicalBlock = await fetchBlock(
+            originProvider,
+            receipt.blockNumber,
+          );
+          if (
+            canonicalBlock?.hash &&
+            receipt.blockHash &&
+            canonicalBlock.hash.toLowerCase() !==
+              receipt.blockHash.toLowerCase()
+          ) {
+            onCanonicalFork = false;
+          }
+        }
+
+        if (onCanonicalFork) {
+          continue;
+        }
       }
     }
 
