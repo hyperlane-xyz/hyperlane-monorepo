@@ -1,11 +1,19 @@
 import { expect } from 'chai';
-import { BigNumber, VoidSigner, constants, providers, utils } from 'ethers';
+import {
+  BigNumber,
+  Contract,
+  VoidSigner,
+  constants,
+  providers,
+  utils,
+} from 'ethers';
 import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import {
   ProtocolType,
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   formatStandardHookMetadata,
 } from '@hyperlane-xyz/utils';
@@ -576,6 +584,38 @@ describe('InterchainAccount.getAccount', () => {
   });
 });
 
+// Body vectors generated with `cast abi-encode` / `cast concat-hex` for
+// FIXED_OWNER, FIXED_ISM and FIXED_CALL.
+const FIXED_OWNER = '0x' + '11'.repeat(20);
+const FIXED_ISM = '0x' + '44'.repeat(20);
+const FIXED_SALT = '0x' + '55'.repeat(32);
+const FIXED_CALL = { to: '0x' + '22'.repeat(20), data: '0x1234', value: '0' };
+const RPC_URL_WITH_KEY = 'https://rpc.example.com/secret-key';
+const REDACTED_RPC_ERROR_MESSAGE =
+  'missing response (url="<redacted-url>", code=SERVER_ERROR)';
+
+function createRpcError(): Error {
+  return Object.assign(
+    new Error(
+      `missing response (url="${RPC_URL_WITH_KEY}", code=SERVER_ERROR)`,
+    ),
+    { url: RPC_URL_WITH_KEY },
+  );
+}
+const LEGACY_BODY =
+  '0x0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000444444444444444444444444444444444444444400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000';
+const PACKED_EMPTY_SALT_BODY =
+  '0x0000000000000000000000000011111111111111111111111111111111111111110000000000000000000000004444444444444444444444444444444444444444000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000';
+const PACKED_FIXED_SALT_BODY =
+  '0x0000000000000000000000000011111111111111111111111111111111111111110000000000000000000000004444444444444444444444444444444444444444555555555555555555555555555555555555555555555555555555555555555500000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000';
+
+function missingSelectorError(): Error {
+  return Object.assign(new Error('missing selector'), {
+    code: 'CALL_EXCEPTION',
+    data: '0x',
+  });
+}
+
 describe('InterchainAccount.getCallRemote', () => {
   const defaultGasLimit = BigNumber.from(50_000);
   const chain = TestChainName.test1;
@@ -606,8 +646,15 @@ describe('InterchainAccount.getCallRemote', () => {
         .stub()
         .resolves(BigNumber.from(123)),
       ['quoteGasPayment(uint32)']: sandbox.stub().resolves(BigNumber.from(456)),
+      bytecodeHash: sandbox.stub().resolves('0x' + '66'.repeat(32)),
       populateTransaction: {
         ['callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)']:
+          sandbox.stub().resolves({
+            to: randomAddress(),
+            data: '0x',
+            value: BigNumber.from(0),
+          }),
+        ['callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes,bytes32)']:
           sandbox.stub().resolves({
             to: randomAddress(),
             data: '0x',
@@ -750,6 +797,241 @@ describe('InterchainAccount.getCallRemote', () => {
     sinon.assert.calledOnce(mockLocalRouter.mailbox);
   });
 
+  const mailboxInterface = new utils.Interface([
+    'function quoteDispatch(uint32,bytes32,bytes,bytes,address) view returns (uint256)',
+    'function defaultHook() view returns (address)',
+  ]);
+
+  function stubMailboxQuote(): string[] {
+    mockLocalRouter.mailbox = sandbox.stub().resolves(randomAddress());
+    const provider = new providers.JsonRpcProvider();
+    sandbox.stub(multiProvider, 'getProvider').returns(provider);
+    const quoteDispatchCalls: string[] = [];
+    sandbox.stub(provider, 'call').callsFake(async (tx) => {
+      const data = await tx.data;
+      assert(typeof data === 'string', 'Expected call data');
+      if (data === mailboxInterface.encodeFunctionData('defaultHook')) {
+        return utils.defaultAbiCoder.encode(['address'], [randomAddress()]);
+      }
+      if (data.startsWith(mailboxInterface.getSighash('quoteDispatch'))) {
+        quoteDispatchCalls.push(data);
+        return utils.defaultAbiCoder.encode(['uint256'], [789]);
+      }
+      throw new Error(`Unexpected mailbox call: ${data}`);
+    });
+    return quoteDispatchCalls;
+  }
+
+  interface QuoteBodyCase {
+    name: string;
+    quoteError: () => Error;
+    bytecodeHashMissing: boolean;
+    userSalt?: string;
+    expectedBody: string;
+    dispatchOverload: string;
+  }
+
+  const unsaltedDispatch =
+    'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)';
+  const saltedDispatch =
+    'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes,bytes32)';
+
+  const quoteBodyCases: QuoteBodyCase[] = [
+    {
+      name: 'quotes the legacy body when the origin router predates 8.0.0',
+      quoteError: missingSelectorError,
+      bytecodeHashMissing: true,
+      expectedBody: LEGACY_BODY,
+      dispatchOverload: unsaltedDispatch,
+    },
+    {
+      name: 'quotes the packed body when the v2 quote fails for another reason',
+      quoteError: () => new Error('quote failed'),
+      bytecodeHashMissing: false,
+      expectedBody: PACKED_EMPTY_SALT_BODY,
+      dispatchOverload: unsaltedDispatch,
+    },
+    {
+      name: 'quotes the packed body with the configured user salt',
+      quoteError: () => new Error('quote failed'),
+      bytecodeHashMissing: false,
+      userSalt: FIXED_SALT,
+      expectedBody: PACKED_FIXED_SALT_BODY,
+      dispatchOverload: saltedDispatch,
+    },
+    {
+      // A downstream hook reverting with empty data looks like a missing
+      // selector; the 8.0.0+ router must still be quoted with the packed body.
+      name: 'quotes the packed body with a user salt when a hook reverts the v2 quote with empty data',
+      quoteError: missingSelectorError,
+      bytecodeHashMissing: false,
+      userSalt: FIXED_SALT,
+      expectedBody: PACKED_FIXED_SALT_BODY,
+      dispatchOverload: saltedDispatch,
+    },
+  ];
+
+  for (const c of quoteBodyCases) {
+    it(c.name, async () => {
+      mockLocalRouter['quoteGasPayment(uint32,uint256)'].rejects(
+        c.quoteError(),
+      );
+      if (c.bytecodeHashMissing) {
+        mockLocalRouter.bytecodeHash.rejects(missingSelectorError());
+      }
+      const quoteDispatchCalls = stubMailboxQuote();
+
+      await app.getCallRemote({
+        chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: randomAddress(),
+          routerOverride: randomAddress(),
+          ismOverride: FIXED_ISM,
+          userSalt: c.userSalt,
+        },
+      });
+
+      expect(quoteDispatchCalls).to.have.length(1);
+      const [, , body] = mailboxInterface.decodeFunctionData(
+        'quoteDispatch',
+        quoteDispatchCalls[0],
+      );
+      expect(body).to.equal(c.expectedBody);
+      const dispatch = mockLocalRouter.populateTransaction[c.dispatchOverload];
+      sinon.assert.calledOnce(dispatch);
+      const dispatchArgs: unknown[] = dispatch.firstCall.args;
+      expect(dispatchArgs[dispatchArgs.length - 1]).to.deep.equal({
+        value: BigNumber.from(789),
+      });
+    });
+  }
+
+  it('rethrows non-selector bytecodeHash failures on the origin router', async () => {
+    const rpcError = Object.assign(new Error('RPC unavailable'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+      error: { code: -32000, message: 'header not found' },
+    });
+    mockLocalRouter['quoteGasPayment(uint32,uint256)'].rejects(
+      new Error('quote failed'),
+    );
+    mockLocalRouter.bytecodeHash.rejects(rpcError);
+    const quoteDispatchCalls = stubMailboxQuote();
+
+    const caught = await app
+      .getCallRemote({
+        chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: baseConfig,
+      })
+      .then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+    expect(caught).to.equal(rpcError);
+    expect(quoteDispatchCalls).to.have.length(0);
+  });
+
+  it('rejects a user salt when the origin router predates 8.0.0', async () => {
+    mockLocalRouter['quoteGasPayment(uint32,uint256)'].rejects(
+      missingSelectorError(),
+    );
+    mockLocalRouter.bytecodeHash.rejects(missingSelectorError());
+    const quoteDispatchCalls = stubMailboxQuote();
+
+    const caught = await app
+      .getCallRemote({
+        chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: randomAddress(),
+          routerOverride: randomAddress(),
+          ismOverride: FIXED_ISM,
+          userSalt: FIXED_SALT,
+        },
+      })
+      .then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+    assert(caught instanceof Error, 'Expected getCallRemote to reject');
+    expect(caught.message).to.equal(
+      `User salts are not supported by the pre-8.0.0 ICA router on ${chain}`,
+    );
+    expect(quoteDispatchCalls).to.have.length(0);
+  });
+
+  interface DispatchSelectorCase {
+    name: string;
+    userSalt?: string;
+    expectedSelector: string;
+    expectedSalt?: string;
+  }
+
+  // Selectors from `cast sig`.
+  const dispatchSelectorCases: DispatchSelectorCase[] = [
+    {
+      name: 'dispatches via the 5-arg overload when no user salt is set',
+      expectedSelector: '0xeab4eaa4',
+    },
+    {
+      name: 'dispatches via the 5-arg overload for an explicit empty salt',
+      userSalt: InterchainAccount.EMPTY_SALT,
+      expectedSelector: '0xeab4eaa4',
+    },
+    {
+      name: 'dispatches via the salted 6-arg overload for a user salt',
+      userSalt: FIXED_SALT,
+      expectedSelector: '0x056294d1',
+      expectedSalt: FIXED_SALT,
+    },
+  ];
+
+  for (const c of dispatchSelectorCases) {
+    it(c.name, async () => {
+      const realRouter = new Contract(
+        randomAddress(),
+        InterchainAccountRouter__factory.abi,
+        new providers.JsonRpcProvider(),
+      );
+      mockLocalRouter.populateTransaction = realRouter.populateTransaction;
+
+      const tx = await app.getCallRemote({
+        chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: randomAddress(),
+          routerOverride: randomAddress(),
+          ismOverride: FIXED_ISM,
+          userSalt: c.userSalt,
+        },
+      });
+
+      assert(tx.data, 'Expected dispatch calldata');
+      expect(tx.data.slice(0, 10)).to.equal(c.expectedSelector);
+      expect(tx.value?.toString()).to.equal('123');
+      const decoded = realRouter.interface.decodeFunctionData(
+        c.expectedSelector,
+        tx.data,
+      );
+      expect(decoded._ism).to.equal(addressToBytes32(FIXED_ISM));
+      expect(decoded._userSalt).to.equal(c.expectedSalt);
+    });
+  }
+
   it('calls isms() with origin domain when ismOverride not provided', async () => {
     const destRouterAddress = randomAddress();
     const mockDestRouter = {
@@ -807,6 +1089,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
 
     mockProvider = {
       estimateGas: sandbox.stub(),
+      getCode: sandbox.stub().resolves('0x6080'),
     };
     destinationAccount = randomAddress();
 
@@ -815,6 +1098,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
       isms: sandbox.stub().resolves(randomAddress()),
       mailbox: sandbox.stub().resolves(randomAddress()),
       routers: sandbox.stub().resolves(randomAddress()),
+      bytecodeHash: sandbox.stub().resolves('0x' + '66'.repeat(32)),
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
         sandbox.stub().resolves(destinationAccount),
       'getLocalInterchainAccount(uint32,address,address,address)': sandbox
@@ -822,6 +1106,10 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
         .resolves(destinationAccount),
       estimateGas: {
         handle: sandbox.stub(),
+        'getDeployedInterchainAccount(uint32,address,address,address)':
+          sandbox.stub(),
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
+          sandbox.stub(),
       },
     };
 
@@ -873,6 +1161,19 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     // addBufferToGasLimit adds 10%
     const expectedWithBuffer = handleEstimate.mul(110).div(100);
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
+  });
+
+  it('simulates handle() on a provider-connected router without a router override', async () => {
+    mockDestRouter.estimateGas.handle.resolves(BigNumber.from(100_000));
+
+    await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: baseCalls,
+      config: baseConfig,
+    });
+
+    sinon.assert.calledWith(mockDestRouter.connect, mockProvider);
   });
 
   it('normalizes a bytes32 destination router override for handle estimation', async () => {
@@ -998,9 +1299,8 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   it('returns static 200k fallback when getProvider fails', async () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
-    (multiProvider.getProvider as sinon.SinonStub).throws(
-      new Error('provider error'),
-    );
+    (multiProvider.getProvider as sinon.SinonStub).throws(createRpcError());
+    const warn = sandbox.spy(app.logger, 'warn');
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,
@@ -1010,5 +1310,316 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     });
 
     expect(result.toString()).to.equal(ICA_HANDLE_GAS_FALLBACK.toString());
+    const warnCall = warn
+      .getCalls()
+      .find(
+        (call) =>
+          call.args[1] ===
+          'Individual call estimation also failed, using static fallback',
+      );
+    assert(warnCall, 'Expected the static fallback warning');
+    expect(warnCall.args[0]).to.deep.equal({
+      destination,
+      error: REDACTED_RPC_ERROR_MESSAGE,
+    });
   });
+
+  const fixedLocalRouter = '0x' + '77'.repeat(20);
+  const legacyDeploy =
+    'getDeployedInterchainAccount(uint32,address,address,address)';
+  const saltedDeploy =
+    'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)';
+
+  function configureRouter({
+    saltedLookupMissing,
+    bytecodeHashMissing,
+  }: {
+    saltedLookupMissing: boolean;
+    bytecodeHashMissing: boolean;
+  }) {
+    if (saltedLookupMissing) {
+      mockDestRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].rejects(missingSelectorError());
+    }
+    if (bytecodeHashMissing) {
+      mockDestRouter.bytecodeHash.rejects(missingSelectorError());
+    }
+  }
+
+  interface BodyFormatCase {
+    name: string;
+    saltedLookupMissing: boolean;
+    bytecodeHashMissing: boolean;
+    userSalt?: string;
+    expectedBody: string;
+  }
+
+  const bodyFormatCases: BodyFormatCase[] = [
+    {
+      name: 'encodes the packed body with an empty salt by default',
+      saltedLookupMissing: false,
+      bytecodeHashMissing: false,
+      expectedBody: PACKED_EMPTY_SALT_BODY,
+    },
+    {
+      name: 'encodes the packed body with the configured user salt',
+      saltedLookupMissing: false,
+      bytecodeHashMissing: false,
+      userSalt: FIXED_SALT,
+      expectedBody: PACKED_FIXED_SALT_BODY,
+    },
+    {
+      name: 'encodes the packed body for routers without the salted lookup that expose bytecodeHash',
+      saltedLookupMissing: true,
+      bytecodeHashMissing: false,
+      expectedBody: PACKED_EMPTY_SALT_BODY,
+    },
+    {
+      name: 'encodes the legacy body for pre-8.0.0 routers',
+      saltedLookupMissing: true,
+      bytecodeHashMissing: true,
+      expectedBody: LEGACY_BODY,
+    },
+  ];
+
+  for (const c of bodyFormatCases) {
+    it(c.name, async () => {
+      configureRouter({
+        saltedLookupMissing: c.saltedLookupMissing,
+        bytecodeHashMissing: c.bytecodeHashMissing,
+      });
+      mockDestRouter.estimateGas.handle.resolves(BigNumber.from(100_000));
+
+      const result = await app.estimateIcaHandleGas({
+        origin: chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: fixedLocalRouter,
+          ismOverride: FIXED_ISM,
+          userSalt: c.userSalt,
+        },
+      });
+
+      expect(result.toString()).to.equal('110000');
+      expect(mockDestRouter.estimateGas.handle.firstCall.args[2]).to.equal(
+        c.expectedBody,
+      );
+      expect(mockDestRouter.bytecodeHash.callCount).to.equal(
+        c.saltedLookupMissing ? 1 : 0,
+      );
+    });
+  }
+
+  it('rethrows non-selector bytecodeHash failures', async () => {
+    const rpcError = Object.assign(new Error('RPC unavailable'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+      error: { code: -32000, message: 'header not found' },
+    });
+    configureRouter({ saltedLookupMissing: true, bytecodeHashMissing: false });
+    mockDestRouter.bytecodeHash.rejects(rpcError);
+
+    const caught = await app
+      .estimateIcaHandleGas({
+        origin: chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: baseConfig,
+      })
+      .then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+    expect(caught).to.equal(rpcError);
+    sinon.assert.notCalled(mockDestRouter.estimateGas.handle);
+  });
+
+  it('rejects a user salt on routers without the salted lookup', async () => {
+    const missingSelector = missingSelectorError();
+    mockDestRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ].rejects(missingSelector);
+
+    const caught = await app
+      .estimateIcaHandleGas({
+        origin: chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: fixedLocalRouter,
+          userSalt: FIXED_SALT,
+        },
+      })
+      .then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+    expect(caught).to.equal(missingSelector);
+    sinon.assert.notCalled(mockDestRouter.bytecodeHash);
+  });
+
+  interface DeploymentCase {
+    name: string;
+    bytecodeHashMissing: boolean;
+    userSalt?: string;
+    deployOverload: typeof legacyDeploy | typeof saltedDeploy;
+    expectedDeployArgs: (string | number)[];
+    expectedGas: string;
+  }
+
+  const deploymentCases: DeploymentCase[] = [
+    {
+      name: 'adds legacy ICA deployment gas for an undeployed ICA on pre-8.0.0 routers',
+      bytecodeHashMissing: true,
+      deployOverload: legacyDeploy,
+      expectedDeployArgs: [FIXED_OWNER, fixedLocalRouter, FIXED_ISM],
+      // (30k call + 92k deploy + 50k ICA + 5k per-call) * 1.1
+      expectedGas: '194700',
+    },
+    {
+      name: 'adds salted ICA deployment gas for an undeployed ICA on 8.0.0+ routers',
+      bytecodeHashMissing: false,
+      userSalt: FIXED_SALT,
+      deployOverload: saltedDeploy,
+      expectedDeployArgs: [
+        addressToBytes32(FIXED_OWNER),
+        addressToBytes32(fixedLocalRouter),
+        FIXED_ISM,
+        FIXED_SALT,
+      ],
+      expectedGas: '194700',
+    },
+  ];
+
+  for (const c of deploymentCases) {
+    it(c.name, async () => {
+      if (c.bytecodeHashMissing) {
+        configureRouter({
+          saltedLookupMissing: true,
+          bytecodeHashMissing: true,
+        });
+      }
+      mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+      mockProvider.estimateGas.resolves(BigNumber.from(30_000));
+      mockProvider.getCode.resolves('0x');
+      mockDestRouter.estimateGas[c.deployOverload].resolves(
+        BigNumber.from(92_000),
+      );
+
+      const result = await app.estimateIcaHandleGas({
+        origin: chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: {
+          origin: chain,
+          owner: FIXED_OWNER,
+          localRouter: fixedLocalRouter,
+          ismOverride: FIXED_ISM,
+          userSalt: c.userSalt,
+        },
+      });
+
+      expect(result.toString()).to.equal(c.expectedGas);
+      sinon.assert.calledOnceWithExactly(
+        mockProvider.getCode,
+        destinationAccount,
+      );
+      sinon.assert.calledOnceWithExactly(
+        mockDestRouter.estimateGas[c.deployOverload],
+        multiProvider.getDomainId(chain),
+        ...c.expectedDeployArgs,
+      );
+      sinon.assert.notCalled(
+        mockDestRouter.estimateGas[
+          c.deployOverload === legacyDeploy ? saltedDeploy : legacyDeploy
+        ],
+      );
+    });
+  }
+
+  it('adds no deployment gas when the ICA already has code', async () => {
+    mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+    mockProvider.estimateGas.resolves(BigNumber.from(30_000));
+
+    const result = await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: [FIXED_CALL],
+      config: baseConfig,
+    });
+
+    // (30k call + 50k ICA + 5k per-call) * 1.1
+    expect(result.toString()).to.equal('93500');
+    sinon.assert.calledOnce(mockProvider.getCode);
+    sinon.assert.notCalled(mockDestRouter.estimateGas[legacyDeploy]);
+    sinon.assert.notCalled(mockDestRouter.estimateGas[saltedDeploy]);
+  });
+
+  interface DeploymentFailureCase {
+    name: string;
+    failGetCode: boolean;
+    expectedWarning: string;
+  }
+
+  const deploymentFailureCases: DeploymentFailureCase[] = [
+    {
+      name: 'adds the deployment gas fallback when the deployment estimate fails',
+      failGetCode: false,
+      expectedWarning:
+        'Failed to estimate ICA deployment gas, using the deployment gas fallback',
+    },
+    {
+      name: 'adds the deployment gas fallback without a deployment estimate when getCode fails',
+      failGetCode: true,
+      expectedWarning:
+        'Failed to check ICA deployment, assuming it is undeployed and using the deployment gas fallback',
+    },
+  ];
+
+  for (const c of deploymentFailureCases) {
+    it(c.name, async () => {
+      mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+      mockProvider.estimateGas.resolves(BigNumber.from(30_000));
+      if (c.failGetCode) {
+        mockProvider.getCode.rejects(createRpcError());
+      } else {
+        mockProvider.getCode.resolves('0x');
+        mockDestRouter.estimateGas[saltedDeploy].rejects(createRpcError());
+      }
+      const warn = sandbox.spy(app.logger, 'warn');
+
+      const result = await app.estimateIcaHandleGas({
+        origin: chain,
+        destination,
+        innerCalls: [FIXED_CALL],
+        config: baseConfig,
+      });
+
+      // (30k call + 150k deployment fallback + 50k ICA + 5k per-call) * 1.1
+      expect(result.toString()).to.equal('258500');
+      const warnCall = warn
+        .getCalls()
+        .find((call) => call.args[1] === c.expectedWarning);
+      assert(warnCall, `Expected warning: ${c.expectedWarning}`);
+      expect(warnCall.args[0]).to.deep.equal({
+        destination,
+        destinationAccount,
+        error: REDACTED_RPC_ERROR_MESSAGE,
+      });
+      sinon.assert.notCalled(mockDestRouter.estimateGas[legacyDeploy]);
+      if (c.failGetCode) {
+        sinon.assert.notCalled(mockDestRouter.estimateGas[saltedDeploy]);
+      } else {
+        sinon.assert.calledOnce(mockDestRouter.estimateGas[saltedDeploy]);
+      }
+    });
+  }
 });
