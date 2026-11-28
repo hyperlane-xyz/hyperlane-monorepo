@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
+import { resolveBridgeStateFilePath } from './config/resolveBridgeStateFile.js';
 import { KeyFunder } from './core/KeyFunder.js';
 import { KeyFunderMetrics } from './metrics/Metrics.js';
 
@@ -48,7 +49,16 @@ async function main(): Promise<void> {
     const configLoader = KeyFunderConfigLoader.load(configFile);
     const config = configLoader.config;
     const configuredChains = configLoader.getConfiguredChains();
-    logger.info({ chains: configuredChains }, 'Loaded keyfunder configuration');
+    const signerChains = configLoader.getRequiredSignerChains();
+    const bridgeStateFile = resolveBridgeStateFilePath({
+      config,
+      configFile,
+      envBridgeStateFile: process.env.KEYFUNDER_BRIDGE_STATE_FILE,
+    });
+    logger.info(
+      { chains: configuredChains, signerChains, bridgeStateFile },
+      'Loaded keyfunder configuration',
+    );
 
     const registryUri = process.env.REGISTRY_URI ?? DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
@@ -60,7 +70,7 @@ async function main(): Promise<void> {
 
     const chainMetadata = await registry.getMetadata();
     const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata, {
-      chainNames: configuredChains,
+      chainNames: signerChains,
     });
     if (overriddenChains.length > 0) {
       logger.info(
@@ -76,10 +86,10 @@ async function main(): Promise<void> {
     // Tron's JSON-RPC rejects eth_sendRawTransaction, so Tron chains need a
     // TronWallet (native HTTP wallet API) for the funding write path. Other
     // chains use a standard ethers Wallet. setSharedSigner can't be mixed with
-    // per-chain signers, so wire every configured chain explicitly.
+    // per-chain signers, so wire every active destination and bridge-origin chain explicitly.
     const evmSigner = new Wallet(privateKey);
     const tronChains: string[] = [];
-    for (const chain of configuredChains) {
+    for (const chain of signerChains) {
       const metadata: ChainMetadata | undefined = chainMetadata[chain];
       assert(metadata, `Missing metadata for chain: ${chain}`);
       if (metadata.protocol === ProtocolType.Tron) {
@@ -95,13 +105,14 @@ async function main(): Promise<void> {
       }
     }
     logger.info(
-      { tronChains, totalChains: configuredChains.length },
+      { tronChains, totalChains: signerChains.length },
       'Initialized MultiProvider with per-chain signers',
     );
 
     let igp: HyperlaneIgp | undefined;
+    const activeChainSet = new Set(configLoader.getChainsToProcess());
     const igpEntries = Object.entries(config.chains)
-      .filter(([, cfg]) => cfg.igp)
+      .filter(([chain, cfg]) => activeChainSet.has(chain) && cfg.igp)
       .map(([chain, cfg]) => [
         chain,
         { interchainGasPaymaster: cfg.igp!.address },
@@ -126,6 +137,7 @@ async function main(): Promise<void> {
       metrics,
       skipIgpClaim: process.env.SKIP_IGP_CLAIM === 'true',
       igp,
+      bridgeStateFile,
     });
 
     let fundingError: Error | undefined;

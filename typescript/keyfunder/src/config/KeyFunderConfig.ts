@@ -36,6 +36,22 @@ export class KeyFunderConfigLoader {
     return Object.keys(this.config.chains);
   }
 
+  /**
+   * Returns active destination chains plus any bridge originChain referenced
+   * by an active destination, ignoring retired origins on skipped destinations.
+   */
+  getRequiredSignerChains(): string[] {
+    const activeDestinations = this.getChainsToProcess();
+    const chains = new Set<string>(activeDestinations);
+    for (const chain of activeDestinations) {
+      const originChain = this.config.chains[chain]?.bridge?.originChain;
+      if (originChain) {
+        chains.add(originChain);
+      }
+    }
+    return Array.from(chains);
+  }
+
   getChainsToProcess(): string[] {
     const allChains = this.getConfiguredChains();
     const chainsToSkip = new Set(this.config.chainsToSkip ?? []);

@@ -8,8 +8,14 @@ hyperlane:
   chainsToSkip: []
   registryUri: ''
   keyfunderConfig: ''
+  bridgeStateFile: ''
   skipIgpClaim: false
   prometheusPushGateway: ''
+storage:
+  enabled: true
+  mountPath: /state
+  size: 1Gi
+  storageClass: ''
 cronjob:
   schedule: '*/10 * * * *'
   successfulJobsHistoryLimit: 6

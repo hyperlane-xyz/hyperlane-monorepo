@@ -10,12 +10,22 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
-import type {
-  ChainConfig,
-  KeyFunderConfig,
-  ResolvedKeyConfig,
+import {
+  type ChainConfig,
+  hasRepresentablePrecision,
+  type KeyFunderConfig,
+  type ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
+import { bridgeKeyFunding, getBridgeDecimals } from './BridgeFunder.js';
+import {
+  type BridgeStateStore,
+  FileBridgeStateStore,
+  InMemoryBridgeStateStore,
+  type PersistedBridgeAttempt,
+  reconcilePendingBridgeAttempt,
+  withRecipientBridgeLock,
+} from './BridgeStateStore.js';
 
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
@@ -27,16 +37,28 @@ export interface KeyFunderOptions {
   metrics?: KeyFunderMetrics;
   skipIgpClaim?: boolean;
   igp?: HyperlaneIgp;
+  bridgeStateFile?: string;
+  bridgeStateStore?: BridgeStateStore;
 }
 
 export class KeyFunder {
   private readonly validatedGasTokens = new Set<string>();
+  private readonly bridgeStateStore: BridgeStateStore;
 
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly config: KeyFunderConfig,
     private readonly options: KeyFunderOptions,
-  ) {}
+  ) {
+    const stateFilePath = options.bridgeStateFile ?? config.bridgeStateFile;
+    this.bridgeStateStore =
+      options.bridgeStateStore ??
+      (stateFilePath
+        ? new FileBridgeStateStore(stateFilePath, {
+            logger: options.logger,
+          })
+        : new InMemoryBridgeStateStore());
+  }
 
   /**
    * Funds chains independently; rejects only when every attempted chain fails.
@@ -109,6 +131,7 @@ export class KeyFunder {
     const logger = this.options.logger.child({ chain });
 
     await this.validateGasTokenDecimals(chain);
+    this.validateBridgeMetadataPrecision(chain);
 
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
@@ -139,6 +162,30 @@ export class KeyFunder {
       durationSeconds,
     );
     logger.info({ durationSeconds }, 'Chain funding completed');
+  }
+
+  private validateBridgeMetadataPrecision(chain: string): void {
+    const bridge = this.config.chains[chain].bridge;
+    if (!bridge) return;
+
+    const destDecimals = this.getNativeDecimals(chain);
+    const bridgeDecimals = getBridgeDecimals(bridge, destDecimals);
+    assert(
+      hasRepresentablePrecision(bridge.minBridgeThreshold, bridgeDecimals),
+      `Bridge minBridgeThreshold ("${bridge.minBridgeThreshold}") on ${chain} exceeds token precision of ${bridgeDecimals} decimals`,
+    );
+    assert(
+      hasRepresentablePrecision(bridge.maxBridgeAmount, bridgeDecimals),
+      `Bridge maxBridgeAmount ("${bridge.maxBridgeAmount}") on ${chain} exceeds token precision of ${bridgeDecimals} decimals`,
+    );
+
+    const originDecimals =
+      this.multiProvider.getChainMetadata(bridge.originChain).nativeToken
+        ?.decimals ?? 18;
+    assert(
+      hasRepresentablePrecision(bridge.originReserveBuffer, originDecimals),
+      `Bridge originReserveBuffer ("${bridge.originReserveBuffer}") on ${bridge.originChain} exceeds native precision of ${originDecimals} decimals`,
+    );
   }
 
   private async validateGasTokenDecimals(chain: string): Promise<void> {
@@ -305,12 +352,45 @@ export class KeyFunder {
     chain: string,
     keys: ResolvedKeyConfig[],
   ): Promise<void> {
+    const hasBridge = Boolean(this.config.chains[chain].bridge);
+    const keyErrors: unknown[] = [];
+
     for (const key of keys) {
-      await this.fundKey(chain, key);
+      try {
+        await this.fundKey(chain, key);
+      } catch (error) {
+        if (!hasBridge) {
+          throw error;
+        }
+        this.options.logger.error(
+          { chain, role: key.role, address: key.address, error },
+          'Failed to fund key on bridged chain; continuing remaining keys',
+        );
+        keyErrors.push(error);
+      }
+    }
+
+    if (keyErrors.length > 0) {
+      throw keyErrors[0];
     }
   }
 
   private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
+    const bridgeConfig = this.config.chains[chain].bridge;
+    if (bridgeConfig) {
+      await withRecipientBridgeLock(chain, key.address, async () =>
+        this.fundKeyInternal(chain, key, true),
+      );
+      return;
+    }
+    await this.fundKeyInternal(chain, key, false);
+  }
+
+  private async fundKeyInternal(
+    chain: string,
+    key: ResolvedKeyConfig,
+    recipientLockHeld: boolean,
+  ): Promise<void> {
     const logger = this.options.logger.child({
       chain,
       address: key.address,
@@ -322,11 +402,7 @@ export class KeyFunder {
       key.desiredBalance,
       decimals,
     );
-    const currentBalance = await this.getBalance(chain, key.address);
-    const fundingAmount = this.calculateFundingAmount(
-      currentBalance,
-      desiredBalance,
-    );
+    let currentBalance = await this.getBalance(chain, key.address);
 
     this.options.metrics?.recordWalletBalance(
       chain,
@@ -335,10 +411,75 @@ export class KeyFunder {
       parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
     );
 
-    if (fundingAmount.eq(0)) {
+    const bridgeConfig = this.config.chains[chain].bridge;
+    let pendingAttempt: PersistedBridgeAttempt | undefined;
+    if (bridgeConfig) {
+      const storedAttempt = await this.bridgeStateStore.get(chain, key.address);
+      if (storedAttempt) {
+        try {
+          pendingAttempt = await reconcilePendingBridgeAttempt({
+            multiProvider: this.multiProvider,
+            stateStore: this.bridgeStateStore,
+            destinationChain: chain,
+            recipient: key.address,
+            bridge: bridgeConfig,
+            logger,
+          });
+        } catch (error) {
+          logger.warn(
+            {
+              error,
+              originChain: storedAttempt.originChain,
+              depositTxHash: storedAttempt.depositTxHash,
+            },
+            'Failed to reconcile pending bridge attempt; retaining pending attempt and continuing',
+          );
+          pendingAttempt = storedAttempt;
+        }
+
+        if (!pendingAttempt) {
+          // Reconciliation cleared the stored attempt (e.g. deposit just delivered);
+          // refresh balance so we neither over-fund from a pre-delivery snapshot
+          // nor assume full credit if part of the deposit was already spent.
+          currentBalance = await this.getBalance(chain, key.address);
+          this.options.metrics?.recordWalletBalance(
+            chain,
+            key.address,
+            key.role,
+            parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
+          );
+        }
+      }
+    }
+
+    const rawFundingAmount = this.calculateFundingAmount(
+      currentBalance,
+      desiredBalance,
+    );
+
+    if (rawFundingAmount.eq(0)) {
       logger.debug(
         { currentBalance: ethers.utils.formatUnits(currentBalance, decimals) },
         'Key balance sufficient, skipping',
+      );
+      return;
+    }
+
+    const pendingCredit = pendingAttempt
+      ? BigNumber.from(pendingAttempt.bridgedAmount)
+      : BigNumber.from(0);
+    const fundingAmount = rawFundingAmount.gt(pendingCredit)
+      ? rawFundingAmount.sub(pendingCredit)
+      : BigNumber.from(0);
+
+    if (fundingAmount.eq(0)) {
+      logger.info(
+        {
+          originChain: pendingAttempt?.originChain,
+          depositTxHash: pendingAttempt?.depositTxHash,
+          pendingCredit: ethers.utils.formatUnits(pendingCredit, decimals),
+        },
+        'Pending bridge credit covers current key deficit, skipping duplicate funding',
       );
       return;
     }
@@ -347,6 +488,56 @@ export class KeyFunder {
     const funderBalance = await this.getFunderBalance(chain);
 
     if (funderBalance.lt(fundingAmount)) {
+      if (pendingAttempt) {
+        logger.info(
+          {
+            originChain: pendingAttempt.originChain,
+            depositTxHash: pendingAttempt.depositTxHash,
+            phase: pendingAttempt.phase,
+            pendingCredit: ethers.utils.formatUnits(pendingCredit, decimals),
+            uncoveredDeficit: ethers.utils.formatUnits(fundingAmount, decimals),
+          },
+          'Pending bridge transfer still unsettled and destination funder cannot cover remaining deficit, skipping duplicate bridge',
+        );
+        return;
+      }
+
+      if (bridgeConfig) {
+        const bridgeResult = await bridgeKeyFunding({
+          multiProvider: this.multiProvider,
+          destinationChain: chain,
+          bridge: bridgeConfig,
+          recipient: key.address,
+          shortfallAmount: fundingAmount,
+          destinationDecimals: decimals,
+          baselineDestinationBalance: currentBalance,
+          stateStore: this.bridgeStateStore,
+          recipientLockHeld,
+          logger,
+        });
+        if (bridgeResult) {
+          this.options.metrics?.recordFundingAmount(
+            chain,
+            key.address,
+            key.role,
+            parseFloat(
+              ethers.utils.formatUnits(bridgeResult.bridgedAmount, decimals),
+            ),
+          );
+          return;
+        }
+        const activeAfterBridge = await this.bridgeStateStore.get(
+          chain,
+          key.address,
+        );
+        if (activeAfterBridge) {
+          return;
+        }
+        throw new Error(
+          `Insufficient funder balance on ${chain} (has ${ethers.utils.formatUnits(funderBalance, decimals)}, needs ${ethers.utils.formatUnits(fundingAmount, decimals)}) and cross-chain bridge declined to fund ${key.role} (${key.address})`,
+        );
+      }
+
       logger.error(
         {
           funderBalance: ethers.utils.formatUnits(funderBalance, decimals),

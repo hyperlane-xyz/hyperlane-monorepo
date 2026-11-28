@@ -1,3 +1,23 @@
+{{- $stateMountPath := trimSuffix "/" (.Values.storage.mountPath | default "/state") -}}
+{{- $customBridgeStateFile := .Values.hyperlane.bridgeStateFile | default "" -}}
+{{- $parsedKeyfunderConfig := (.Values.hyperlane.keyfunderConfig | default "" | fromYaml) | default dict -}}
+{{- $embeddedBridgeStateFile := "" -}}
+{{- if hasKey $parsedKeyfunderConfig "bridgeStateFile" -}}
+{{- $embeddedBridgeStateFile = printf "%v" (index $parsedKeyfunderConfig "bridgeStateFile") -}}
+{{- end -}}
+{{- if and $customBridgeStateFile $embeddedBridgeStateFile (ne $customBridgeStateFile $embeddedBridgeStateFile) -}}
+{{- fail (printf "hyperlane.bridgeStateFile (%s) and hyperlane.keyfunderConfig.bridgeStateFile (%s) must match when both are specified" $customBridgeStateFile $embeddedBridgeStateFile) -}}
+{{- end -}}
+{{- if .Values.storage.enabled -}}
+{{- if and $customBridgeStateFile (not (hasPrefix (printf "%s/" $stateMountPath) $customBridgeStateFile)) -}}
+{{- fail (printf "hyperlane.bridgeStateFile (%s) must reside under storage.mountPath (%s) when storage.enabled is true" $customBridgeStateFile $stateMountPath) -}}
+{{- end -}}
+{{- if and $embeddedBridgeStateFile (not (hasPrefix (printf "%s/" $stateMountPath) $embeddedBridgeStateFile)) -}}
+{{- fail (printf "hyperlane.keyfunderConfig.bridgeStateFile (%s) must reside under storage.mountPath (%s) when storage.enabled is true" $embeddedBridgeStateFile $stateMountPath) -}}
+{{- end -}}
+{{- end -}}
+{{- $configuredBridgeStateFile := $customBridgeStateFile | default $embeddedBridgeStateFile -}}
+{{- $effectiveBridgeStateFile := ternary ($configuredBridgeStateFile | default (printf "%s/bridge-state.json" $stateMountPath)) $configuredBridgeStateFile .Values.storage.enabled -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -30,6 +50,10 @@ spec:
               value: info
             - name: KEYFUNDER_CONFIG_FILE
               value: /config/keyfunder.yaml
+            {{- if $effectiveBridgeStateFile }}
+            - name: KEYFUNDER_BRIDGE_STATE_FILE
+              value: {{ $effectiveBridgeStateFile | quote }}
+            {{- end }}
             {{- if .Values.hyperlane.registryUri }}
             - name: REGISTRY_URI
               value: {{ .Values.hyperlane.registryUri }}
@@ -49,7 +73,16 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
+            {{- if .Values.storage.enabled }}
+            - name: state
+              mountPath: {{ $stateMountPath | quote }}
+            {{- end }}
           volumes:
           - name: config
             configMap:
               name: key-funder-config
+          {{- if .Values.storage.enabled }}
+          - name: state
+            persistentVolumeClaim:
+              claimName: key-funder-state
+          {{- end }}

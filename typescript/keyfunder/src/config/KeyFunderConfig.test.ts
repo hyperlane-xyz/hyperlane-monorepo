@@ -1,8 +1,16 @@
 import { expect } from 'chai';
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import sinon from 'sinon';
 
 import { KeyFunderConfigLoader } from './KeyFunderConfig.js';
+import { resolveBridgeStateFilePath } from './resolveBridgeStateFile.js';
+import {
+  ArbitrumOrbitBridgeMode,
+  BridgeStack,
+  OpStackBridgeMode,
+} from './types.js';
 
 describe('KeyFunderConfigLoader', () => {
   let fsExistsStub: sinon.SinonStub;
@@ -119,6 +127,103 @@ chains: {}
       const chains = loader.getConfiguredChains();
 
       expect(chains).to.have.members(['ethereum', 'arbitrum', 'polygon']);
+    });
+  });
+
+  describe('getRequiredSignerChains', () => {
+    it('includes active destinations and their bridge origins while skipping retired origins on skipped destinations', () => {
+      const loader = KeyFunderConfigLoader.fromObject({
+        version: '1',
+        roles: {
+          relayer: {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+        },
+        chainsToSkip: ['retiredrollup', 'ethereum'],
+        chains: {
+          ethereum: {
+            balances: { relayer: '1' },
+          },
+          retiredrollup: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: BridgeStack.OpStack,
+              originChain: 'retiredl1',
+              mode: OpStackBridgeMode.OptimismPortal,
+              bridgeContract: '0x3333333333333333333333333333333333333333',
+            },
+          },
+          mode: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: BridgeStack.OpStack,
+              originChain: 'ethereum',
+              mode: OpStackBridgeMode.OptimismPortal,
+              bridgeContract: '0x3333333333333333333333333333333333333333',
+            },
+          },
+          xai: {
+            balances: { relayer: '1' },
+            bridge: {
+              stack: BridgeStack.ArbitrumOrbit,
+              originChain: 'arbitrum',
+              mode: ArbitrumOrbitBridgeMode.RetryableTicket,
+              inboxAddress: '0x5555555555555555555555555555555555555555',
+            },
+          },
+        },
+      });
+
+      expect(loader.getChainsToProcess()).to.deep.equal(['mode', 'xai']);
+      expect(loader.getRequiredSignerChains()).to.deep.equal([
+        'mode',
+        'xai',
+        'ethereum',
+        'arbitrum',
+      ]);
+    });
+  });
+
+  describe('resolveBridgeStateFilePath', () => {
+    it('rejects empty KEYFUNDER_BRIDGE_STATE_FILE and accepts valid explicit paths', () => {
+      sinon.restore();
+      const loader = KeyFunderConfigLoader.fromObject({
+        version: '1',
+        roles: {},
+        chains: {},
+      });
+
+      expect(() =>
+        resolveBridgeStateFilePath({
+          config: loader.config,
+          configFile: path.join(os.tmpdir(), 'keyfunder.yaml'),
+          envBridgeStateFile: '   ',
+        }),
+      ).to.throw(
+        'KEYFUNDER_BRIDGE_STATE_FILE environment variable must not be empty when set',
+      );
+
+      expect(
+        resolveBridgeStateFilePath({
+          config: loader.config,
+          configFile: path.join(os.tmpdir(), 'keyfunder.yaml'),
+          envBridgeStateFile: '/state/bridge-state.json',
+        }),
+      ).to.equal('/state/bridge-state.json');
+
+      const conflictingLoader = KeyFunderConfigLoader.fromObject({
+        version: '1',
+        roles: {},
+        bridgeStateFile: '/tmp/ephemeral-state.json',
+        chains: {},
+      });
+      expect(() =>
+        resolveBridgeStateFilePath({
+          config: conflictingLoader.config,
+          configFile: path.join(os.tmpdir(), 'keyfunder.yaml'),
+          envBridgeStateFile: '/state/bridge-state.json',
+        }),
+      ).to.throw('Conflicting bridge state file configuration');
     });
   });
 
