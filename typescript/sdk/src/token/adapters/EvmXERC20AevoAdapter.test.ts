@@ -100,18 +100,49 @@ describe('EvmXERC20AevoAdapter', () => {
     });
   }
 
-  it('reads empty return data as a missing getter, not as an unauthorized minter', async () => {
-    sandbox.stub(adapter.getProvider(), 'call').resolves('0x');
+  interface Getter {
+    name: string;
+    reads: string;
+    selector: string;
+  }
 
-    let thrown: unknown;
-    try {
-      await adapter.getMintAuthority(MINTER);
-    } catch (error) {
-      thrown = error;
-    }
+  const getters: Getter[] = [
+    {
+      name: 'authorities',
+      reads: "a minter's authority",
+      selector: AUTHORITIES,
+    },
+    { name: 'caps', reads: "a minter's cap", selector: CAPS },
+  ];
 
-    expect(isMissingSelectorRevert(thrown)).to.equal(true);
-  });
+  // The token is read through both getters, so a getter that answers valid data
+  // for the one that does not fail leaves the failure of the other as the only
+  // thing that can be thrown, and a read that took it for an answer shows.
+  function stubFailingGetter(getter: Getter, answer: () => Promise<string>) {
+    sandbox.stub(adapter.getProvider(), 'call').callsFake(async (tx) => {
+      const data = await tx.data;
+      assert(typeof data === 'string', 'Expected calldata');
+      if (data.startsWith(getter.selector)) return answer();
+      if (data.startsWith(AUTHORITIES)) return ensure0x(word(1));
+      if (data.startsWith(CAPS)) return ensure0x(word(5_000_000n));
+      throw new Error(`Unexpected call ${data}`);
+    });
+  }
+
+  for (const getter of getters) {
+    it(`reads empty return data from ${getter.name} as a missing getter, not as ${getter.reads}`, async () => {
+      stubFailingGetter(getter, async () => '0x');
+
+      let thrown: unknown;
+      try {
+        await adapter.getMintAuthority(MINTER);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(isMissingSelectorRevert(thrown)).to.equal(true);
+    });
+  }
 
   interface RevertCase {
     name: string;
@@ -135,8 +166,30 @@ describe('EvmXERC20AevoAdapter', () => {
   ];
 
   for (const c of revertCases) {
-    it(`does not read ${c.name} as a minter's authority or cap`, async () => {
-      sandbox.stub(adapter.getProvider(), 'call').resolves(c.data);
+    for (const getter of getters) {
+      it(`does not read ${c.name} from ${getter.name} as ${getter.reads}`, async () => {
+        stubFailingGetter(getter, async () => c.data);
+
+        let thrown: unknown;
+        try {
+          await adapter.getMintAuthority(MINTER);
+        } catch (error) {
+          thrown = error;
+        }
+
+        // The revert is surfaced as the call exception it is, with its data.
+        expect(thrown).to.be.instanceOf(Error);
+        expect(thrown).to.have.property('code', 'CALL_EXCEPTION');
+        expect(thrown).to.have.property('data', c.data);
+        expect(isMissingSelectorRevert(thrown)).to.equal(false);
+      });
+    }
+  }
+
+  for (const getter of getters) {
+    it(`propagates a failed read of ${getter.name}`, async () => {
+      const failure = new Error('Invalid response from provider');
+      stubFailingGetter(getter, () => Promise.reject(failure));
 
       let thrown: unknown;
       try {
@@ -145,27 +198,9 @@ describe('EvmXERC20AevoAdapter', () => {
         thrown = error;
       }
 
-      // The revert is surfaced as the call exception it is, with its data.
-      expect(thrown).to.be.instanceOf(Error);
-      expect(thrown).to.have.property('code', 'CALL_EXCEPTION');
-      expect(thrown).to.have.property('data', c.data);
-      expect(isMissingSelectorRevert(thrown)).to.equal(false);
+      expect(thrown).to.equal(failure);
     });
   }
-
-  it('propagates a failed read', async () => {
-    const failure = new Error('Invalid response from provider');
-    sandbox.stub(adapter.getProvider(), 'call').rejects(failure);
-
-    let thrown: unknown;
-    try {
-      await adapter.getMintAuthority(MINTER);
-    } catch (error) {
-      thrown = error;
-    }
-
-    expect(thrown).to.equal(failure);
-  });
 
   // Two reads of the latest state may straddle the block that sets the cap of
   // a minter and authorizes it, and pair the old cap with the new authority, or
