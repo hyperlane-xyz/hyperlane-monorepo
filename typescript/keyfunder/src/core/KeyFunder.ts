@@ -350,8 +350,26 @@ export class KeyFunder {
     chain: string,
     keys: ResolvedKeyConfig[],
   ): Promise<void> {
+    const hasBridge = Boolean(this.config.chains[chain].bridge);
+    const keyErrors: unknown[] = [];
+
     for (const key of keys) {
-      await this.fundKey(chain, key);
+      try {
+        await this.fundKey(chain, key);
+      } catch (error) {
+        if (!hasBridge) {
+          throw error;
+        }
+        this.options.logger.error(
+          { chain, role: key.role, address: key.address, error },
+          'Failed to fund key on bridged chain; continuing remaining keys',
+        );
+        keyErrors.push(error);
+      }
+    }
+
+    if (keyErrors.length > 0) {
+      throw keyErrors[0];
     }
   }
 
@@ -382,7 +400,7 @@ export class KeyFunder {
       key.desiredBalance,
       decimals,
     );
-    const currentBalance = await this.getBalance(chain, key.address);
+    let currentBalance = await this.getBalance(chain, key.address);
 
     this.options.metrics?.recordWalletBalance(
       chain,
@@ -415,6 +433,19 @@ export class KeyFunder {
             'Failed to reconcile pending bridge attempt; retaining pending attempt and continuing',
           );
           pendingAttempt = storedAttempt;
+        }
+
+        if (!pendingAttempt) {
+          // Reconciliation cleared the stored attempt (e.g. deposit just delivered);
+          // refresh balance so we neither over-fund from a pre-delivery snapshot
+          // nor assume full credit if part of the deposit was already spent.
+          currentBalance = await this.getBalance(chain, key.address);
+          this.options.metrics?.recordWalletBalance(
+            chain,
+            key.address,
+            key.role,
+            parseFloat(ethers.utils.formatUnits(currentBalance, decimals)),
+          );
         }
       }
     }
@@ -491,8 +522,18 @@ export class KeyFunder {
               ethers.utils.formatUnits(bridgeResult.bridgedAmount, decimals),
             ),
           );
+          return;
         }
-        return;
+        const activeAfterBridge = await this.bridgeStateStore.get(
+          chain,
+          key.address,
+        );
+        if (activeAfterBridge) {
+          return;
+        }
+        throw new Error(
+          `Insufficient funder balance on ${chain} (has ${ethers.utils.formatUnits(funderBalance, decimals)}, needs ${ethers.utils.formatUnits(fundingAmount, decimals)}) and cross-chain bridge declined to fund ${key.role} (${key.address})`,
+        );
       }
 
       logger.error(

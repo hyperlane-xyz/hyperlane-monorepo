@@ -41,6 +41,8 @@ export {
   computeOpStackDepositTxHash,
   DELIVERY_EVENT_INTERFACES,
   extractBridgeDeliveryRefFromReceipt,
+  NO_TICKET_WITH_ID_SELECTOR,
+  resolveDestinationMailboxAddress,
   type BridgeDeliveryRef,
   type BridgeDeliveryStatus,
 } from './core/BridgeDelivery.js';

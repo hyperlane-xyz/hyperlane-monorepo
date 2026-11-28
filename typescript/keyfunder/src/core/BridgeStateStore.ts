@@ -1,5 +1,7 @@
-import { BigNumber } from 'ethers';
+import crypto from 'crypto';
+import { BigNumber, type providers } from 'ethers';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import type { Logger } from 'pino';
 
@@ -9,6 +11,7 @@ import { assert, eqAddress, sleep } from '@hyperlane-xyz/utils';
 import {
   ArbitrumOrbitBridgeMode,
   type BridgeConfig,
+  BridgeConfigSchema,
   BridgeStack,
   OpStackBridgeMode,
 } from '../config/types.js';
@@ -18,6 +21,7 @@ import {
   type BridgeDeliveryRef,
   checkBridgeDeliveryStatus,
   extractBridgeDeliveryRefFromReceipt,
+  fetchBlock,
   fetchTransactionReceipt,
 } from './BridgeDelivery.js';
 
@@ -34,6 +38,20 @@ export interface PersistedBridgeAttempt {
   funderAddress: string;
   stack: BridgeConfig['stack'];
   mode: BridgeConfig['mode'];
+  /** Snapshot of the bridge configuration used when this attempt was created. */
+  bridgeConfig?: BridgeConfig;
+  /** Resolved destination Hyperlane Mailbox address when using hyperlaneHook mode. */
+  destinationMailboxAddress?: string;
+  /** Target contract on the origin chain invoked by the deposit transaction. */
+  depositTarget?: string;
+  /** Calldata of the prepared origin deposit transaction. */
+  depositCalldata?: string;
+  /** Origin block height observed when the attempt was prepared. */
+  createdAtOriginBlock?: number;
+  /** Origin block height in which the deposit receipt was included. */
+  confirmedOriginBlock?: number;
+  /** True once the confirmed origin deposit block has reached origin finality. */
+  originFinalized?: boolean;
   /** Expected destination credit in destination base units (decimal string). */
   bridgedAmount: string;
   /** Destination balance read immediately before bridging (decimal string). */
@@ -79,10 +97,33 @@ function makeRecipientScopeKey(
   return `${destinationChain}:${recipient.toLowerCase()}`;
 }
 
+function cloneBridgeConfig(config: BridgeConfig): BridgeConfig {
+  if (config.stack === BridgeStack.OpStack) {
+    return {
+      ...config,
+      ...(config.hookDelivery
+        ? { hookDelivery: { ...config.hookDelivery } }
+        : {}),
+    };
+  }
+  return {
+    ...config,
+    ...(config.originGasToken
+      ? { originGasToken: { ...config.originGasToken } }
+      : {}),
+    ...(config.hookDelivery
+      ? { hookDelivery: { ...config.hookDelivery } }
+      : {}),
+  };
+}
+
 function cloneAttempt(attempt: PersistedBridgeAttempt): PersistedBridgeAttempt {
   return {
     ...attempt,
     approvalTxHashes: [...attempt.approvalTxHashes],
+    ...(attempt.bridgeConfig
+      ? { bridgeConfig: cloneBridgeConfig(attempt.bridgeConfig) }
+      : {}),
     ...(attempt.deliveryRef ? { deliveryRef: { ...attempt.deliveryRef } } : {}),
   };
 }
@@ -113,6 +154,39 @@ function isBridgeMode(value: unknown): value is BridgeConfig['mode'] {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function areDeliveryRefsEqual(
+  a?: BridgeDeliveryRef,
+  b?: BridgeDeliveryRef,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case BridgeDeliveryKind.OpStackDeposit:
+      return (
+        b.kind === BridgeDeliveryKind.OpStackDeposit &&
+        a.l2TxHash.toLowerCase() === b.l2TxHash.toLowerCase()
+      );
+    case BridgeDeliveryKind.ArbitrumDeposit:
+      return (
+        b.kind === BridgeDeliveryKind.ArbitrumDeposit &&
+        a.childTxHash.toLowerCase() === b.childTxHash.toLowerCase()
+      );
+    case BridgeDeliveryKind.ArbitrumRetryable:
+      return (
+        b.kind === BridgeDeliveryKind.ArbitrumRetryable &&
+        a.retryableCreationId.toLowerCase() ===
+          b.retryableCreationId.toLowerCase()
+      );
+    case BridgeDeliveryKind.HyperlaneMessage:
+      return (
+        b.kind === BridgeDeliveryKind.HyperlaneMessage &&
+        a.messageId.toLowerCase() === b.messageId.toLowerCase() &&
+        (a.destinationMailboxAddress ?? '').toLowerCase() ===
+          (b.destinationMailboxAddress ?? '').toLowerCase()
+      );
+  }
 }
 
 function parseDeliveryRef(
@@ -262,6 +336,39 @@ function parsePersistedAttempt(
     `Invalid bridge state record "${recordKey}": invalid depositTxHash`,
   );
   assert(
+    raw.destinationMailboxAddress === undefined ||
+      typeof raw.destinationMailboxAddress === 'string',
+    `Invalid bridge state record "${recordKey}": invalid destinationMailboxAddress`,
+  );
+  assert(
+    raw.depositTarget === undefined || typeof raw.depositTarget === 'string',
+    `Invalid bridge state record "${recordKey}": invalid depositTarget`,
+  );
+  assert(
+    raw.depositCalldata === undefined ||
+      typeof raw.depositCalldata === 'string',
+    `Invalid bridge state record "${recordKey}": invalid depositCalldata`,
+  );
+  assert(
+    raw.createdAtOriginBlock === undefined ||
+      (typeof raw.createdAtOriginBlock === 'number' &&
+        Number.isInteger(raw.createdAtOriginBlock) &&
+        raw.createdAtOriginBlock >= 0),
+    `Invalid bridge state record "${recordKey}": invalid createdAtOriginBlock`,
+  );
+  assert(
+    raw.confirmedOriginBlock === undefined ||
+      (typeof raw.confirmedOriginBlock === 'number' &&
+        Number.isInteger(raw.confirmedOriginBlock) &&
+        raw.confirmedOriginBlock >= 0),
+    `Invalid bridge state record "${recordKey}": invalid confirmedOriginBlock`,
+  );
+  assert(
+    raw.originFinalized === undefined ||
+      typeof raw.originFinalized === 'boolean',
+    `Invalid bridge state record "${recordKey}": invalid originFinalized`,
+  );
+  assert(
     Array.isArray(raw.approvalTxHashes) &&
       raw.approvalTxHashes.every((item) => typeof item === 'string'),
     `Invalid bridge state record "${recordKey}": approvalTxHashes must be a string array`,
@@ -275,6 +382,16 @@ function parsePersistedAttempt(
     `Invalid bridge state record "${recordKey}": invalid updatedAtMs`,
   );
 
+  let parsedBridgeConfig: BridgeConfig | undefined;
+  if (raw.bridgeConfig !== undefined) {
+    const parsedConfig = BridgeConfigSchema.safeParse(raw.bridgeConfig);
+    assert(
+      parsedConfig.success,
+      `Invalid bridge state record "${recordKey}": invalid bridgeConfig`,
+    );
+    parsedBridgeConfig = parsedConfig.data;
+  }
+
   const deliveryRef = parseDeliveryRef(recordKey, raw.deliveryRef);
 
   return {
@@ -284,6 +401,27 @@ function parsePersistedAttempt(
     funderAddress: raw.funderAddress,
     stack: raw.stack,
     mode: raw.mode,
+    ...(parsedBridgeConfig !== undefined
+      ? { bridgeConfig: parsedBridgeConfig }
+      : {}),
+    ...(raw.destinationMailboxAddress !== undefined
+      ? { destinationMailboxAddress: raw.destinationMailboxAddress }
+      : {}),
+    ...(raw.depositTarget !== undefined
+      ? { depositTarget: raw.depositTarget }
+      : {}),
+    ...(raw.depositCalldata !== undefined
+      ? { depositCalldata: raw.depositCalldata }
+      : {}),
+    ...(raw.createdAtOriginBlock !== undefined
+      ? { createdAtOriginBlock: raw.createdAtOriginBlock }
+      : {}),
+    ...(raw.confirmedOriginBlock !== undefined
+      ? { confirmedOriginBlock: raw.confirmedOriginBlock }
+      : {}),
+    ...(raw.originFinalized !== undefined
+      ? { originFinalized: raw.originFinalized }
+      : {}),
     bridgedAmount: raw.bridgedAmount,
     baselineDestinationBalance: raw.baselineDestinationBalance,
     originNativeValue: raw.originNativeValue,
@@ -350,8 +488,39 @@ interface SerializedBridgeStateFile {
   attempts: Record<string, PersistedBridgeAttempt | undefined>;
 }
 
+interface LockOwnershipRecord {
+  ownerId: string;
+  hostId: string;
+  pid: number;
+  createdAtMs: number;
+  expiresAtMs: number;
+}
+
 const LOCK_TIMEOUT_MS = 10_000;
 const LOCK_RETRY_MS = 15;
+const LOCK_LEASE_MS = 30_000;
+const LOCK_HEARTBEAT_MS = 2_000;
+const REAP_GUARD_LEASE_MS = 2_000;
+
+function computeLocalHostId(): string {
+  let bootId = '';
+  try {
+    if (fs.existsSync('/proc/sys/kernel/random/boot_id')) {
+      bootId = fs
+        .readFileSync('/proc/sys/kernel/random/boot_id', 'utf8')
+        .trim();
+    }
+  } catch {
+    // Ignore unreadable boot_id on non-Linux hosts
+  }
+  return bootId ? `${os.hostname()}:${bootId}` : os.hostname();
+}
+
+const LOCAL_LOCK_HOST_ID = computeLocalHostId();
+
+export function getLocalLockHostId(): string {
+  return LOCAL_LOCK_HOST_ID;
+}
 
 function isProcessAlive(pid: number): boolean {
   try {
@@ -366,72 +535,394 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+function getErrnoCode(error: unknown): string | undefined {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+    ? error.code
+    : undefined;
+}
+
+function syncParentDirectory(dir: string): void {
+  if (process.platform === 'win32') {
+    return;
+  }
+  const dirFd = fs.openSync(dir, 'r');
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
+  }
+}
+
+function writeCompleteStagingFile(filePath: string, payload: string): void {
+  const fd = fs.openSync(filePath, 'w', 0o600);
+  let succeeded = false;
+  try {
+    fs.writeFileSync(fd, payload, 'utf8');
+    fs.fsyncSync(fd);
+    succeeded = true;
+  } finally {
+    fs.closeSync(fd);
+    if (!succeeded) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup failure
+      }
+    }
+  }
+}
+
+function tryAtomicPublishStagingFile(
+  stagePath: string,
+  targetPath: string,
+  payload: string,
+): 'acquired' | 'exists' {
+  try {
+    fs.linkSync(stagePath, targetPath);
+    return 'acquired';
+  } catch (error) {
+    const code = getErrnoCode(error);
+    if (code === 'EEXIST') {
+      return 'exists';
+    }
+    if (code === 'EPERM' || code === 'EXDEV' || code === 'ENOSYS') {
+      // Fallback for filesystems without hardlink support: clean up target on any write failure.
+      let fd: number | undefined;
+      try {
+        fd = fs.openSync(targetPath, 'wx', 0o600);
+        let wrote = false;
+        try {
+          fs.writeFileSync(fd, payload, 'utf8');
+          fs.fsyncSync(fd);
+          wrote = true;
+        } finally {
+          fs.closeSync(fd);
+          if (!wrote) {
+            try {
+              fs.unlinkSync(targetPath);
+            } catch {
+              // Ignore cleanup failure
+            }
+          }
+        }
+        return 'acquired';
+      } catch (wxError) {
+        if (getErrnoCode(wxError) === 'EEXIST') {
+          return 'exists';
+        }
+        throw wxError;
+      }
+    }
+    throw error;
+  }
+}
+
+function inspectLockFile(
+  lockPath: string,
+  nowMs: number,
+  leaseMs: number,
+): { exists: boolean; isStale: boolean; ownerKey?: string } {
+  try {
+    const stat = fs.statSync(lockPath);
+    const raw = fs.readFileSync(lockPath, 'utf8');
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      isPlainRecord(parsed) &&
+      typeof parsed.ownerId === 'string' &&
+      parsed.ownerId.length > 0 &&
+      typeof parsed.hostId === 'string' &&
+      typeof parsed.pid === 'number' &&
+      typeof parsed.expiresAtMs === 'number'
+    ) {
+      const expired = nowMs > parsed.expiresAtMs;
+      // Only check local PID liveness when the lock belongs to this exact pod/host;
+      // cross-pod locks (e.g. PID 1 in a previous CronJob pod) rely strictly on lease expiry.
+      const deadLocalOwner =
+        parsed.hostId === LOCAL_LOCK_HOST_ID && !isProcessAlive(parsed.pid);
+      return {
+        exists: true,
+        isStale: expired || deadLocalOwner,
+        ownerKey: parsed.ownerId,
+      };
+    }
+    // Unrecognized/corrupt lock content: only treat as stale after a full lease window
+    // so an in-progress fallback write is never mistaken for an abandoned lock.
+    return {
+      exists: true,
+      isStale: nowMs - stat.mtimeMs > leaseMs,
+      ownerKey: `mtime:${String(stat.mtimeMs)}:${String(stat.size)}`,
+    };
+  } catch (error) {
+    if (getErrnoCode(error) === 'ENOENT') {
+      return { exists: false, isStale: false };
+    }
+    try {
+      const stat = fs.statSync(lockPath);
+      return {
+        exists: true,
+        isStale: nowMs - stat.mtimeMs > leaseMs,
+        ownerKey: `mtime:${String(stat.mtimeMs)}:${String(stat.size)}`,
+      };
+    } catch {
+      return { exists: false, isStale: false };
+    }
+  }
+}
+
 export class FileBridgeStateStore implements BridgeStateStore {
   private writeLock: Promise<void> = Promise.resolve();
   private tempCounter = 0;
 
-  constructor(private readonly filePath: string) {}
+  constructor(
+    private readonly filePath: string,
+    private readonly lockOptions?: {
+      leaseMs?: number;
+      heartbeatMs?: number;
+      timeoutMs?: number;
+    },
+  ) {}
 
   private get lockFilePath(): string {
     return `${this.filePath}.lock`;
   }
 
+  private get reapGuardPath(): string {
+    return `${this.filePath}.lock.reap`;
+  }
+
+  private tryAcquireReapGuard(dir: string): (() => void) | undefined {
+    const now = Date.now();
+    const guardOwner = crypto.randomUUID();
+    const stagePath = `${this.reapGuardPath}.${guardOwner}.stage`;
+    const record: LockOwnershipRecord = {
+      ownerId: guardOwner,
+      hostId: LOCAL_LOCK_HOST_ID,
+      pid: process.pid,
+      createdAtMs: now,
+      expiresAtMs: now + REAP_GUARD_LEASE_MS,
+    };
+    const payload = JSON.stringify(record);
+    writeCompleteStagingFile(stagePath, payload);
+    try {
+      const res = tryAtomicPublishStagingFile(
+        stagePath,
+        this.reapGuardPath,
+        payload,
+      );
+      if (res === 'acquired') {
+        syncParentDirectory(dir);
+        return () => {
+          try {
+            const current = inspectLockFile(
+              this.reapGuardPath,
+              Date.now(),
+              REAP_GUARD_LEASE_MS,
+            );
+            if (current.ownerKey === guardOwner) {
+              fs.unlinkSync(this.reapGuardPath);
+            }
+          } catch {
+            // Guard already cleaned up
+          }
+        };
+      }
+
+      const guardState = inspectLockFile(
+        this.reapGuardPath,
+        now,
+        REAP_GUARD_LEASE_MS,
+      );
+      if (guardState.exists && guardState.isStale) {
+        try {
+          fs.renameSync(stagePath, this.reapGuardPath);
+          syncParentDirectory(dir);
+          return () => {
+            try {
+              const current = inspectLockFile(
+                this.reapGuardPath,
+                Date.now(),
+                REAP_GUARD_LEASE_MS,
+              );
+              if (current.ownerKey === guardOwner) {
+                fs.unlinkSync(this.reapGuardPath);
+              }
+            } catch {
+              // Guard already cleaned up
+            }
+          };
+        } catch {
+          return undefined;
+        }
+      }
+      return undefined;
+    } finally {
+      try {
+        if (fs.existsSync(stagePath)) {
+          fs.unlinkSync(stagePath);
+        }
+      } catch {
+        // Ignore staging cleanup error
+      }
+    }
+  }
+
+  private refreshOwnedLockLease(
+    dir: string,
+    ownerId: string,
+    createdAtMs: number,
+    leaseMs: number,
+  ): void {
+    const releaseGuard = this.tryAcquireReapGuard(dir);
+    if (!releaseGuard) {
+      return;
+    }
+    const stagePath = `${this.lockFilePath}.${ownerId}.refresh.stage`;
+    try {
+      const current = inspectLockFile(this.lockFilePath, Date.now(), leaseMs);
+      if (!current.exists || current.ownerKey !== ownerId) {
+        return;
+      }
+      const refreshed: LockOwnershipRecord = {
+        ownerId,
+        hostId: LOCAL_LOCK_HOST_ID,
+        pid: process.pid,
+        createdAtMs,
+        expiresAtMs: Date.now() + leaseMs,
+      };
+      writeCompleteStagingFile(stagePath, JSON.stringify(refreshed));
+      fs.renameSync(stagePath, this.lockFilePath);
+    } catch {
+      // Best-effort heartbeat renewal
+    } finally {
+      try {
+        if (fs.existsSync(stagePath)) {
+          fs.unlinkSync(stagePath);
+        }
+      } catch {
+        // Ignore
+      }
+      releaseGuard();
+    }
+  }
+
   private async acquireInterprocessLock(): Promise<() => void> {
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true });
-    const deadline = Date.now() + LOCK_TIMEOUT_MS;
+
+    const leaseMs = this.lockOptions?.leaseMs ?? LOCK_LEASE_MS;
+    const heartbeatMs = this.lockOptions?.heartbeatMs ?? LOCK_HEARTBEAT_MS;
+    const timeoutMs = this.lockOptions?.timeoutMs ?? LOCK_TIMEOUT_MS;
+    const deadline = Date.now() + timeoutMs;
+
+    const makeReleaseHandle = (
+      ownerId: string,
+      createdAtMs: number,
+    ): (() => void) => {
+      const timer = setInterval(() => {
+        this.refreshOwnedLockLease(dir, ownerId, createdAtMs, leaseMs);
+      }, heartbeatMs);
+      timer.unref();
+
+      return () => {
+        clearInterval(timer);
+        const releaseDeadline = Date.now() + 500;
+        for (;;) {
+          const releaseGuard = this.tryAcquireReapGuard(dir);
+          if (releaseGuard) {
+            try {
+              const current = inspectLockFile(
+                this.lockFilePath,
+                Date.now(),
+                leaseMs,
+              );
+              if (current.exists && current.ownerKey === ownerId) {
+                fs.unlinkSync(this.lockFilePath);
+                syncParentDirectory(dir);
+              }
+            } catch {
+              // Lock already removed
+            } finally {
+              releaseGuard();
+            }
+            return;
+          }
+          if (Date.now() >= releaseDeadline) {
+            return;
+          }
+        }
+      };
+    };
 
     for (;;) {
+      const now = Date.now();
+      const ownerId = crypto.randomUUID();
+      const stagePath = `${this.lockFilePath}.${ownerId}.stage`;
+      const record: LockOwnershipRecord = {
+        ownerId,
+        hostId: LOCAL_LOCK_HOST_ID,
+        pid: process.pid,
+        createdAtMs: now,
+        expiresAtMs: now + leaseMs,
+      };
+      const payload = JSON.stringify(record);
+
+      writeCompleteStagingFile(stagePath, payload);
       try {
-        const fd = fs.openSync(this.lockFilePath, 'wx', 0o600);
-        try {
-          fs.writeFileSync(
-            fd,
-            JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
-            'utf8',
-          );
-          fs.fsyncSync(fd);
-        } finally {
-          fs.closeSync(fd);
-        }
-        return () => {
-          try {
-            fs.unlinkSync(this.lockFilePath);
-          } catch {
-            // Lock already removed
-          }
-        };
-      } catch (error) {
-        const code =
-          typeof error === 'object' && error !== null && 'code' in error
-            ? error.code
-            : undefined;
-        if (code !== 'EEXIST') {
-          throw error;
+        const publishResult = tryAtomicPublishStagingFile(
+          stagePath,
+          this.lockFilePath,
+          payload,
+        );
+        if (publishResult === 'acquired') {
+          syncParentDirectory(dir);
+          return makeReleaseHandle(ownerId, now);
         }
 
+        const observed = inspectLockFile(this.lockFilePath, now, leaseMs);
+        if (observed.exists && observed.isStale) {
+          const releaseGuard = this.tryAcquireReapGuard(dir);
+          if (releaseGuard) {
+            try {
+              const verified = inspectLockFile(
+                this.lockFilePath,
+                Date.now(),
+                leaseMs,
+              );
+              if (
+                verified.exists &&
+                verified.isStale &&
+                verified.ownerKey === observed.ownerKey
+              ) {
+                // Atomically replace the verified stale lockfile without an unlink gap
+                // so a competing contender can never unlink a new owner's live lock.
+                fs.renameSync(stagePath, this.lockFilePath);
+                syncParentDirectory(dir);
+                return makeReleaseHandle(ownerId, now);
+              }
+            } finally {
+              releaseGuard();
+            }
+          }
+        }
+      } finally {
         try {
-          const lockRaw = fs.readFileSync(this.lockFilePath, 'utf8');
-          const lockParsed: unknown = JSON.parse(lockRaw);
-          if (
-            isPlainRecord(lockParsed) &&
-            typeof lockParsed.pid === 'number' &&
-            !isProcessAlive(lockParsed.pid)
-          ) {
-            fs.unlinkSync(this.lockFilePath);
-            continue;
+          if (fs.existsSync(stagePath)) {
+            fs.unlinkSync(stagePath);
           }
         } catch {
-          // Concurrent holder may still be writing or releasing the lockfile
+          // Ignore staging cleanup error
         }
-
-        if (Date.now() >= deadline) {
-          throw new Error(
-            `Timed out acquiring interprocess lock for bridge state file ${this.filePath}`,
-          );
-        }
-        await sleep(LOCK_RETRY_MS);
       }
+
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Timed out acquiring interprocess lock for bridge state file ${this.filePath}`,
+        );
+      }
+      await sleep(LOCK_RETRY_MS);
     }
   }
 
@@ -499,24 +990,9 @@ export class FileBridgeStateStore implements BridgeStateStore {
     this.tempCounter += 1;
     const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.${this.tempCounter}.tmp`;
 
-    const tempFd = fs.openSync(tempPath, 'w', 0o600);
-    try {
-      fs.writeFileSync(tempFd, JSON.stringify(state, null, 2), 'utf8');
-      fs.fsyncSync(tempFd);
-    } finally {
-      fs.closeSync(tempFd);
-    }
-
+    writeCompleteStagingFile(tempPath, JSON.stringify(state, null, 2));
     fs.renameSync(tempPath, this.filePath);
-
-    if (process.platform !== 'win32') {
-      const dirFd = fs.openSync(dir, 'r');
-      try {
-        fs.fsyncSync(dirFd);
-      } finally {
-        fs.closeSync(dirFd);
-      }
-    }
+    syncParentDirectory(dir);
   }
 
   async get(
@@ -605,14 +1081,26 @@ export async function withRecipientBridgeLock<T>(
   }
 }
 
-async function resolveFinalizedOriginNonce(
+async function fetchTransactionResponse(
+  provider: providers.Provider,
+  txHash: string,
+): Promise<providers.TransactionResponse | null | undefined> {
+  if (typeof provider.getTransaction !== 'function') {
+    return undefined;
+  }
+  const response: providers.TransactionResponse | null | undefined =
+    await provider.getTransaction(txHash);
+  return response;
+}
+
+async function resolveFinalizedOriginState(
   multiProvider: MultiProvider,
   originChain: string,
   funderAddress: string,
-): Promise<number | undefined> {
+): Promise<{ finalizedNonce?: number; finalizedBlockNumber?: number }> {
   const originProvider = multiProvider.getProvider(originChain);
   if (typeof originProvider.getTransactionCount !== 'function') {
-    return undefined;
+    return {};
   }
 
   const metadata = multiProvider.getChainMetadata(originChain);
@@ -624,7 +1112,15 @@ async function resolveFinalizedOriginNonce(
       funderAddress,
       reorgPeriod,
     );
-    return typeof count === 'number' ? count : undefined;
+    let finalizedBlockNumber: number | undefined;
+    const tagBlock = await fetchBlock(originProvider, reorgPeriod);
+    if (tagBlock != null && typeof tagBlock.number === 'number') {
+      finalizedBlockNumber = tagBlock.number;
+    }
+    return {
+      finalizedNonce: typeof count === 'number' ? count : undefined,
+      finalizedBlockNumber,
+    };
   }
 
   const depth = Math.max(
@@ -641,7 +1137,10 @@ async function resolveFinalizedOriginNonce(
         funderAddress,
         finalizedHeight,
       );
-      return typeof count === 'number' ? count : undefined;
+      return {
+        finalizedNonce: typeof count === 'number' ? count : undefined,
+        finalizedBlockNumber: finalizedHeight,
+      };
     }
   }
 
@@ -649,7 +1148,120 @@ async function resolveFinalizedOriginNonce(
     funderAddress,
     'finalized',
   );
-  return typeof count === 'number' ? count : undefined;
+  return {
+    finalizedNonce: typeof count === 'number' ? count : undefined,
+  };
+}
+
+function getBridgeTargetContract(bridge?: BridgeConfig): string | undefined {
+  if (!bridge) {
+    return undefined;
+  }
+  if (bridge.stack === BridgeStack.OpStack) {
+    return bridge.mode === OpStackBridgeMode.HyperlaneHook
+      ? bridge.hookDelivery?.mailboxAddress
+      : bridge.bridgeContract;
+  }
+  return bridge.mode === ArbitrumOrbitBridgeMode.HyperlaneHook
+    ? bridge.hookDelivery?.mailboxAddress
+    : bridge.inboxAddress;
+}
+
+async function findRepricedReplacementReceipt(params: {
+  originProvider: providers.Provider;
+  attempt: PersistedBridgeAttempt;
+  effectiveBridge?: BridgeConfig;
+  destinationChainId?: number;
+  finalizedBlockNumber?: number;
+}): Promise<
+  | {
+      receipt: providers.TransactionReceipt;
+      deliveryRef?: BridgeDeliveryRef;
+    }
+  | undefined
+> {
+  const {
+    originProvider,
+    attempt,
+    effectiveBridge,
+    destinationChainId,
+    finalizedBlockNumber,
+  } = params;
+  if (
+    attempt.originNonce === undefined ||
+    typeof originProvider.getLogs !== 'function' ||
+    typeof originProvider.getTransaction !== 'function'
+  ) {
+    return undefined;
+  }
+
+  const targetAddress =
+    attempt.depositTarget ?? getBridgeTargetContract(effectiveBridge);
+  if (!targetAddress) {
+    return undefined;
+  }
+
+  const fromBlock =
+    attempt.createdAtOriginBlock ??
+    (finalizedBlockNumber !== undefined
+      ? Math.max(0, finalizedBlockNumber - 2_048)
+      : 0);
+  const toBlock: providers.BlockTag = finalizedBlockNumber ?? 'latest';
+
+  const logs: providers.Log[] | undefined = await originProvider.getLogs({
+    address: targetAddress,
+    fromBlock,
+    toBlock,
+  });
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return undefined;
+  }
+
+  const checkedHashes = new Set<string>();
+  for (const log of logs) {
+    const txHash = log.transactionHash;
+    if (!txHash || checkedHashes.has(txHash.toLowerCase())) {
+      continue;
+    }
+    checkedHashes.add(txHash.toLowerCase());
+
+    const tx = await fetchTransactionResponse(originProvider, txHash);
+    if (
+      tx == null ||
+      !eqAddress(tx.from, attempt.funderAddress) ||
+      tx.nonce !== attempt.originNonce
+    ) {
+      continue;
+    }
+
+    const receipt = await fetchTransactionReceipt(originProvider, txHash);
+    if (receipt == null) {
+      continue;
+    }
+    if (receipt.status === 0) {
+      return { receipt };
+    }
+
+    const deliveryRef = effectiveBridge
+      ? extractBridgeDeliveryRefFromReceipt({
+          receipt,
+          bridge: effectiveBridge,
+          destinationChainId,
+          destinationMailboxAddress: attempt.destinationMailboxAddress,
+        })
+      : undefined;
+
+    const calldataMatches =
+      attempt.depositCalldata !== undefined &&
+      typeof tx.data === 'string' &&
+      tx.data.toLowerCase() === attempt.depositCalldata.toLowerCase();
+
+    if (calldataMatches || deliveryRef !== undefined) {
+      return { receipt, deliveryRef };
+    }
+  }
+
+  return undefined;
 }
 
 function isBenignRebroadcastError(error: unknown): boolean {
@@ -691,18 +1303,21 @@ export async function reconcilePendingBridgeAttempt(params: {
     return undefined;
   }
 
-  // If the process stopped before entering the broadcast callback, no network
-  // send occurred regardless of subsequent account nonce activity.
+  // Only attempts that stopped strictly before entering `onSubmissionAttempt`
+  // (`before_attempt`) are guaranteed never to have hit the network.
   if (
     attempt.phase === 'prepared' &&
-    attempt.broadcastStage === 'before_attempt' &&
-    !attempt.depositTxHash
+    attempt.broadcastStage === 'before_attempt'
   ) {
     await stateStore.delete(destinationChain, recipient);
     return undefined;
   }
 
+  const effectiveBridge = attempt.bridgeConfig ?? bridge;
   const originProvider = multiProvider.getProvider(attempt.originChain);
+  const destMeta = multiProvider.getChainMetadata(destinationChain);
+  const destChainId =
+    typeof destMeta.chainId === 'number' ? destMeta.chainId : undefined;
 
   const checkDestinationDelivery = async (
     current: PersistedBridgeAttempt,
@@ -713,7 +1328,7 @@ export async function reconcilePendingBridgeAttempt(params: {
     const status = await checkBridgeDeliveryStatus({
       multiProvider,
       destinationChain,
-      bridge,
+      bridge: effectiveBridge,
       deliveryRef: current.deliveryRef,
     });
     if (status === 'delivered') {
@@ -745,14 +1360,21 @@ export async function reconcilePendingBridgeAttempt(params: {
     return current;
   };
 
-  if (attempt.phase === 'confirmed' && attempt.deliveryRef) {
+  // Only skip origin receipt re-validation once the origin inclusion block is finalized;
+  // before finality, an origin reorg can change the OP Stack L2 deposit hash.
+  if (
+    attempt.phase === 'confirmed' &&
+    attempt.originFinalized === true &&
+    attempt.deliveryRef
+  ) {
     return checkDestinationDelivery(attempt);
   }
 
   if (attempt.depositTxHash) {
+    const currentDepositTxHash = attempt.depositTxHash;
     const receipt = await fetchTransactionReceipt(
       originProvider,
-      attempt.depositTxHash,
+      currentDepositTxHash,
     );
 
     if (receipt != null) {
@@ -761,7 +1383,7 @@ export async function reconcilePendingBridgeAttempt(params: {
           {
             originChain: attempt.originChain,
             destinationChain,
-            depositTxHash: attempt.depositTxHash,
+            depositTxHash: currentDepositTxHash,
           },
           'Origin bridge deposit reverted; clearing persisted attempt for retry',
         );
@@ -769,27 +1391,39 @@ export async function reconcilePendingBridgeAttempt(params: {
         return undefined;
       }
 
-      let deliveryRef = attempt.deliveryRef;
-      if (!deliveryRef && bridge) {
-        const destMeta = multiProvider.getChainMetadata(destinationChain);
-        const destChainId =
-          typeof destMeta.chainId === 'number' ? destMeta.chainId : undefined;
-        deliveryRef = extractBridgeDeliveryRefFromReceipt({
-          receipt,
-          bridge,
-          destinationChainId: destChainId,
-        });
-      }
+      const refreshedRef = effectiveBridge
+        ? extractBridgeDeliveryRefFromReceipt({
+            receipt,
+            bridge: effectiveBridge,
+            destinationChainId: destChainId,
+            destinationMailboxAddress: attempt.destinationMailboxAddress,
+          })
+        : undefined;
+      const nextDeliveryRef = refreshedRef ?? attempt.deliveryRef;
+
+      const { finalizedBlockNumber } = await resolveFinalizedOriginState(
+        multiProvider,
+        attempt.originChain,
+        attempt.funderAddress,
+      );
+      const isOriginFinalized =
+        finalizedBlockNumber !== undefined &&
+        typeof receipt.blockNumber === 'number' &&
+        receipt.blockNumber <= finalizedBlockNumber;
 
       if (
         attempt.phase !== 'confirmed' ||
-        (deliveryRef && !attempt.deliveryRef)
+        attempt.confirmedOriginBlock !== receipt.blockNumber ||
+        attempt.originFinalized !== isOriginFinalized ||
+        !areDeliveryRefsEqual(attempt.deliveryRef, nextDeliveryRef)
       ) {
         attempt = {
           ...attempt,
           phase: 'confirmed',
           broadcastStage: 'submitted',
-          ...(deliveryRef ? { deliveryRef } : {}),
+          confirmedOriginBlock: receipt.blockNumber,
+          originFinalized: isOriginFinalized,
+          ...(nextDeliveryRef ? { deliveryRef: nextDeliveryRef } : {}),
           updatedAtMs: Date.now(),
         };
         await stateStore.set(attempt);
@@ -798,10 +1432,41 @@ export async function reconcilePendingBridgeAttempt(params: {
       return checkDestinationDelivery(attempt);
     }
 
-    const knownTx =
-      typeof originProvider.getTransaction === 'function'
-        ? await originProvider.getTransaction(attempt.depositTxHash)
-        : undefined;
+    if (attempt.phase === 'confirmed') {
+      // If destination execution has already succeeded (or origin receipt is
+      // unavailable on a partial mock returning `undefined` rather than JSON-RPC `null`),
+      // check destination delivery before demoting a confirmed attempt.
+      if (attempt.deliveryRef) {
+        const destAfterMissingReceipt = await checkDestinationDelivery(attempt);
+        if (!destAfterMissingReceipt) {
+          return undefined;
+        }
+        if (receipt === undefined) {
+          return destAfterMissingReceipt;
+        }
+      }
+
+      // Origin JSON-RPC explicitly returned `null`: reorg temporarily unmined
+      // an unfinalized receipt, so drop the stale locator and continue as submitted.
+      const {
+        deliveryRef: _droppedRef,
+        confirmedOriginBlock: _droppedBlock,
+        originFinalized: _droppedFinalized,
+        ...restAttempt
+      } = attempt;
+      attempt = {
+        ...restAttempt,
+        phase: 'submitted',
+        broadcastStage: 'submitted',
+        updatedAtMs: Date.now(),
+      };
+      await stateStore.set(attempt);
+    }
+
+    const knownTx = await fetchTransactionResponse(
+      originProvider,
+      currentDepositTxHash,
+    );
     if (knownTx != null) {
       if (attempt.phase === 'prepared') {
         attempt = {
@@ -814,17 +1479,18 @@ export async function reconcilePendingBridgeAttempt(params: {
       }
       return attempt;
     }
+  }
 
-    if (attempt.originNonce !== undefined) {
-      const finalizedNonce = await resolveFinalizedOriginNonce(
+  if (attempt.originNonce !== undefined) {
+    const { finalizedNonce, finalizedBlockNumber } =
+      await resolveFinalizedOriginState(
         multiProvider,
         attempt.originChain,
         attempt.funderAddress,
       );
-      if (
-        finalizedNonce !== undefined &&
-        finalizedNonce > attempt.originNonce
-      ) {
+
+    if (finalizedNonce !== undefined && finalizedNonce > attempt.originNonce) {
+      if (attempt.depositTxHash) {
         // Re-read receipt after observing finalized nonce advancement so a race
         // where this exact deposit just finalized is never misclassified.
         const postFinalityReceipt = await fetchTransactionReceipt(
@@ -836,129 +1502,112 @@ export async function reconcilePendingBridgeAttempt(params: {
             await stateStore.delete(destinationChain, recipient);
             return undefined;
           }
-          let deliveryRef = attempt.deliveryRef;
-          if (!deliveryRef && bridge) {
-            const destMeta = multiProvider.getChainMetadata(destinationChain);
-            const destChainId =
-              typeof destMeta.chainId === 'number'
-                ? destMeta.chainId
-                : undefined;
-            deliveryRef = extractBridgeDeliveryRefFromReceipt({
-              receipt: postFinalityReceipt,
-              bridge,
-              destinationChainId: destChainId,
-            });
-          }
+          const deliveryRef = effectiveBridge
+            ? extractBridgeDeliveryRefFromReceipt({
+                receipt: postFinalityReceipt,
+                bridge: effectiveBridge,
+                destinationChainId: destChainId,
+                destinationMailboxAddress: attempt.destinationMailboxAddress,
+              })
+            : attempt.deliveryRef;
           attempt = {
             ...attempt,
             phase: 'confirmed',
             broadcastStage: 'submitted',
+            confirmedOriginBlock: postFinalityReceipt.blockNumber,
+            originFinalized: true,
             ...(deliveryRef ? { deliveryRef } : {}),
             updatedAtMs: Date.now(),
           };
           await stateStore.set(attempt);
           return checkDestinationDelivery(attempt);
         }
-
-        logger.warn(
-          {
-            originChain: attempt.originChain,
-            destinationChain,
-            depositTxHash: attempt.depositTxHash,
-            originNonce: attempt.originNonce,
-            finalizedNonce,
-          },
-          'Origin deposit nonce finalized by a replacement transaction; clearing attempt for retry',
-        );
-        await stateStore.delete(destinationChain, recipient);
-        return undefined;
       }
 
-      if (
-        attempt.phase === 'prepared' &&
-        typeof originProvider.getTransactionCount === 'function'
-      ) {
-        const pendingNonce = await originProvider.getTransactionCount(
-          attempt.funderAddress,
-          'pending',
-        );
-        if (
-          typeof pendingNonce === 'number' &&
-          pendingNonce <= attempt.originNonce
-        ) {
-          logger.info(
-            {
-              originChain: attempt.originChain,
-              destinationChain,
-              depositTxHash: attempt.depositTxHash,
-              originNonce: attempt.originNonce,
-            },
-            'Prepared bridge attempt was never accepted on origin; clearing for retry',
-          );
+      // Check whether the nonce was consumed by a repriced/speed-up bridge deposit
+      // rather than a cancellation before clearing the attempt.
+      const replacement = await findRepricedReplacementReceipt({
+        originProvider,
+        attempt,
+        effectiveBridge,
+        destinationChainId: destChainId,
+        finalizedBlockNumber,
+      });
+      if (replacement) {
+        if (replacement.receipt.status === 0) {
           await stateStore.delete(destinationChain, recipient);
           return undefined;
         }
-      }
-    }
-
-    // Submission remains uncertain (unfinalized and missing from node lookup):
-    // rebroadcast the exact same signed raw transaction when retained.
-    if (
-      attempt.signedTransaction &&
-      typeof originProvider.sendTransaction === 'function'
-    ) {
-      try {
-        const rebroadcastResp = await originProvider.sendTransaction(
-          attempt.signedTransaction,
-        );
         attempt = {
           ...attempt,
-          phase: 'submitted',
+          phase: 'confirmed',
           broadcastStage: 'submitted',
-          depositTxHash: rebroadcastResp.hash || attempt.depositTxHash,
+          depositTxHash: replacement.receipt.transactionHash,
+          confirmedOriginBlock: replacement.receipt.blockNumber,
+          originFinalized: true,
+          ...(replacement.deliveryRef
+            ? { deliveryRef: replacement.deliveryRef }
+            : {}),
           updatedAtMs: Date.now(),
         };
         await stateStore.set(attempt);
-      } catch (error) {
-        if (!isBenignRebroadcastError(error)) {
-          logger.warn(
-            {
-              error,
-              originChain: attempt.originChain,
-              depositTxHash: attempt.depositTxHash,
-            },
-            'Rebroadcast of uncertain origin deposit failed; keeping attempt reserved',
-          );
-        }
+        logger.info(
+          {
+            originChain: attempt.originChain,
+            destinationChain,
+            originNonce: attempt.originNonce,
+            replacementTxHash: replacement.receipt.transactionHash,
+          },
+          'Adopted repriced origin bridge deposit transaction for finalized nonce',
+        );
+        return checkDestinationDelivery(attempt);
       }
-    }
 
-    return attempt;
-  }
-
-  if (
-    attempt.phase === 'prepared' &&
-    attempt.originNonce !== undefined &&
-    typeof originProvider.getTransactionCount === 'function'
-  ) {
-    const pendingNonce = await originProvider.getTransactionCount(
-      attempt.funderAddress,
-      'pending',
-    );
-    if (
-      typeof pendingNonce === 'number' &&
-      pendingNonce <= attempt.originNonce
-    ) {
-      logger.info(
+      logger.warn(
         {
           originChain: attempt.originChain,
           destinationChain,
+          depositTxHash: attempt.depositTxHash,
           originNonce: attempt.originNonce,
+          finalizedNonce,
         },
-        'Unbroadcast prepared bridge attempt reconciled via assigned nonce; clearing for retry',
+        'Origin deposit nonce finalized by a cancellation transaction; clearing attempt for retry',
       );
       await stateStore.delete(destinationChain, recipient);
       return undefined;
+    }
+  }
+
+  // Submission remains uncertain (unfinalized and missing from node lookup):
+  // keep `attempting` and `submitted` attempts reserved (never clear on pendingNonce alone)
+  // and rebroadcast the exact same signed raw transaction when available.
+  if (
+    attempt.signedTransaction &&
+    typeof originProvider.sendTransaction === 'function'
+  ) {
+    try {
+      const rebroadcastResp = await originProvider.sendTransaction(
+        attempt.signedTransaction,
+      );
+      attempt = {
+        ...attempt,
+        phase: 'submitted',
+        broadcastStage: 'submitted',
+        depositTxHash: rebroadcastResp.hash || attempt.depositTxHash,
+        updatedAtMs: Date.now(),
+      };
+      await stateStore.set(attempt);
+    } catch (error) {
+      if (!isBenignRebroadcastError(error)) {
+        logger.warn(
+          {
+            error,
+            originChain: attempt.originChain,
+            depositTxHash: attempt.depositTxHash,
+          },
+          'Rebroadcast of uncertain origin deposit failed; keeping attempt reserved',
+        );
+      }
     }
   }
 
@@ -966,14 +1615,16 @@ export async function reconcilePendingBridgeAttempt(params: {
 }
 
 /**
- * Sums the native value and gas fee budgets of any unmined origin deposits
- * recorded for the same (originChain, funderAddress).
+ * Sums the native value and gas fee budgets of any origin deposits recorded for
+ * the same (originChain, funderAddress) whose debits are not yet included in
+ * `snapshotBlockNumber`.
  */
 export async function getUnresolvedOriginNativeSpend(params: {
   multiProvider: MultiProvider;
   stateStore?: BridgeStateStore;
   originChain: string;
   funderAddress: string;
+  snapshotBlockNumber?: number;
   excludeDestinationChain?: string;
   excludeRecipient?: string;
 }): Promise<BigNumber> {
@@ -982,6 +1633,7 @@ export async function getUnresolvedOriginNativeSpend(params: {
     stateStore,
     originChain,
     funderAddress,
+    snapshotBlockNumber,
     excludeDestinationChain,
     excludeRecipient,
   } = params;
@@ -1011,7 +1663,16 @@ export async function getUnresolvedOriginNativeSpend(params: {
       continue;
     }
 
-    if (entry.phase === 'confirmed') {
+    if (
+      entry.phase === 'confirmed' &&
+      entry.confirmedOriginBlock !== undefined &&
+      (snapshotBlockNumber === undefined ||
+        entry.confirmedOriginBlock <= snapshotBlockNumber)
+    ) {
+      continue;
+    }
+
+    if (entry.phase === 'confirmed' && snapshotBlockNumber === undefined) {
       continue;
     }
 
@@ -1020,7 +1681,11 @@ export async function getUnresolvedOriginNativeSpend(params: {
         originProvider,
         entry.depositTxHash,
       );
-      if (receipt != null) {
+      if (
+        receipt != null &&
+        (snapshotBlockNumber === undefined ||
+          receipt.blockNumber <= snapshotBlockNumber)
+      ) {
         continue;
       }
     }

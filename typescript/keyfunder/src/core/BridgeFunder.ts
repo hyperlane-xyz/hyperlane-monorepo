@@ -21,7 +21,10 @@ import {
   OpStackBridgeMode,
 } from '../config/types.js';
 
-import { extractBridgeDeliveryRefFromReceipt } from './BridgeDelivery.js';
+import {
+  extractBridgeDeliveryRefFromReceipt,
+  resolveDestinationMailboxAddress,
+} from './BridgeDelivery.js';
 import {
   type BridgeStateStore,
   type PersistedBridgeAttempt,
@@ -352,14 +355,25 @@ async function assertOriginNativeReserve(params: {
   } = params;
   const nativeDecimals =
     multiProvider.getChainMetadata(originChain).nativeToken?.decimals ?? 18;
+  const originProvider = multiProvider.getProvider(originChain);
   const signer = multiProvider.getSigner(originChain);
+  const rawBlockNumber =
+    typeof originProvider.getBlockNumber === 'function'
+      ? await originProvider.getBlockNumber()
+      : undefined;
+  const snapshotBlockNumber =
+    typeof rawBlockNumber === 'number' ? rawBlockNumber : undefined;
+
   const [originBalance, unresolvedSpend] = await Promise.all([
-    signer.getBalance(),
+    snapshotBlockNumber !== undefined
+      ? signer.getBalance(snapshotBlockNumber)
+      : signer.getBalance(),
     getUnresolvedOriginNativeSpend({
       multiProvider,
       stateStore,
       originChain,
       funderAddress,
+      snapshotBlockNumber,
       excludeDestinationChain: destinationChain,
       excludeRecipient: recipient,
     }),
@@ -385,6 +399,7 @@ interface DepositPersistenceContext {
   recipient: string;
   funderAddress: string;
   bridge: BridgeConfig;
+  destinationMailboxAddress?: string;
   bridgedDestinationAmount: BigNumber;
   baselineDestinationBalance: BigNumber;
 }
@@ -442,6 +457,14 @@ async function submitTrackedDepositTransaction(params: {
   } = params;
   const { stateStore } = persistence;
 
+  const originProvider = multiProvider.getProvider(originChain);
+  const rawOriginBlock =
+    typeof originProvider.getBlockNumber === 'function'
+      ? await originProvider.getBlockNumber()
+      : undefined;
+  const createdAtOriginBlock =
+    typeof rawOriginBlock === 'number' ? rawOriginBlock : undefined;
+
   const signer = multiProvider.getSigner(originChain);
   let signedTransaction: string | undefined;
   let precomputedHash: string | undefined;
@@ -472,6 +495,17 @@ async function submitTrackedDepositTransaction(params: {
     funderAddress: persistence.funderAddress,
     stack: persistence.bridge.stack,
     mode: persistence.bridge.mode,
+    bridgeConfig: persistence.bridge,
+    ...(persistence.destinationMailboxAddress !== undefined
+      ? { destinationMailboxAddress: persistence.destinationMailboxAddress }
+      : {}),
+    ...(typeof transaction.to === 'string'
+      ? { depositTarget: transaction.to }
+      : {}),
+    ...(typeof transaction.data === 'string'
+      ? { depositCalldata: transaction.data }
+      : {}),
+    ...(createdAtOriginBlock !== undefined ? { createdAtOriginBlock } : {}),
     bridgedAmount: persistence.bridgedDestinationAmount.toString(),
     baselineDestinationBalance:
       persistence.baselineDestinationBalance.toString(),
@@ -546,6 +580,7 @@ async function submitTrackedDepositTransaction(params: {
         receipt,
         bridge: persistence.bridge,
         destinationChainId: destChainId,
+        destinationMailboxAddress: persistence.destinationMailboxAddress,
       });
 
       attempt = {
@@ -553,6 +588,7 @@ async function submitTrackedDepositTransaction(params: {
         phase: 'confirmed',
         broadcastStage: 'submitted',
         depositTxHash: receipt.transactionHash,
+        confirmedOriginBlock: receipt.blockNumber,
         ...(deliveryRef ? { deliveryRef } : {}),
         updatedAtMs: Date.now(),
       };
@@ -662,6 +698,16 @@ async function dispatchViaHyperlaneHook(params: {
     ),
   ]);
 
+  const resolvedDestinationMailbox = await resolveDestinationMailboxAddress({
+    destinationProvider,
+    destinationChain,
+    hookDelivery,
+  });
+  const hookPersistence: DepositPersistenceContext = {
+    ...persistence,
+    destinationMailboxAddress: resolvedDestinationMailbox,
+  };
+
   const funderAddress = await multiProvider.getSignerAddress(originChain);
 
   return withOriginSignerLock(originChain, funderAddress, async () => {
@@ -736,7 +782,7 @@ async function dispatchViaHyperlaneHook(params: {
 
     await assertOriginNativeReserve({
       multiProvider,
-      stateStore: persistence.stateStore,
+      stateStore: hookPersistence.stateStore,
       originChain,
       funderAddress,
       destinationChain,
@@ -754,7 +800,7 @@ async function dispatchViaHyperlaneHook(params: {
       originNativeValue: quotedFee,
       originGasBudget: gasCost,
       approvalTxHashes: [],
-      persistence,
+      persistence: hookPersistence,
     });
   });
 }

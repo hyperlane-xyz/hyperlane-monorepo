@@ -7,6 +7,7 @@ import {
   ArbitrumOrbitBridgeMode,
   type BridgeConfig,
   BridgeStack,
+  type HyperlaneHookBridgeDelivery,
   OpStackBridgeMode,
 } from '../config/types.js';
 
@@ -29,6 +30,7 @@ export const DELIVERY_EVENT_INTERFACES = {
   arbitrumRetryablePrecompile: new ethers.utils.Interface([
     'event RedeemScheduled(bytes32 indexed ticketId, bytes32 indexed retryTxHash, uint64 indexed sequenceNum, uint64 donatedGas, address gasDonor, uint256 maxRefund, uint256 submissionFeeRefund)',
     'function getTimeout(bytes32 ticketId) view returns (uint256)',
+    'error NoTicketWithID()',
   ]),
   hyperlaneMailboxEvents: new ethers.utils.Interface([
     'event DispatchId(bytes32 indexed messageId)',
@@ -38,6 +40,11 @@ export const DELIVERY_EVENT_INTERFACES = {
     'function mailbox() view returns (address)',
   ]),
 } as const;
+
+export const NO_TICKET_WITH_ID_SELECTOR = ethers.utils
+  .id('NoTicketWithID()')
+  .slice(0, 10)
+  .toLowerCase();
 
 export enum BridgeDeliveryKind {
   OpStackDeposit = 'opStackDeposit',
@@ -255,8 +262,10 @@ export function extractBridgeDeliveryRefFromReceipt(params: {
   receipt: providers.TransactionReceipt;
   bridge: BridgeConfig;
   destinationChainId?: number;
+  destinationMailboxAddress?: string;
 }): BridgeDeliveryRef | undefined {
-  const { receipt, bridge, destinationChainId } = params;
+  const { receipt, bridge, destinationChainId, destinationMailboxAddress } =
+    params;
   if (!Array.isArray(receipt.logs) || receipt.logs.length === 0) {
     return undefined;
   }
@@ -274,11 +283,15 @@ export function extractBridgeDeliveryRefFromReceipt(params: {
       );
     for (const log of receipt.logs) {
       if (log.topics[0] === dispatchIdTopic && log.topics[1]) {
+        const resolvedMailbox =
+          destinationMailboxAddress ??
+          bridge.hookDelivery?.destinationMailboxAddress;
         return {
           kind: BridgeDeliveryKind.HyperlaneMessage,
           messageId: log.topics[1],
-          destinationMailboxAddress:
-            bridge.hookDelivery?.destinationMailboxAddress,
+          ...(resolvedMailbox
+            ? { destinationMailboxAddress: resolvedMailbox }
+            : {}),
         };
       }
     }
@@ -403,18 +416,76 @@ export function extractBridgeDeliveryRefFromReceipt(params: {
   return undefined;
 }
 
-function isCallExceptionRevert(error: unknown): boolean {
+function extractRevertHexData(error: unknown, depth = 0): string | undefined {
+  if (depth > 3 || typeof error !== 'object' || error === null) {
+    return undefined;
+  }
+  if (
+    'data' in error &&
+    typeof error.data === 'string' &&
+    error.data.startsWith('0x')
+  ) {
+    return error.data;
+  }
+  if ('error' in error) {
+    return extractRevertHexData(error.error, depth + 1);
+  }
+  return undefined;
+}
+
+function isNoTicketWithIdError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
   }
-  const code = 'code' in error ? error.code : undefined;
-  const errorName = 'errorName' in error ? error.errorName : undefined;
-  const data = 'data' in error ? error.data : undefined;
-  return (
-    code === ethers.utils.Logger.errors.CALL_EXCEPTION ||
-    errorName === 'NoTicketWithID' ||
-    (typeof data === 'string' && data.startsWith('0x') && data.length >= 10)
+  if ('errorName' in error && error.errorName === 'NoTicketWithID') {
+    return true;
+  }
+  const revertHex = extractRevertHexData(error);
+  if (
+    typeof revertHex === 'string' &&
+    revertHex.toLowerCase().startsWith(NO_TICKET_WITH_ID_SELECTOR)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export async function resolveDestinationMailboxAddress(params: {
+  destinationProvider: providers.Provider;
+  destinationChain: string;
+  hookDelivery: HyperlaneHookBridgeDelivery;
+}): Promise<string> {
+  const { destinationProvider, destinationChain, hookDelivery } = params;
+  let mailboxAddress = hookDelivery.destinationMailboxAddress;
+
+  if (!mailboxAddress) {
+    const rawMailbox = await destinationProvider.call({
+      to: hookDelivery.recipientAddress,
+      data: DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.encodeFunctionData(
+        'mailbox',
+      ),
+    });
+    const decodedMailbox =
+      DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.decodeFunctionResult(
+        'mailbox',
+        rawMailbox,
+      );
+    const candidate: unknown = decodedMailbox[0];
+    assert(
+      typeof candidate === 'string' &&
+        ethers.utils.isAddress(candidate) &&
+        !eqAddress(candidate, ethers.constants.AddressZero),
+      `Destination recipient contract ${hookDelivery.recipientAddress} on ${destinationChain} did not return a valid Mailbox address; configure hookDelivery.destinationMailboxAddress explicitly`,
+    );
+    mailboxAddress = candidate;
+  }
+
+  const code = await destinationProvider.getCode(mailboxAddress);
+  assert(
+    typeof code === 'string' && code !== '0x' && code.length > 2,
+    `Resolved destination Hyperlane Mailbox ${mailboxAddress} has no deployed contract code on ${destinationChain}`,
   );
+  return mailboxAddress;
 }
 
 /**
@@ -434,7 +505,7 @@ export async function fetchTransactionReceipt(
   return receipt;
 }
 
-async function fetchBlock(
+export async function fetchBlock(
   provider: providers.Provider,
   blockTag: providers.BlockTag,
 ): Promise<providers.Block | null | undefined> {
@@ -512,6 +583,11 @@ export async function checkBridgeDeliveryStatus(params: {
         }
       }
 
+      const latestBlock = await fetchBlock(destinationProvider, 'latest');
+      if (latestBlock == null) {
+        return 'pending';
+      }
+
       const timeoutCall =
         DELIVERY_EVENT_INTERFACES.arbitrumRetryablePrecompile.encodeFunctionData(
           'getTimeout',
@@ -519,10 +595,13 @@ export async function checkBridgeDeliveryStatus(params: {
         );
 
       try {
-        const rawTimeout = await destinationProvider.call({
-          to: ARB_RETRYABLE_TX_ADDRESS,
-          data: timeoutCall,
-        });
+        const rawTimeout = await destinationProvider.call(
+          {
+            to: ARB_RETRYABLE_TX_ADDRESS,
+            data: timeoutCall,
+          },
+          latestBlock.number,
+        );
         const decodedTimeout =
           DELIVERY_EVENT_INTERFACES.arbitrumRetryablePrecompile.decodeFunctionResult(
             'getTimeout',
@@ -533,20 +612,16 @@ export async function checkBridgeDeliveryStatus(params: {
           BigNumber.isBigNumber(timeoutTimestamp),
           'Invalid ArbRetryableTx.getTimeout result',
         );
-        const latestBlock = await fetchBlock(destinationProvider, 'latest');
-        if (
-          latestBlock != null &&
-          BigNumber.from(latestBlock.timestamp).gt(timeoutTimestamp)
-        ) {
+        if (BigNumber.from(latestBlock.timestamp).gt(timeoutTimestamp)) {
           return 'failed';
         }
         return 'pending';
       } catch (error) {
-        if (!isCallExceptionRevert(error)) {
+        if (!isNoTicketWithIdError(error)) {
           throw error;
         }
-        // Ticket no longer exists in ArbRetryableTx: check if a manual redeem
-        // succeeded; otherwise the ticket expired and was pruned.
+        // Ticket no longer exists in ArbRetryableTx (NoTicketWithID): check if
+        // a manual redeem succeeded; otherwise the ticket expired and was pruned.
         const logs = await destinationProvider.getLogs({
           address: ARB_RETRYABLE_TX_ADDRESS,
           fromBlock: creationReceipt.blockNumber,
@@ -568,29 +643,15 @@ export async function checkBridgeDeliveryStatus(params: {
     }
 
     case BridgeDeliveryKind.HyperlaneMessage: {
-      let mailboxAddress =
+      const mailboxAddress =
         deliveryRef.destinationMailboxAddress ??
-        bridge?.hookDelivery?.destinationMailboxAddress;
-
-      if (!mailboxAddress && bridge?.hookDelivery?.recipientAddress) {
-        const rawMailbox = await destinationProvider.call({
-          to: bridge.hookDelivery.recipientAddress,
-          data: DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.encodeFunctionData(
-            'mailbox',
-          ),
-        });
-        const decodedMailbox =
-          DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.decodeFunctionResult(
-            'mailbox',
-            rawMailbox,
-          );
-        const candidate: unknown = decodedMailbox[0];
-        assert(
-          typeof candidate === 'string' && ethers.utils.isAddress(candidate),
-          'Destination recipient contract did not return a valid Mailbox address',
-        );
-        mailboxAddress = candidate;
-      }
+        (bridge?.hookDelivery
+          ? await resolveDestinationMailboxAddress({
+              destinationProvider,
+              destinationChain,
+              hookDelivery: bridge.hookDelivery,
+            })
+          : undefined);
 
       assert(
         mailboxAddress,

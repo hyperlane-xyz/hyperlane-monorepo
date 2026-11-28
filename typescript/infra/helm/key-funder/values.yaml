@@ -8,11 +8,12 @@ hyperlane:
   chainsToSkip: []
   registryUri: ''
   keyfunderConfig: ''
-  bridgeStateFile: /state/bridge-state.json
+  bridgeStateFile: ''
   skipIgpClaim: false
   prometheusPushGateway: ''
 storage:
   enabled: true
+  mountPath: /state
   size: 1Gi
   storageClass: ''
 cronjob:

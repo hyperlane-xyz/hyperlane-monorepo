@@ -1,3 +1,9 @@
+{{- $stateMountPath := trimSuffix "/" (.Values.storage.mountPath | default "/state") -}}
+{{- $customBridgeStateFile := .Values.hyperlane.bridgeStateFile | default "" -}}
+{{- if and .Values.storage.enabled $customBridgeStateFile (not (hasPrefix (printf "%s/" $stateMountPath) $customBridgeStateFile)) -}}
+{{- fail (printf "hyperlane.bridgeStateFile (%s) must reside under storage.mountPath (%s) when storage.enabled is true" $customBridgeStateFile $stateMountPath) -}}
+{{- end -}}
+{{- $effectiveBridgeStateFile := ternary ($customBridgeStateFile | default (printf "%s/bridge-state.json" $stateMountPath)) $customBridgeStateFile .Values.storage.enabled -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -30,9 +36,9 @@ spec:
               value: info
             - name: KEYFUNDER_CONFIG_FILE
               value: /config/keyfunder.yaml
-            {{- if or .Values.storage.enabled .Values.hyperlane.bridgeStateFile }}
+            {{- if $effectiveBridgeStateFile }}
             - name: KEYFUNDER_BRIDGE_STATE_FILE
-              value: {{ .Values.hyperlane.bridgeStateFile | default "/state/bridge-state.json" | quote }}
+              value: {{ $effectiveBridgeStateFile | quote }}
             {{- end }}
             {{- if .Values.hyperlane.registryUri }}
             - name: REGISTRY_URI
@@ -55,7 +61,7 @@ spec:
               readOnly: true
             {{- if .Values.storage.enabled }}
             - name: state
-              mountPath: /state
+              mountPath: {{ $stateMountPath | quote }}
             {{- end }}
           volumes:
           - name: config

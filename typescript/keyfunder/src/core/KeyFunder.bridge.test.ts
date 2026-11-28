@@ -27,12 +27,16 @@ import {
   BridgeDeliveryKind,
   computeOpStackDepositTxHash,
   DELIVERY_EVENT_INTERFACES,
+  NO_TICKET_WITH_ID_SELECTOR,
 } from './BridgeDelivery.js';
 import {
   BRIDGE_INTERFACES,
   formatStandardHookMetadata,
 } from './BridgeFunder.js';
-import { FileBridgeStateStore } from './BridgeStateStore.js';
+import {
+  FileBridgeStateStore,
+  getLocalLockHostId,
+} from './BridgeStateStore.js';
 import { KeyFunder } from './KeyFunder.js';
 
 chai.use(chaiAsPromised);
@@ -293,6 +297,16 @@ function createMockSetup(params?: {
     params?.destRoleBalance ?? BigNumber.from(0),
   );
   destProvider.getCode.resolves(params?.destCode ?? MOCK_CONTRACT_CODE);
+  destProvider.call.callsFake(async (tx) => {
+    const to = (await tx.to)?.toLowerCase();
+    if (to === FORWARDER_ADDR.toLowerCase()) {
+      return DELIVERY_EVENT_INTERFACES.hyperlaneMailboxClient.encodeFunctionResult(
+        'mailbox',
+        [MAILBOX_ADDR],
+      );
+    }
+    return '0x';
+  });
 
   const originProvider = sinon.createStubInstance(
     ethers.providers.JsonRpcProvider,
@@ -971,6 +985,7 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
 
     const originProvider = new ethers.providers.JsonRpcProvider();
     sinon.stub(originProvider, 'getCode').resolves(MOCK_CONTRACT_CODE);
+    sinon.stub(originProvider, 'getBlockNumber').resolves(100);
     sinon
       .stub(originProvider, 'getGasPrice')
       .resolves(BigNumber.from(1_000_000_000));
@@ -1164,6 +1179,7 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
 
     const originProvider = new ethers.providers.JsonRpcProvider();
     sinon.stub(originProvider, 'getCode').resolves(MOCK_CONTRACT_CODE);
+    sinon.stub(originProvider, 'getBlockNumber').resolves(100);
     sinon
       .stub(originProvider, 'getGasPrice')
       .resolves(BigNumber.from(1_000_000_000));
@@ -1800,6 +1816,717 @@ describe('KeyFunder OP Stack and Arbitrum Orbit bridges', () => {
       const readZora = await storeB.get('zora', VALIDATOR_ADDR);
       expect(readMode?.recipient).to.equal(RELAYER_ADDR);
       expect(readZora?.recipient).to.equal(VALIDATOR_ADDR);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('validates destination Mailbox discovery before hyperlaneHook dispatch and supports explicit destinationMailboxAddress', async () => {
+    const setupFail = createMockSetup();
+    setupFail.destProvider.call.rejects(
+      new Error('execution reverted: no mailbox() getter'),
+    );
+    setupFail.originProvider.call.resolves(
+      BRIDGE_INTERFACES.hyperlaneMailbox.encodeFunctionResult('quoteDispatch', [
+        ethers.utils.parseEther('0.3'),
+      ]),
+    );
+
+    const noDestMailboxConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+      version: '1',
+      roles: { relayer: { address: RELAYER_ADDR } },
+      chains: {
+        base: {
+          balances: { relayer: '0.25' },
+          bridge: {
+            stack: 'opStack',
+            originChain: 'ethereum',
+            mode: 'hyperlaneHook',
+            hookDelivery: {
+              mailboxAddress: MAILBOX_ADDR,
+              hookAddress: HOOK_ADDR,
+              recipientAddress: FORWARDER_ADDR,
+              destinationDomain: 8453,
+            },
+          },
+        },
+      },
+    });
+
+    const kfFail = new KeyFunder(setupFail.multiProvider, noDestMailboxConfig, {
+      logger: pino({ level: 'silent' }),
+    });
+    await expect(kfFail.fundChain('base')).to.be.rejectedWith(
+      'no mailbox() getter',
+    );
+    sinon.assert.notCalled(setupFail.sendTransaction);
+
+    // Explicit destinationMailboxAddress succeeds even when recipient lacks mailbox()
+    const explicitDestMailbox = '0x9999999999999999999999999999999999999999';
+    const setupExplicit = createMockSetup();
+    setupExplicit.destProvider.call.rejects(
+      new Error('execution reverted: no mailbox() getter'),
+    );
+    setupExplicit.originProvider.call.resolves(
+      BRIDGE_INTERFACES.hyperlaneMailbox.encodeFunctionResult('quoteDispatch', [
+        ethers.utils.parseEther('0.3'),
+      ]),
+    );
+
+    const explicitConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+      version: '1',
+      roles: { relayer: { address: RELAYER_ADDR } },
+      chains: {
+        base: {
+          balances: { relayer: '0.25' },
+          bridge: {
+            stack: 'opStack',
+            originChain: 'ethereum',
+            mode: 'hyperlaneHook',
+            hookDelivery: {
+              mailboxAddress: MAILBOX_ADDR,
+              destinationMailboxAddress: explicitDestMailbox,
+              hookAddress: HOOK_ADDR,
+              recipientAddress: FORWARDER_ADDR,
+              destinationDomain: 8453,
+            },
+          },
+        },
+      },
+    });
+
+    const kfExplicit = new KeyFunder(
+      setupExplicit.multiProvider,
+      explicitConfig,
+      {
+        logger: pino({ level: 'silent' }),
+      },
+    );
+    await kfExplicit.fundChain('base');
+    sinon.assert.calledOnce(setupExplicit.sendTransaction);
+  });
+
+  it('pins Arbitrum retryable timeout check to latestBlock.number and only treats NoTicketWithID as pruned', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-arb-timeout-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      const retryableLogs = buildArbitrumRetryableLogs({});
+      const arbOriginHash = `0x${'71'.repeat(32)}`;
+      const store = new FileBridgeStateStore(stateFile);
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'xai',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.ArbitrumOrbit,
+        mode: ArbitrumOrbitBridgeMode.RetryableTicket,
+        bridgedAmount: ethers.utils.parseEther('1').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('1').toString(),
+        originGasBudget: '100000000000000',
+        originNonce: 4,
+        broadcastStage: 'submitted',
+        depositTxHash: arbOriginHash,
+        approvalTxHashes: [],
+        phase: 'submitted',
+        createdAtMs: Date.now() - 10_000,
+        updatedAtMs: Date.now() - 10_000,
+      });
+
+      const arbConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          xai: {
+            balances: { relayer: '1' },
+            bridge: {
+              stack: 'arbitrumOrbit',
+              originChain: 'ethereum',
+              mode: 'retryableTicket',
+              inboxAddress: INBOX_ADDR,
+            },
+          },
+        },
+      });
+
+      // 1. Generic CALL_EXCEPTION without NoTicketWithID selector must keep the attempt reserved!
+      const setupGenericErr = createMockSetup({ destDomainId: 660279 });
+      setupGenericErr.originProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({
+          transactionHash: arbOriginHash,
+          logs: retryableLogs,
+        }),
+      );
+      setupGenericErr.destProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({ status: 1, logs: [] }),
+      );
+      setupGenericErr.destProvider.getBlock.resolves(
+        buildBlock({ number: 555, timestamp: 2_000 }),
+      );
+      const genericCallErr = Object.assign(new Error('RPC empty response'), {
+        code: ethers.utils.Logger.errors.CALL_EXCEPTION,
+        data: '0x',
+      });
+      setupGenericErr.destProvider.call.rejects(genericCallErr);
+
+      const kfGeneric = new KeyFunder(
+        setupGenericErr.multiProvider,
+        arbConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          bridgeStateFile: stateFile,
+        },
+      );
+      await kfGeneric.fundChain('xai');
+      sinon.assert.notCalled(setupGenericErr.sendTransaction);
+      expect(setupGenericErr.destProvider.call.firstCall.args[1]).to.equal(555);
+      expect(await store.get('xai', RELAYER_ADDR)).to.not.equal(undefined);
+
+      // 2. Named NoTicketWithID() revert selector clears pruned unredeemed ticket and retries!
+      const setupNoTicket = createMockSetup({ destDomainId: 660279 });
+      setupNoTicket.originProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({
+          transactionHash: arbOriginHash,
+          logs: retryableLogs,
+        }),
+      );
+      setupNoTicket.destProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({ status: 1, logs: [] }),
+      );
+      setupNoTicket.destProvider.getBlock.resolves(
+        buildBlock({ number: 556, timestamp: 2_005 }),
+      );
+      setupNoTicket.destProvider.getLogs.resolves([]);
+      const noTicketErr = Object.assign(new Error('NoTicketWithID'), {
+        data: NO_TICKET_WITH_ID_SELECTOR,
+      });
+      setupNoTicket.destProvider.call.rejects(noTicketErr);
+
+      const kfNoTicket = new KeyFunder(setupNoTicket.multiProvider, arbConfig, {
+        logger: pino({ level: 'silent' }),
+        bridgeStateFile: stateFile,
+      });
+      await kfNoTicket.fundChain('xai');
+      sinon.assert.calledOnce(setupNoTicket.sendTransaction);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes OP Stack deliveryRef after origin reorg and reconciles in-flight attempts using stored bridgeConfig', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-reorg-storedcfg-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      const originHash = `0x${'61'.repeat(32)}`;
+      const blockHashA = `0x${'a1'.repeat(32)}`;
+      const blockHashB = `0x${'b2'.repeat(32)}`;
+      const { log: logBlockA, l2TxHash: staleL2Hash } = buildOpStackDepositLog({
+        blockHash: blockHashA,
+        logIndex: 2,
+      });
+      const { log: logBlockB, l2TxHash: reorgedL2Hash } =
+        buildOpStackDepositLog({
+          blockHash: blockHashB,
+          logIndex: 5,
+        });
+      expect(logBlockA.blockHash).to.equal(blockHashA);
+      expect(staleL2Hash).to.not.equal(reorgedL2Hash);
+
+      const originalOpBridgeConfig = ChainConfigSchema.parse({
+        balances: { relayer: '0.5' },
+        bridge: {
+          stack: 'opStack',
+          originChain: 'ethereum',
+          mode: 'optimismPortal',
+          bridgeContract: PORTAL_ADDR,
+        },
+      }).bridge;
+
+      const store = new FileBridgeStateStore(stateFile);
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        bridgeConfig: originalOpBridgeConfig,
+        confirmedOriginBlock: 195,
+        originFinalized: false,
+        bridgedAmount: ethers.utils.parseEther('0.5').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.5').toString(),
+        originGasBudget: '100000000000000',
+        originNonce: 5,
+        broadcastStage: 'submitted',
+        depositTxHash: originHash,
+        deliveryRef: {
+          kind: BridgeDeliveryKind.OpStackDeposit,
+          l2TxHash: staleL2Hash,
+        },
+        approvalTxHashes: [],
+        phase: 'confirmed',
+        createdAtMs: Date.now() - 10_000,
+        updatedAtMs: Date.now() - 10_000,
+      });
+
+      // Operator meanwhile switched current YAML config on `mode` to `hyperlaneHook`,
+      // AND L1 reorged `originHash` from blockHashA to blockHashB (block 196, still unfinalized at head 200)!
+      const switchedConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'hyperlaneHook',
+              hookDelivery: {
+                mailboxAddress: MAILBOX_ADDR,
+                destinationMailboxAddress: MAILBOX_ADDR,
+                hookAddress: HOOK_ADDR,
+                recipientAddress: FORWARDER_ADDR,
+                destinationDomain: 8453,
+              },
+            },
+          },
+        },
+      });
+
+      const setup = createMockSetup({
+        destRoleBalance: ethers.utils.parseEther('0.5'),
+      });
+      setup.originProvider.getBlockNumber.resolves(200);
+      setup.originProvider.getTransactionCount.resolves(6);
+      setup.originProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({
+          transactionHash: originHash,
+          blockNumber: 196,
+          blockHash: blockHashB,
+          logs: [logBlockB],
+        }),
+      );
+      setup.destProvider.getTransactionReceipt.callsFake(async (txHash) => {
+        const resolvedHash = await txHash;
+        if (resolvedHash.toLowerCase() === reorgedL2Hash.toLowerCase()) {
+          return buildContractReceipt({
+            transactionHash: reorgedL2Hash,
+            status: 1,
+          });
+        }
+        throw new Error(`Queried stale L2 hash ${resolvedHash}`);
+      });
+
+      const kf = new KeyFunder(setup.multiProvider, switchedConfig, {
+        logger: pino({ level: 'silent' }),
+        bridgeStateFile: stateFile,
+      });
+      await kf.fundChain('mode');
+
+      // Stored OP Stack config extracted reorgedL2Hash from logsBlockB and confirmed delivery!
+      expect(await store.get('mode', RELAYER_ADDR)).to.equal(undefined);
+      sinon.assert.notCalled(setup.sendTransaction);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('adopts repriced origin deposit at finalized nonce instead of double-bridging and keeps attempting deposits reserved', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-repriced-attempting-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      const store = new FileBridgeStateStore(stateFile);
+
+      // Part A: `prepared` with `broadcastStage: 'attempting'` must remain reserved even when pendingNonce === originNonce
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        bridgedAmount: ethers.utils.parseEther('0.5').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.5').toString(),
+        originGasBudget: '100000000000000',
+        originNonce: 8,
+        broadcastStage: 'attempting',
+        approvalTxHashes: [],
+        phase: 'prepared',
+        createdAtMs: Date.now() - 2_000,
+        updatedAtMs: Date.now() - 2_000,
+      });
+
+      const opConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '0.5' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+            },
+          },
+        },
+      });
+
+      const setupAttempting = createMockSetup({ originNonce: 8 });
+      setupAttempting.originProvider.getBlockNumber.resolves(200);
+      setupAttempting.originProvider.getTransactionCount.resolves(8);
+
+      const kfAttempting = new KeyFunder(
+        setupAttempting.multiProvider,
+        opConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          bridgeStateFile: stateFile,
+        },
+      );
+      await kfAttempting.fundChain('mode');
+      sinon.assert.notCalled(setupAttempting.sendTransaction);
+      expect((await store.get('mode', RELAYER_ADDR))?.phase).to.equal(
+        'prepared',
+      );
+
+      // Part B: Operator repriced nonce 8 -> original hash has no receipt, replacement hash finalized on PORTAL_ADDR!
+      const origHash = `0x${'44'.repeat(32)}`;
+      const replacementHash = `0x${'55'.repeat(32)}`;
+      const depositCalldata =
+        BRIDGE_INTERFACES.optimismPortal.encodeFunctionData(
+          'depositTransaction',
+          [RELAYER_ADDR, ethers.utils.parseEther('0.5'), 200_000, false, '0x'],
+        );
+      const builtRep = buildOpStackDepositLog({});
+      const replacementLogs: ethers.providers.Log[] = [
+        { ...builtRep.log, transactionHash: replacementHash },
+      ];
+
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        depositTarget: PORTAL_ADDR,
+        depositCalldata,
+        createdAtOriginBlock: 150,
+        bridgedAmount: ethers.utils.parseEther('0.5').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.5').toString(),
+        originGasBudget: '100000000000000',
+        originNonce: 8,
+        broadcastStage: 'submitted',
+        depositTxHash: origHash,
+        approvalTxHashes: [],
+        phase: 'submitted',
+        createdAtMs: Date.now() - 20_000,
+        updatedAtMs: Date.now() - 20_000,
+      });
+
+      const setupRepriced = createMockSetup({ originNonce: 9 });
+      setupRepriced.originProvider.getBlockNumber.resolves(200);
+      setupRepriced.originProvider.getTransactionCount.resolves(9);
+      setupRepriced.originProvider.getTransactionReceipt.callsFake(
+        async (txHash) => {
+          const resolvedHash = await txHash;
+          if (resolvedHash.toLowerCase() === replacementHash.toLowerCase()) {
+            return buildContractReceipt({
+              transactionHash: replacementHash,
+              blockNumber: 160,
+              logs: replacementLogs,
+            });
+          }
+          const nullReceipt: ethers.providers.TransactionReceipt =
+            JSON.parse('null');
+          return nullReceipt;
+        },
+      );
+      setupRepriced.originProvider.getLogs.resolves(replacementLogs);
+      const txResp: ethers.providers.TransactionResponse = {
+        hash: replacementHash,
+        confirmations: 40,
+        from: FUNDER_ADDR,
+        nonce: 8,
+        gasLimit: BigNumber.from(100_000),
+        data: depositCalldata,
+        value: ethers.utils.parseEther('0.5'),
+        chainId: 1,
+        wait: async () =>
+          buildContractReceipt({ transactionHash: replacementHash }),
+      };
+      setupRepriced.originProvider.getTransaction.callsFake(async (txHash) => {
+        const resolvedHash = await txHash;
+        if (resolvedHash.toLowerCase() === replacementHash.toLowerCase()) {
+          return txResp;
+        }
+        const nullTx: ethers.providers.TransactionResponse = JSON.parse('null');
+        return nullTx;
+      });
+      // L2 receipt not yet mined -> attempt should be adopted as confirmed with replacementHash!
+      setupRepriced.destProvider.getTransactionReceipt.callsFake(async () => {
+        const nullDest: ethers.providers.TransactionReceipt =
+          JSON.parse('null');
+        return nullDest;
+      });
+
+      const kfRepriced = new KeyFunder(setupRepriced.multiProvider, opConfig, {
+        logger: pino({ level: 'silent' }),
+        bridgeStateFile: stateFile,
+      });
+      await kfRepriced.fundChain('mode');
+
+      sinon.assert.notCalled(setupRepriced.sendTransaction);
+      const adopted = await store.get('mode', RELAYER_ADDR);
+      expect(adopted?.phase).to.equal('confirmed');
+      expect(adopted?.depositTxHash).to.equal(replacementHash);
+      expect(adopted?.deliveryRef?.kind).to.equal(
+        BridgeDeliveryKind.OpStackDeposit,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('pins assertOriginNativeReserve balance and receipt inclusion to the same origin snapshot block', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-reserve-snapshot-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      const store = new FileBridgeStateStore(stateFile);
+      const otherTxHash = `0x${'77'.repeat(32)}`;
+      // Another deposit of 0.7 ETH just mined in block 101, AFTER snapshot block 100!
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'zora',
+        recipient: VALIDATOR_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        bridgedAmount: ethers.utils.parseEther('0.7').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('0.7').toString(),
+        originGasBudget: '0',
+        originNonce: 6,
+        broadcastStage: 'submitted',
+        depositTxHash: otherTxHash,
+        approvalTxHashes: [],
+        phase: 'submitted',
+        createdAtMs: Date.now() - 3_000,
+        updatedAtMs: Date.now() - 3_000,
+      });
+
+      // Snapshot block is 100, where balance is 1.5 ETH (before block 101 debited 0.7 ETH).
+      // Reserve buffer is 0.5 ETH, new deposit needs 0.7 ETH => 0.7 + 0.7 + 0.5 = 1.9 > 1.5 ETH!
+      const setup = createMockSetup({
+        originFunderBalance: ethers.utils.parseEther('1.5'),
+      });
+      setup.originProvider.getBlockNumber.resolves(100);
+      setup.originProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({
+          transactionHash: otherTxHash,
+          blockNumber: 101,
+        }),
+      );
+
+      const config: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '0.7' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+              originReserveBuffer: '0.5',
+            },
+          },
+        },
+      });
+
+      const kf = new KeyFunder(setup.multiProvider, config, {
+        logger: pino({ level: 'silent' }),
+        bridgeStateFile: stateFile,
+      });
+
+      await expect(kf.fundChain('mode')).to.be.rejectedWith(
+        'Insufficient origin balance on ethereum',
+      );
+      expect(setup.originSigner.getBalance.firstCall.args[0]).to.equal(100);
+      sinon.assert.notCalled(setup.sendTransaction);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes recipient balance after reconciliation clears a delivered deposit, reports unfunded status on declined bridge, and recovers cross-pod locks safely', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'keyfunder-refresh-declined-lock-'),
+    );
+    const stateFile = path.join(tmpDir, 'bridge-state.json');
+
+    try {
+      // 1. Balance refresh after reconciliation clears a just-delivered deposit
+      const store = new FileBridgeStateStore(stateFile);
+      const deliveredL2Hash = `0x${'c9'.repeat(32)}`;
+      await store.set({
+        originChain: 'ethereum',
+        destinationChain: 'mode',
+        recipient: RELAYER_ADDR,
+        funderAddress: FUNDER_ADDR,
+        stack: BridgeStack.OpStack,
+        mode: OpStackBridgeMode.OptimismPortal,
+        originFinalized: true,
+        bridgedAmount: ethers.utils.parseEther('1').toString(),
+        baselineDestinationBalance: '0',
+        originNativeValue: ethers.utils.parseEther('1').toString(),
+        originGasBudget: '0',
+        originNonce: 3,
+        broadcastStage: 'submitted',
+        depositTxHash: `0x${'c8'.repeat(32)}`,
+        deliveryRef: {
+          kind: BridgeDeliveryKind.OpStackDeposit,
+          l2TxHash: deliveredL2Hash,
+        },
+        approvalTxHashes: [],
+        phase: 'confirmed',
+        createdAtMs: Date.now() - 5_000,
+        updatedAtMs: Date.now() - 5_000,
+      });
+
+      const setupRefresh = createMockSetup();
+      let balanceReads = 0;
+      setupRefresh.destProvider.getBalance.callsFake(async () => {
+        balanceReads += 1;
+        // First read (before reconciliation) sees 0; second read (after delivery clears) sees 1 ETH!
+        return balanceReads === 1
+          ? BigNumber.from(0)
+          : ethers.utils.parseEther('1');
+      });
+      setupRefresh.destProvider.getTransactionReceipt.resolves(
+        buildContractReceipt({ transactionHash: deliveredL2Hash, status: 1 }),
+      );
+
+      const refreshConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '1' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+            },
+          },
+        },
+      });
+
+      const kfRefresh = new KeyFunder(
+        setupRefresh.multiProvider,
+        refreshConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          bridgeStateFile: stateFile,
+        },
+      );
+      await kfRefresh.fundChain('mode');
+      expect(balanceReads).to.equal(2);
+      sinon.assert.notCalled(setupRefresh.sendTransaction);
+
+      // 2. Bridge declined (shortfall 1 < minBridgeThreshold 2) with 0 local funder balance -> reports chain failure!
+      const setupDeclined = createMockSetup();
+      const metrics = sinon.createStubInstance(KeyFunderMetrics);
+      const declinedConfig: KeyFunderConfig = KeyFunderConfigSchema.parse({
+        version: '1',
+        roles: { relayer: { address: RELAYER_ADDR } },
+        chains: {
+          mode: {
+            balances: { relayer: '1' },
+            bridge: {
+              stack: 'opStack',
+              originChain: 'ethereum',
+              mode: 'optimismPortal',
+              bridgeContract: PORTAL_ADDR,
+              minBridgeThreshold: '2',
+              maxBridgeAmount: '5',
+            },
+          },
+        },
+      });
+
+      const kfDeclined = new KeyFunder(
+        setupDeclined.multiProvider,
+        declinedConfig,
+        {
+          logger: pino({ level: 'silent' }),
+          metrics,
+          bridgeStateFile: stateFile,
+        },
+      );
+      await expect(kfDeclined.fundAllChains()).to.be.rejectedWith(
+        '1/1 chains failed to fund: mode',
+      );
+      expect(
+        metrics.recordChainFundingSuccess.calledOnceWithExactly('mode', false),
+      ).to.equal(true);
+
+      // 3. Cross-pod lock safety:
+      // (a) An active remote-pod lease (`expiresAtMs` in future) is NOT reaped even if its PID does not exist locally
+      const lockPath = `${stateFile}.lock`;
+      expect(getLocalLockHostId()).to.not.equal('other-pod-id');
+      fs.writeFileSync(
+        lockPath,
+        JSON.stringify({
+          ownerId: 'active-remote-pod-owner',
+          hostId: 'other-pod-id',
+          pid: 999_999_999,
+          createdAtMs: Date.now(),
+          expiresAtMs: Date.now() + 60_000,
+        }),
+      );
+      const fastTimeoutStore = new FileBridgeStateStore(stateFile, {
+        leaseMs: 5_000,
+        timeoutMs: 80,
+      });
+      await expect(
+        fastTimeoutStore.get('mode', RELAYER_ADDR),
+      ).to.be.rejectedWith('Timed out acquiring interprocess lock');
+
+      // (b) An expired remote-pod lease with `pid === process.pid` IS recovered without mistaking local PID for the dead pod
+      fs.writeFileSync(
+        lockPath,
+        JSON.stringify({
+          ownerId: 'remote-pod-owner',
+          hostId: 'other-pod-id',
+          pid: process.pid,
+          createdAtMs: Date.now() - 60_000,
+          expiresAtMs: Date.now() - 1_000,
+        }),
+      );
+      const podStore = new FileBridgeStateStore(stateFile, {
+        leaseMs: 5_000,
+        timeoutMs: 500,
+      });
+      expect(await podStore.get('mode', RELAYER_ADDR)).to.equal(undefined);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
