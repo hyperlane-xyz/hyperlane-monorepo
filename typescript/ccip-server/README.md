@@ -111,14 +111,34 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
     stored one. A reveal that fails these checks gets HTTP 403.
 
   - Sealevel: not served (HTTP 403) unless `CCS_SEALEVEL_REVEALS_ENABLED=true`,
-    in which case the hash is ignored and the stored commitment ICA is served.
-    Keep the flag unset in production until the Sealevel reveal flow is
-    redesigned.
+    in which case the hash is ignored and the stored commitment ICA is served
+    once the destination router and `sender` checks below pass. Keep the flag
+    unset in production until the Sealevel reveal flow is redesigned.
   - Any other or unknown origin protocol returns 500.
 
-  Reads do not modify stored commitments. A missing receipt, a failing RPC, or
-  a candidate ICA whose chain read failed (when none of the others match) get
-  HTTP 500 so the relayer retries. A candidate the chain answers as underivable
+  For EVM origins, the request's `sender` must be a CCIP-read ISM of the
+  reveal's ISM tree on its destination, walked from the mailbox's recipient ISM
+  for a registry ICA router; otherwise the reveal gets HTTP 403. The walk's
+  limits match the relayer's: ISMs beyond its depth and count limits are not
+  walked. The walk stops once it finds `sender`, so a failed RPC read elsewhere
+  in the tree only matters (as `Chain read is pending`) when `sender` is not
+  found. The same check runs for Sealevel-origin reveals but does not bind
+  them: their ISM field is chosen by the request.
+
+  An EVM-origin reveal is served only once its paired commitment message is
+  delivered on the destination mailbox.
+
+  Reads do not modify stored commitments. States that resolve shortly get HTTP
+  500 with a pending `error` that the relayer retries quickly:
+  - `Commitment upload is pending`: no stored record yet.
+  - `Origin transaction receipt is pending`: no receipt for the hinted
+    transaction yet.
+  - `Commitment delivery is pending`: the paired commitment message of an
+    EVM-origin reveal is not delivered on the destination yet.
+  - `Chain read is pending`: a failing RPC, including a candidate ICA whose
+    chain read failed when none of the others match.
+
+  A candidate the chain answers as underivable
   (e.g. a router without salted accounts) does not match, and a reveal whose
   dispatched routers the chain answers as unable to derive the ICA gets HTTP 403. For a destination without `interchainAccountRouter`, only the dispatched
   routers' ICA is checked. Existing records with incorrect addresses still need

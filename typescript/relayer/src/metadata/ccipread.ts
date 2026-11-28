@@ -9,7 +9,7 @@ import {
   WormholeIsmConfig,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
+import { WithAddress, assert, ensure0x, eqAddress } from '@hyperlane-xyz/utils';
 
 import type {
   CcipReadMetadataBuildResult,
@@ -103,6 +103,10 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       string[],
       Uint8Array,
     ];
+    assert(
+      eqAddress(sender, ism.address),
+      `Offchain lookup sender ${sender} is not the queried ISM ${ism.address}`,
+    );
 
     const baseResult: Omit<CcipReadMetadataBuildResult, 'metadata'> = {
       type: ism.type,

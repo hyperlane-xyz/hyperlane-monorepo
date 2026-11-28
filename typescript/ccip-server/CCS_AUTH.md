@@ -34,6 +34,10 @@ HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-s
 }
 ```
 
+`data` must be the canonical ABI encoding of `getCallsFromRevealMessage(bytes)`, as
+produced by `abi.encodeCall`. As on every ABI lookup route, any other encoding of the
+same call, such as one with trailing bytes, is rejected with HTTP 400.
+
 The signed URL is the configured public endpoint URL, including
 `/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
 keep their signing format if their signer is whitelisted, but a reveal is only served
@@ -51,13 +55,27 @@ ever enrolled on a registry ICA router (`enrollRemoteRouterAndIsm`), this skip i
 registrations made without an ISM on that pair stop resolving.
 
 Origin binding differs by protocol. EVM-origin reveals must carry a 32-byte dispatch
-`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from
-that receipt matches the stored ICA or a registry router version candidate (HTTP 403
-otherwise). Sealevel-origin reveals are not served (HTTP 403) unless
+`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from that
+receipt matches the stored ICA or a registry router version candidate (HTTP 403
+otherwise). They are served only once the reveal's paired commitment message is delivered
+on the destination mailbox; until then they get HTTP 500 with the pending error
+`Commitment delivery is pending`. Sealevel-origin reveals are not served (HTTP 403) unless
 `CCS_SEALEVEL_REVEALS_ENABLED=true`, which is off by default; when enabled, they are
 served from the stored commitment record with no origin binding: access rests on relayer
-authorization and the stored origin domain matching the reveal. Other origin protocols
-are rejected.
+authorization and the stored origin domain matching the reveal. Other origin protocols are
+rejected.
+
+An EVM-origin reveal is served only when the request's `sender` is a CCIP-read ISM of
+the tree that verifies the reveal on its destination (HTTP 403 otherwise). The reveal's
+destination router must be a registry ICA router. The walk starts at the destination
+mailbox's `recipientIsm` for that router and follows `route` of routing ISMs and every
+module of aggregation ISMs for the reveal message. Its limits match the relayer's (the
+recipient ISM at depth 0; ISMs at depth 13 or after the first 100 read are not walked),
+so a CCIP-read ISM beyond them is not accepted. The walk stops once it finds `sender`. An
+ISM whose read the chain reverts is not a CCIP-read ISM. An ISM whose read fails over RPC
+is skipped; if `sender` is not found, the request gets HTTP 500 with the pending error
+`Chain read is pending` so the relayer retries. The same check runs for Sealevel-origin
+reveals but does not bind them: their ISM field is chosen by the request.
 
 ## General calldata lookup
 
@@ -135,9 +153,11 @@ The harness constructs the service from local registry addresses with the callda
 enabled. It also serves local JSON-RPC endpoints for two origin chains, one of which lists
 only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
 origin transaction whose registry mailbox dispatches the commitment and then its reveal,
-and the destination router derives the stored ICA. Origin chains answer only receipt
-requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
-checks a reveal lookup with it before printing `READY`.
+and the destination router derives the stored ICA. The destination mailbox names the
+router as its recipient ISM and reports every commitment as delivered, and the router
+routes the reveals to the fixtures' `sender` as its CCIP-read ISM. Origin chains answer
+only receipt requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the
+harness checks a reveal lookup with it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover

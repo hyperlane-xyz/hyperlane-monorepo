@@ -99,9 +99,11 @@ impl FromHex for Metadata {
     }
 }
 
+// Metadata can carry secrets (e.g. an ICA reveal's commitment preimage), so
+// only its length is printed.
 impl Debug for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Metadata(0x{})", hex::encode(&self.0))
+        write!(f, "Metadata(<{} bytes>)", self.0.len())
     }
 }
 
@@ -143,4 +145,15 @@ pub trait InterchainSecurityModule: HyperlaneContract + Send + Sync + Debug {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Option<U256>>;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn metadata_debug_prints_only_its_length() {
+        let metadata = Metadata::new(vec![0x5e, 0xc2, 0xe7]);
+        assert_eq!(format!("{metadata:?}"), "Metadata(<3 bytes>)");
+    }
 }

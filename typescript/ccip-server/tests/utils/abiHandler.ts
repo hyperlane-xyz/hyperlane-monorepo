@@ -1,7 +1,9 @@
+import { utils } from 'ethers';
 import Fastify from 'fastify';
 import { pino } from 'pino';
 
 import { CctpService__factory } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type CcipApp, MAX_CCIP_PARAMETER_LENGTH } from '../../src/http.js';
 import {
@@ -52,4 +54,47 @@ export async function respondWithAbiError(error: Error, level = 'info') {
   } finally {
     await app.close();
   }
+}
+
+export interface CallDataVariant {
+  name: string;
+  data: string;
+}
+
+const SELECTOR_HEX_LENGTH = 10;
+const WORD_HEX_LENGTH = 64;
+const MINIMAL_BYTES_OFFSET = utils.hexZeroPad('0x20', 32).slice(2);
+
+/**
+ * Encodings of a single-`bytes`-argument call that decode to the same
+ * arguments as `canonical` but differ from its canonical ABI encoding.
+ */
+export function nonCanonicalCallData(canonical: string): CallDataVariant[] {
+  const selector = canonical.slice(0, SELECTOR_HEX_LENGTH);
+  const offset = canonical.slice(
+    SELECTOR_HEX_LENGTH,
+    SELECTOR_HEX_LENGTH + WORD_HEX_LENGTH,
+  );
+  assert(
+    offset === MINIMAL_BYTES_OFFSET,
+    'Expected a call with one dynamic argument',
+  );
+  assert(canonical.endsWith('00'), 'Expected zero padding in the last word');
+  return [
+    { name: 'a trailing zero byte', data: canonical + '00' },
+    {
+      name: 'trailing text bytes',
+      data: canonical + utils.hexlify(utils.toUtf8Bytes('/x')).slice(2),
+    },
+    { name: 'a trailing word', data: canonical + 'ff'.repeat(32) },
+    { name: 'non-zero padding', data: canonical.slice(0, -2) + '01' },
+    {
+      name: 'a non-minimal offset',
+      data:
+        selector +
+        utils.hexZeroPad('0x40', 32).slice(2) +
+        '00'.repeat(32) +
+        canonical.slice(SELECTOR_HEX_LENGTH + WORD_HEX_LENGTH),
+    },
+  ];
 }

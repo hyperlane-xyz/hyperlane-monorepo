@@ -859,6 +859,8 @@ mod test {
                 ModuleType::CcipRead,
             ));
             let lookup = OffchainLookup {
+                // EIP-3668: a CCIP-read ISM names itself as the lookup sender.
+                sender: ethers::types::Address::from_slice(&ccip.as_bytes()[12..]),
                 urls: urls.iter().map(|url| (*url).to_owned()).collect(),
                 ..Default::default()
             };

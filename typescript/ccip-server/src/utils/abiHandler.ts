@@ -6,7 +6,6 @@ import { redactErrorMessage, redactErrorStack } from '@hyperlane-xyz/utils';
 
 import type { CcipRequest } from '../http.js';
 import {
-  AttestationPendingError,
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
   InvalidOriginTxHashError,
@@ -43,9 +42,11 @@ export const ABI_ROUTE_OPTIONS = {
  * Creates a Fastify handler that:
  * 1) reads `request.body.data`
  * 2) decodes it using the given Typechain contract factory & function name
- * 3) calls the provided service method with decoded args in order
- * 4) ABI-encodes the return value
- * 5) returns { data } as JSON
+ * 3) rejects it with HTTP 400 unless it is the canonical ABI encoding of the
+ *    decoded call
+ * 4) calls the provided service method with decoded args in order
+ * 5) ABI-encodes the return value
+ * 6) returns { data } as JSON
  *
  * @param contractFactory  A Typechain-generated contract factory with a `createInterface()` method
  * @param functionName     A function name that must exist on the contract's interface
@@ -97,6 +98,13 @@ export function createAbiHandler<
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
       const args = fragment.inputs.map((_, i) => decoded[i]);
+      if (
+        iface.encodeFunctionData(fragment, args).toLowerCase() !==
+        data.toLowerCase()
+      ) {
+        handlerLogger.warn(logContext, 'Non-canonical callData in request');
+        return reply.code(400).send({ error: 'Non-canonical callData' });
+      }
       const finalArgs = [...args];
       // For methods that expect (message, relayer, logger), we need to insert relayer before logger
       if (relayer) finalArgs.push(relayer);
@@ -126,10 +134,10 @@ export function createAbiHandler<
         return reply.code(400).send({ error: error.message });
       }
       const message = redactErrorMessage(error);
-      if (error instanceof AttestationPendingError) {
+      if (error instanceof LookupPendingError) {
         // Expected polling state: keep the response contract and request metrics,
         // but avoid repeatedly serializing calldata and stacks at error level.
-        handlerLogger.debug({ error: message }, 'CCTP attestation pending');
+        handlerLogger.debug({ error: message }, 'Lookup pending');
       } else {
         handlerLogger.error(
           {

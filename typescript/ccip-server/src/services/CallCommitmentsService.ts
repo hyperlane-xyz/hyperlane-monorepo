@@ -29,9 +29,11 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  isEVMLike,
   isEmptyAddress,
   isNullish,
   isZeroishAddress,
+  messageId,
   parseMessage,
   redactErrorMessage,
   redactErrorStack,
@@ -55,6 +57,8 @@ import {
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
   InvalidOriginTxHashError,
+  RevealPending,
+  RevealPendingError,
 } from '../utils/errors.js';
 import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
@@ -64,6 +68,7 @@ import {
   REGISTRY_URI_SCHEMA,
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
+import { treeContainsCcipReadIsm } from './ccipReadIsmTree.js';
 
 export const CalldataLookupEnabledSchema = z
   .enum(['true', 'false'])
@@ -373,6 +378,8 @@ interface RevealDispatch {
   owner: string;
   ism: string;
   userSalt: string;
+  /** Mailbox id of the paired COMMITMENT message. */
+  commitmentMessageId: string;
 }
 
 export class CallCommitmentsService extends BaseService {
@@ -556,7 +563,8 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
-    originTxHash?: string,
+    originTxHash: string | undefined,
+    lookupSender: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info(
@@ -593,6 +601,7 @@ export class CallCommitmentsService extends BaseService {
       }
       const protocol = this.multiProvider.getProtocol(origin);
       let ica: string;
+      let evmDispatch: RevealDispatch | undefined;
       if (protocol === ProtocolType.Sealevel) {
         if (!this.sealevelRevealsEnabled) {
           throw new CommitmentAccessDeniedError(
@@ -615,6 +624,7 @@ export class CallCommitmentsService extends BaseService {
           originTxHash,
           log,
         );
+        evmDispatch = dispatch;
         ica = dispatch.ica;
         if (!eqAddress(ica, record.ica)) {
           // Records registered without router overrides store the V2-derived
@@ -628,11 +638,10 @@ export class CallCommitmentsService extends BaseService {
             )
           ) {
             // A candidate whose chain read failed might have matched: that is
-            // not a denial, so fail with HTTP 500 and let the relayer retry.
-            assert(
-              unavailableCandidates === 0,
-              'Could not derive every ICA candidate for the reveal',
-            );
+            // not a denial, so answer pending and let the relayer retry.
+            if (unavailableCandidates > 0) {
+              throw new RevealPendingError(RevealPending.ChainRead);
+            }
             log.warn(
               {
                 commitment,
@@ -651,6 +660,11 @@ export class CallCommitmentsService extends BaseService {
             'Serving the dispatched ICA; the stored ICA was derived with another router version or ISM',
           );
         }
+      }
+      await this.assertLookupSenderVerifiesReveal(message, lookupSender, log);
+      if (protocol === ProtocolType.Ethereum) {
+        assert(evmDispatch, 'Missing the dispatch of an EVM-origin reveal');
+        await this.assertCommitmentDelivered(evmDispatch);
       }
       const encoded =
         ica +
@@ -678,6 +692,35 @@ export class CallCommitmentsService extends BaseService {
         );
         throw error;
       }
+      const pending =
+        error instanceof RpcUnavailableError
+          ? new RevealPendingError(RevealPending.ChainRead)
+          : error;
+      if (pending instanceof RevealPendingError) {
+        if (pending.reason === RevealPending.ChainRead) {
+          log.warn(
+            {
+              revealMessage: message,
+              relayer,
+              originTxHash,
+              reason: pending.reason,
+              error: redactErrorMessage(error),
+            },
+            'Reveal lookup pending',
+          );
+        } else {
+          log.info(
+            {
+              revealMessage: message,
+              relayer,
+              originTxHash,
+              reason: pending.reason,
+            },
+            'Reveal lookup pending',
+          );
+        }
+        throw pending;
+      }
       log.error(
         {
           revealMessage: message,
@@ -688,6 +731,70 @@ export class CallCommitmentsService extends BaseService {
         'Error fetching commitment from message',
       );
       throw error;
+    }
+  }
+
+  /**
+   * Requires the lookup sender, which the relayer signs only as the ISM it
+   * queried, to be a CCIP-read ISM of the tree that verifies the reveal on
+   * its destination, so a reveal is served only to its own ISMs.
+   */
+  private async assertLookupSenderVerifiesReveal(
+    message: string,
+    lookupSender: string,
+    log: Logger,
+  ): Promise<void> {
+    const reveal = parseMessage(message);
+    if (!this.isTrustedIcaRouter(reveal.destination, reveal.recipient)) {
+      throw new CommitmentAccessDeniedError(
+        'Reveal was not dispatched to a known ICA router',
+      );
+    }
+    const protocol = this.multiProvider.getProtocol(reveal.destination);
+    assert(
+      isEVMLike(protocol),
+      `Unsupported reveal destination protocol: ${protocol}`,
+    );
+    const mailbox = this.originMailboxes.get(reveal.destination);
+    assert(mailbox, `Missing mailbox address for domain ${reveal.destination}`);
+    const verifies = await treeContainsCcipReadIsm({
+      provider: this.multiProvider.getProvider(reveal.destination),
+      mailbox,
+      message,
+      ism: lookupSender,
+      log,
+    });
+    if (!verifies) {
+      log.warn(
+        { lookupSender, destination: reveal.destination },
+        'Lookup sender is not a CCIP-read ISM of the reveal',
+      );
+      throw new CommitmentAccessDeniedError(
+        'Lookup sender does not verify this reveal',
+      );
+    }
+  }
+
+  /**
+   * Requires the reveal's paired COMMITMENT message to be delivered on the
+   * destination, so the calls are not served before the commitment is set.
+   */
+  private async assertCommitmentDelivered(
+    dispatch: RevealDispatch,
+  ): Promise<void> {
+    const mailbox = this.originMailboxes.get(dispatch.destination);
+    assert(
+      mailbox,
+      `Missing mailbox address for domain ${dispatch.destination}`,
+    );
+    const delivered = await readOnchain(() =>
+      Mailbox__factory.connect(
+        mailbox,
+        this.multiProvider.getProvider(dispatch.destination),
+      ).delivered(dispatch.commitmentMessageId),
+    );
+    if (!delivered) {
+      throw new RevealPendingError(RevealPending.CommitmentDelivery);
     }
   }
 
@@ -728,8 +835,10 @@ export class CallCommitmentsService extends BaseService {
     const commitment = commitmentFromRevealMessage(reveal.body);
     const originChain = this.multiProvider.getChainName(reveal.origin);
     const provider = this.multiProvider.getProvider(originChain);
-    const receipt = await provider.getTransactionReceipt(originTxHash);
-    assert(receipt, `Transaction not found: ${originTxHash}`);
+    const receipt = await readOnchain(() =>
+      provider.getTransactionReceipt(originTxHash),
+    );
+    if (!receipt) throw new RevealPendingError(RevealPending.OriginReceipt);
 
     const iface = Mailbox__factory.createInterface();
     const dispatchTopic = iface.getEventTopic('Dispatch');
@@ -756,8 +865,13 @@ export class CallCommitmentsService extends BaseService {
 
     // A dispatch hook can nest another commit/reveal using the same hash.
     // Consume earlier reveals so the outer reveal retains its own commitment.
-    const pendingCommitments: ReturnType<typeof parseMessage>[] = [];
-    let committed: ReturnType<typeof parseMessage> | undefined;
+    const pendingCommitments: {
+      message: string;
+      parsed: ReturnType<typeof parseMessage>;
+    }[] = [];
+    let committed:
+      | { message: string; parsed: ReturnType<typeof parseMessage> }
+      | undefined;
     for (const dispatch of dispatches.sort(
       (left, right) => left.log.logIndex - right.log.logIndex,
     )) {
@@ -777,7 +891,10 @@ export class CallCommitmentsService extends BaseService {
         utils.hexDataSlice(candidate.body, 97, 129).toLowerCase() ===
           commitment.toLowerCase()
       ) {
-        pendingCommitments.push(candidate);
+        pendingCommitments.push({
+          message: dispatch.message,
+          parsed: candidate,
+        });
       } else if (
         utils.hexDataLength(candidate.body) === 65 &&
         utils.hexDataSlice(candidate.body, 0, 1) === '0x02' &&
@@ -796,9 +913,9 @@ export class CallCommitmentsService extends BaseService {
         'Matching commitment dispatch not found',
       );
     }
-    const owner = utils.hexDataSlice(committed.body, 1, 33);
-    const ism = utils.hexDataSlice(committed.body, 33, 65);
-    const userSalt = utils.hexDataSlice(committed.body, 65, 97);
+    const owner = utils.hexDataSlice(committed.parsed.body, 1, 33);
+    const ism = utils.hexDataSlice(committed.parsed.body, 33, 65);
+    const userSalt = utils.hexDataSlice(committed.parsed.body, 65, 97);
 
     const destinationRouter = InterchainAccountRouter__factory.connect(
       bytes32ToAddress(reveal.recipient),
@@ -833,6 +950,7 @@ export class CallCommitmentsService extends BaseService {
       owner,
       ism,
       userSalt,
+      commitmentMessageId: messageId(committed.message),
     };
   }
 
@@ -1012,10 +1130,7 @@ export class CallCommitmentsService extends BaseService {
       select: { commitment: true, ...commitmentReconciliationSelect },
     });
 
-    if (!record) {
-      logger.warn({ commitment }, 'Commitment not found in DB');
-      throw new Error('Commitment not found: ' + commitment);
-    }
+    if (!record) throw new RevealPendingError(RevealPending.Commitment);
 
     const parsed = CommitmentRecordSchema.parse(record);
     logger.info(
@@ -1462,7 +1577,13 @@ export class CallCommitmentsService extends BaseService {
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',
           (message: string, relayer: string, logger: Logger) =>
-            this.handleFetchCommitment(message, relayer, logger, originTxHash),
+            this.handleFetchCommitment(
+              message,
+              relayer,
+              logger,
+              originTxHash,
+              this.auth.sender(request),
+            ),
           {
             skipResultEncoding: true,
             authenticatedRelayer: (request) => this.auth.signer(request),

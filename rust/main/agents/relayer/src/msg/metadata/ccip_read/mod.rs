@@ -46,6 +46,8 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+/// URLs tried per offchain lookup.
+const MAX_LOOKUP_URLS: usize = 10;
 
 // Cache compilation without changing the metadata builder's error propagation.
 static OFFCHAIN_LOOKUP_REGEX: LazyLock<Result<Regex, regex::Error>> =
@@ -254,6 +256,20 @@ struct OffchainLookupRequestBody {
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
     data: String,
+}
+
+/// The failure reason of an offchain lookup response.
+///
+/// Servers report failures as `{"error": "<reason>"}` (ccip-server) or
+/// `{"message": "<reason>"}` (EIP-3668). Only that field is kept: the rest of
+/// the body, `data` in particular, can carry secrets (e.g. an ICA
+/// commit-reveal preimage), and a body that is not valid JSON cannot be
+/// stripped of them.
+fn server_error_reason(response_body: &str) -> Option<String> {
+    let body: serde_json::Value = serde_json::from_str(response_body).ok()?;
+    ["error", "message"]
+        .into_iter()
+        .find_map(|field| body.get(field)?.as_str().map(str::to_owned))
 }
 
 #[derive(Clone, Debug, new, Deref)]
@@ -476,6 +492,23 @@ async fn fetch_metadata(
         .call_get_offchain_verify_info(ism, &activity)
         .await?;
 
+    // EIP-3668: the lookup must name the contract that reverted with it. An ISM
+    // naming another contract (e.g. a commitment ISM it does not route to) would
+    // otherwise get this relayer to sign and send requests on that contract's
+    // behalf.
+    if H256::from(info.sender) != ism_address {
+        activity.report(OffchainReadState::SenderMismatch, None);
+        warn!(
+            ?ism_address,
+            sender = ?info.sender,
+            message_id = ?message.id(),
+            "Offchain lookup sender is not the queried ISM"
+        );
+        return Err(MetadataBuildError::FailedToBuild(
+            "Offchain lookup sender is not the queried ISM".to_owned(),
+        ));
+    }
+
     let origin_tx_hash = ism_builder
         .base
         .base_builder()
@@ -503,9 +536,20 @@ async fn fetch_metadata(
     if info.urls.is_empty() {
         activity.report(OffchainReadState::NoEndpoints, None);
     }
+    // The ISM chooses its URLs; only the first ones are tried.
+    if info.urls.len() > MAX_LOOKUP_URLS {
+        warn!(
+            ?ism_address,
+            message_id = ?message.id(),
+            urls = info.urls.len(),
+            max = MAX_LOOKUP_URLS,
+            "Offchain lookup lists more URLs than are tried"
+        );
+    }
+    let tried_urls = info.urls.len().min(MAX_LOOKUP_URLS);
     let mut rejected_urls = 0usize;
     let mut denied_by_allowlist = false;
-    for (endpoint, url) in info.urls.iter().enumerate() {
+    for (endpoint, url) in info.urls.iter().take(MAX_LOOKUP_URLS).enumerate() {
         // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 10;
@@ -571,7 +615,7 @@ async fn fetch_metadata(
         }
     }
 
-    if denied_by_allowlist && rejected_urls == info.urls.len() {
+    if denied_by_allowlist && rejected_urls == tried_urls {
         Err(MetadataBuildError::CcipReadNotAllowed)
     } else {
         Err(MetadataBuildError::CouldNotFetch)
@@ -657,13 +701,15 @@ async fn read_response_body(mut res: reqwest::Response) -> Result<String, Metada
 fn decode_response_data(data: &str) -> Result<Metadata, Box<MetadataBuildError>> {
     let hex_data = data.strip_prefix("0x").ok_or_else(|| {
         Box::new(MetadataBuildError::FailedToBuild(format!(
-            "Offchain lookup server response data is missing the 0x prefix: ({data})"
+            "Offchain lookup server response data is missing the 0x prefix ({} bytes)",
+            data.len()
         )))
     })?;
 
     let metadata = hex_decode(hex_data).map_err(|err| {
         Box::new(MetadataBuildError::FailedToBuild(format!(
-            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({data})"
+            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({} bytes)",
+            data.len()
         )))
     })?;
     Ok(Metadata::new(metadata))
@@ -748,13 +794,6 @@ async fn fetch_offchain_data(
     let response_body = read_response_body(res).await.inspect_err(|_| {
         activity.report(OffchainReadState::BodyReadFailed, Some(status.as_u16()));
     })?;
-    tracing::debug!(
-        response = response_body,
-        status = status.as_u16(),
-        ?message_id,
-        "Received response from offchain lookup server"
-    );
-
     decode_offchain_response(activity, status, &response_body).map_err(|outcome| *outcome)
 }
 
@@ -763,6 +802,15 @@ fn decode_offchain_response(
     status: reqwest::StatusCode,
     response_body: &str,
 ) -> Result<Metadata, Box<FetchOutcome>> {
+    // The body can carry secrets (e.g. an ICA commit-reveal preimage): never
+    // log it or copy it into an error; see `server_error_reason`.
+    tracing::debug!(
+        response_len = response_body.len(),
+        status = status.as_u16(),
+        message_id = ?activity.message.id(),
+        "Received response from offchain lookup server"
+    );
+
     if body_signals_pending(response_body) {
         // Keep the transition to pending, not every one-second internal retry.
         if activity.attempt == 1 {
@@ -776,15 +824,23 @@ fn decode_offchain_response(
         activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
         return Err(Box::new(FetchOutcome::Failed(
             MetadataBuildError::FailedToBuild(format!(
-                "Offchain lookup server returned 404: {response_body}"
+                "Offchain lookup server returned 404 ({} bytes), reason: {:?}",
+                response_body.len(),
+                server_error_reason(response_body)
             )),
         )));
     }
 
     let json: OffchainResponse = serde_json::from_str(response_body).map_err(|err| {
         activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+        // serde_json's message can quote the offending value; keep only its position.
         let error_msg = format!(
-            "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
+            "Failed to parse offchain lookup server json response: ({:?} error at line {}, column {}), status: {}, reason: {:?}",
+            err.classify(),
+            err.line(),
+            err.column(),
+            status.as_u16(),
+            server_error_reason(response_body)
         );
         Box::new(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
             error_msg,
@@ -1254,6 +1310,243 @@ mod test {
         assert_eq!(signer.calls(), 0);
     }
 
+    /// A CCIP-read ISM whose `getOffchainVerifyInfo` fails with `revert`.
+    #[derive(Debug)]
+    struct RevertingCcipReadIsm {
+        address: H256,
+        domain: hyperlane_core::HyperlaneDomain,
+        revert: String,
+    }
+
+    impl hyperlane_core::HyperlaneChain for RevertingCcipReadIsm {
+        fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    impl hyperlane_core::HyperlaneContract for RevertingCcipReadIsm {
+        fn address(&self) -> H256 {
+            self.address
+        }
+    }
+
+    #[async_trait]
+    impl CcipReadIsm for RevertingCcipReadIsm {
+        async fn get_offchain_verify_info(
+            &self,
+            _message: Vec<u8>,
+        ) -> hyperlane_core::ChainResult<()> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                &self.revert,
+            ))
+        }
+    }
+
+    /// Builds the error text an ISM implementation produces from a revert payload.
+    type FormatRevert = fn(&str) -> String;
+
+    /// The destinations whose ISMs surface an `OffchainLookup` revert, each with
+    /// the error text its ISM implementation produces from the revert payload.
+    fn ccip_read_destinations() -> Vec<(hyperlane_core::HyperlaneDomain, FormatRevert)> {
+        use hyperlane_core::{
+            HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+            HyperlaneDomainType, KnownHyperlaneDomain,
+        };
+        vec![
+            (
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                |payload| format!("execution reverted: {payload}"),
+            ),
+            (
+                // `TronCcipReadIsm` returns the revert payload as a bare "0x{hex}" error.
+                HyperlaneDomain::Unknown {
+                    domain_id: 728126428,
+                    domain_name: "tron".to_owned(),
+                    domain_type: HyperlaneDomainType::Mainnet,
+                    domain_protocol: HyperlaneDomainProtocol::Tron,
+                    domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+                },
+                str::to_owned,
+            ),
+        ]
+    }
+
+    /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
+    /// `sender`, and returns the reported read states.
+    async fn read_states_for_lookup_sender(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+    ) -> Vec<String> {
+        // Rejected by URL validation, which only runs once the sender is accepted.
+        read_states_for_lookup(
+            domain,
+            format_revert,
+            ism,
+            sender,
+            vec!["https://127.0.0.1/lookup".to_owned()],
+        )
+        .await
+    }
+
+    /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
+    /// `sender` and `urls`, and returns the reported read states.
+    async fn read_states_for_lookup(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+        urls: Vec<String>,
+    ) -> Vec<String> {
+        lookup_with_urls(domain, format_revert, ism, sender, urls)
+            .await
+            .1
+    }
+
+    /// As `read_states_for_lookup`, also returning the lookup's error.
+    async fn lookup_with_urls(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+        urls: Vec<String>,
+    ) -> (MetadataBuildError, Vec<String>) {
+        use crate::test_utils::mock_base_builder::build_mock_base_builder;
+        use ethers::abi::AbiEncode;
+
+        let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
+        let lookup = OffchainLookup {
+            sender,
+            urls,
+            call_data: vec![1, 2, 3].into(),
+            callback_function: [0; 4],
+            extra_data: Default::default(),
+        };
+        base.responses
+            .build_ccip_read_ism
+            .lock()
+            .expect("lock")
+            .push_back(Ok(Box::new(RevertingCcipReadIsm {
+                address: ism,
+                domain,
+                revert: format_revert(&bytes_to_hex(&lookup.encode())),
+            })));
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: base.clone(),
+            app_context: None,
+            root_ism: ism,
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+
+        let error = fetch_metadata(&builder, ism, &HyperlaneMessage::default())
+            .await
+            .expect_err("the lookup is not served");
+
+        let activities = base.requests.activities.lock().expect("lock");
+        let states = activities
+            .iter()
+            .map(|(_, activity)| {
+                serde_json::to_value(activity).expect("serialize")["state"].to_string()
+            })
+            .collect();
+        (error, states)
+    }
+
+    // ISM addresses reach the builder as 20-byte addresses widened to 32 bytes:
+    // `route`, `recipientIsm` and `modulesAndThreshold` return ABI-decoded
+    // addresses, and Tron's 0x41 prefix is only added when calling its RPC.
+    fn queried_ism() -> (H256, EthersH160) {
+        let address: EthersH160 = "4ee6ecad1c2dae9f525404de8555724e3c35d07b"
+            .parse()
+            .expect("address");
+        (H256::from(address), address)
+    }
+
+    #[tokio::test]
+    async fn lookup_from_a_sender_other_than_the_queried_ism_is_not_signed_or_sent() {
+        let (ism, _) = queried_ism();
+        for (domain, format_revert) in ccip_read_destinations() {
+            let name = domain.name().to_owned();
+            let states = read_states_for_lookup_sender(
+                domain,
+                format_revert,
+                ism,
+                EthersH160::repeat_byte(0x22),
+            )
+            .await;
+
+            // Rejected before URL validation, signing and the request.
+            assert_eq!(states, vec!["\"sender_mismatch\""], "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn lookup_from_the_queried_ism_proceeds_to_the_request() {
+        let (ism, sender) = queried_ism();
+        for (domain, format_revert) in ccip_read_destinations() {
+            let name = domain.name().to_owned();
+            let states = read_states_for_lookup_sender(domain, format_revert, ism, sender).await;
+
+            assert_eq!(
+                states,
+                vec!["\"origin_transaction_missing\"", "\"url_rejected\""],
+                "{name}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn lookup_tries_at_most_the_url_cap() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        // Each URL is rejected by validation, so every endpoint tried reports once.
+        let urls = (0..100)
+            .map(|i| format!("https://127.0.0.1/lookup/{i}"))
+            .collect();
+
+        let states = read_states_for_lookup(domain, format_revert, ism, sender, urls).await;
+
+        let tried = states
+            .iter()
+            .filter(|state| *state == "\"url_rejected\"")
+            .count();
+        assert_eq!(tried, MAX_LOOKUP_URLS);
+    }
+
+    #[tokio::test]
+    async fn lookup_beyond_the_url_cap_still_reports_a_disallowed_host() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        // No host is allowed, and more URLs are listed than are tried.
+        let urls = (0..=MAX_LOOKUP_URLS)
+            .map(|i| format!("https://lookup.example/{i}"))
+            .collect();
+
+        let (error, states) = lookup_with_urls(domain, format_revert, ism, sender, urls).await;
+
+        assert_eq!(error, MetadataBuildError::CcipReadNotAllowed);
+        let denied = states
+            .iter()
+            .filter(|state| *state == "\"domain_not_allowed\"")
+            .count();
+        assert_eq!(denied, MAX_LOOKUP_URLS);
+    }
+
     #[test]
     fn activity_distinguishes_pending_and_bad_responses_without_exposing_bodies() {
         use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
@@ -1375,6 +1668,128 @@ mod test {
         );
     }
 
+    #[tracing_test::traced_test]
+    #[test]
+    fn decoding_responses_never_logs_or_returns_the_body() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        const SECRET: &str = "5ec2e75ec2e75ec2e7";
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+
+        let success = format!(r#"{{"data":"0x{SECRET}"}}"#);
+        let not_found = format!(r#"{{"error":"not found","data":"0x{SECRET}"}}"#);
+        let not_found_message = format!(r#"{{"message":"not found","data":"0x{SECRET}"}}"#);
+        let malformed_json = format!("{{{SECRET}");
+        let missing_prefix = format!(r#"{{"data":"{SECRET}"}}"#);
+        let invalid_hex = format!(r#"{{"data":"0x{SECRET}zz"}}"#);
+        let wrong_json_type = format!(r#""{SECRET}""#);
+        for (status, body) in [
+            (200, wrong_json_type.as_str()),
+            (200, success.as_str()),
+            (404, not_found.as_str()),
+            (404, not_found_message.as_str()),
+            (500, malformed_json.as_str()),
+            (200, missing_prefix.as_str()),
+            (200, invalid_hex.as_str()),
+        ] {
+            let status = reqwest::StatusCode::from_u16(status).expect("status");
+            let rendered = match decode_offchain_response(&activity, status, body)
+                .map_err(|outcome| *outcome)
+            {
+                Ok(metadata) => format!("{metadata:?}"),
+                Err(FetchOutcome::Failed(err)) => format!("{err} {err:?}"),
+                Err(FetchOutcome::Pending(_)) => "pending".to_owned(),
+                Err(FetchOutcome::UrlRejected(_, err)) => format!("{err} {err:?}"),
+            };
+            assert_ne!(rendered, "pending", "{status}: unexpected pending");
+            assert!(!rendered.contains(SECRET), "{status}: {rendered}");
+        }
+
+        assert!(logs_contain(
+            "Received response from offchain lookup server"
+        ));
+        assert!(!logs_contain(SECRET));
+    }
+
+    #[test]
+    fn decoding_failures_keep_the_server_error_reason() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+        let long_reason = "x".repeat(4096);
+        let long_body = format!(r#"{{"error":"{long_reason}"}}"#);
+        let long_expected = format!("{long_reason:?}");
+
+        for (status, body, expected) in [
+            (
+                404,
+                r#"{"error":"Message not found"}"#,
+                "\"Message not found\"",
+            ),
+            (
+                500,
+                r#"{"error":"Internal server error"}"#,
+                "\"Internal server error\"",
+            ),
+            (
+                403,
+                r#"{"error":"CCS signer not authorized"}"#,
+                "\"CCS signer not authorized\"",
+            ),
+            (
+                400,
+                r#"{"message":"Unsupported sender"}"#,
+                "\"Unsupported sender\"",
+            ),
+            (404, "not json", "reason: None"),
+            (404, long_body.as_str(), long_expected.as_str()),
+        ] {
+            let status = reqwest::StatusCode::from_u16(status).expect("status");
+            let err = match decode_offchain_response(&activity, status, body).map_err(|o| *o) {
+                Err(FetchOutcome::Failed(err)) => err.to_string(),
+                _ => String::new(),
+            };
+            assert!(
+                err.contains(expected),
+                "{status}: expected a hard failure with {expected}, got {err:?}"
+            );
+        }
+    }
+
     #[test]
     fn test_body_signals_pending() {
         // {"status": "pending"} -> pending
@@ -1395,6 +1810,61 @@ mod test {
         assert!(!body_signals_pending("not json"));
         // success body -> not pending
         assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
+    }
+
+    /// Pins the ccip-server reveal lookup's transient answers (HTTP 500 with a
+    /// fixed `error`) to the 1s pending retry rather than a counted failure.
+    #[test]
+    fn ccs_reveal_pending_answers_are_retried_as_pending() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+
+        for reason in [
+            "Commitment upload is pending",
+            "Origin transaction receipt is pending",
+            "Chain read is pending",
+            "Commitment delivery is pending",
+        ] {
+            let body = serde_json::json!({ "error": reason }).to_string();
+            let pending = matches!(
+                decode_offchain_response(
+                    &activity,
+                    reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                    &body,
+                )
+                .map_err(|outcome| *outcome),
+                Err(FetchOutcome::Pending(_))
+            );
+            assert!(pending, "{reason}");
+        }
+        // The generic ccip-server failure stays a hard failure.
+        assert!(matches!(
+            decode_offchain_response(
+                &activity,
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                r#"{"error":"Internal server error"}"#,
+            )
+            .map_err(|outcome| *outcome),
+            Err(FetchOutcome::Failed(_))
+        ));
     }
 
     #[tokio::test]
