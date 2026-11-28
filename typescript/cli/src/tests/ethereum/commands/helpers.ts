@@ -23,10 +23,12 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  type DeployedAevoXERC20Token,
   type MultiProvider,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
+  deployAevoXERC20Token,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -34,6 +36,7 @@ import {
   assert,
   ensure0x,
   inCIMode,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
@@ -332,6 +335,24 @@ export async function deployXERC20LockboxToken(
   ]);
 }
 
+export async function deployAevoXERC20TokenOnChain(
+  privateKey: string,
+  chain: string,
+): Promise<DeployedAevoXERC20Token> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  const provider = new ethers.providers.JsonRpcProvider(
+    multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+  );
+
+  return deployAevoXERC20Token({
+    deployer: new ethers.Wallet(privateKey, provider),
+  });
+}
+
 export async function deployTestOffchainLookupISM(
   privateKey: string,
   chain: string,
@@ -518,8 +539,13 @@ export async function startCcipServer({
   );
 }
 
-export function createSnapshot(rpcUrl: string) {
-  return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+export async function createSnapshot(rpcUrl: string): Promise<string> {
+  const snapshotId = await snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+  assert(
+    typeof snapshotId === 'string' && snapshotId.length > 0,
+    'evm_snapshot returned no snapshot id',
+  );
+  return snapshotId;
 }
 
 export async function restoreSnapshot(
@@ -549,7 +575,8 @@ async function snapshotBaseCall<T>(
       params,
     }),
   });
-  const { result } = await response.json();
+  const { result, error } = await response.json();
+  assert(isNullish(error), `${method} failed: ${error?.message}`);
   return result;
 }
 

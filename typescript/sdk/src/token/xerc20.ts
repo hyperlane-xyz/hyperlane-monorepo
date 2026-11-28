@@ -10,6 +10,7 @@ import {
   eqAddress,
   normalizeAddress,
   rootLogger,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { proxyImplementation } from '../deploy/proxy.js';
@@ -28,6 +29,7 @@ import {
   isXERC20TokenConfig,
 } from './types.js';
 import {
+  AEVO_XERC20_SELECTORS,
   BRIDGE_LIMITS_SET_EVENT_SELECTOR,
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
@@ -98,6 +100,13 @@ export async function getExtraLockBoxConfigs({
   const type =
     knownType ??
     (await deriveXERC20TokenType(multiProvider, chain, xERC20Address));
+
+  // Which other contracts may mint an Aevo token is not modelled: only the
+  // authority and cap of the warp route's own router are.
+  if (type === XERC20Type.Aevo) {
+    return [];
+  }
+
   const bridges = new Set(
     await discoverConfiguredBridges({
       xERC20Address,
@@ -131,6 +140,10 @@ export async function getExtraLockBoxConfigs({
     assert(
       limits,
       `Missing xERC20 limits for bridge ${bridge} on chain ${multiProvider.getChainName(chain)}`,
+    );
+    assert(
+      limits.type !== XERC20Type.Aevo,
+      `Bridge ${bridge} of ${xERC20Address} on chain ${multiProvider.getChainName(chain)} holds Aevo limits, which extra bridges do not carry`,
     );
 
     // A bridge holding no limits can neither mint nor burn, which is how a
@@ -529,8 +542,8 @@ export async function deriveStandardBridgesConfig(
 }
 
 /**
- * Thrown when a contract exposes neither the Standard nor the Velodrome limit
- * management interface, so which getter would answer its limits is unknown.
+ * Thrown when a contract exposes none of the Standard, Velodrome or Aevo xERC20
+ * interfaces, so which getter would answer its limits is unknown.
  *
  * Typed rather than a bare Error so a caller can tell it apart from a failure
  * to read the bytecode at all, which says nothing about the contract and must
@@ -563,6 +576,13 @@ export async function deriveXERC20TokenType(
     .id('setLimits(address,uint256,uint256)')
     .slice(2, 10)
     .toLowerCase();
+  // Every Aevo selector is required: a token with only some of them cannot be
+  // read or written through the Aevo adapter.
+  const aevoSelectors = AEVO_XERC20_SELECTORS.map((selector) =>
+    strip0x(selector).toLowerCase(),
+  );
+  const carriesAevoSelectors = (code: string) =>
+    aevoSelectors.every((selector) => code.includes(selector));
 
   // xERC20 tokens are commonly deployed behind a proxy whose bytecode does not
   // embed the implementation's selectors; inspect the implementation in that case.
@@ -570,10 +590,11 @@ export async function deriveXERC20TokenType(
   // Keyed on the EIP-1967 implementation slot alone. A UUPS proxy keeps its
   // upgrade logic in the implementation and leaves the admin slot empty, so
   // deciding this on an admin the way isProxy does would skip the only bytecode
-  // that carries the selectors and leave the token looking like neither type.
+  // that carries the selectors and leave the token looking like no type.
   if (
     !normalizedCode.includes(setBufferCapSelector) &&
-    !normalizedCode.includes(setLimitsSelector)
+    !normalizedCode.includes(setLimitsSelector) &&
+    !carriesAevoSelectors(normalizedCode)
   ) {
     const implementation = await proxyImplementation(provider, address);
     if (!eqAddress(implementation, ethers.constants.AddressZero)) {
@@ -581,7 +602,7 @@ export async function deriveXERC20TokenType(
     }
   }
 
-  // Prefer Velodrome if both selectors are present.
+  // Prefer Velodrome if both selectors are present, and either over Aevo.
   if (normalizedCode.includes(setBufferCapSelector)) {
     return XERC20Type.Velo;
   }
@@ -590,8 +611,12 @@ export async function deriveXERC20TokenType(
     return XERC20Type.Standard;
   }
 
-  // Neither type detected
+  if (carriesAevoSelectors(normalizedCode)) {
+    return XERC20Type.Aevo;
+  }
+
+  // No type detected
   throw new UnknownXERC20TypeError(
-    `Unable to detect XERC20 type for ${address}. Contract does not implement Standard or Velodrome XERC20 interface.`,
+    `Unable to detect XERC20 type for ${address}. Contract does not implement Standard, Velodrome or Aevo XERC20 interface.`,
   );
 }

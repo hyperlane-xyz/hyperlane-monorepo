@@ -1,4 +1,9 @@
-import { getAbiItem, toEventSelector } from 'viem';
+import {
+  getAbiItem,
+  parseAbi,
+  toEventSelector,
+  toFunctionSelector,
+} from 'viem';
 
 /**
  * Minimal ABI for parsing ConfigurationChanged events from Velodrome XERC20.
@@ -82,3 +87,36 @@ export const BRIDGE_LIMITS_SET_EVENT_SELECTOR = toEventSelector(
     name: 'BridgeLimitsSet',
   }),
 );
+
+/**
+ * Minimal ABI for the mint authority and cap an Aevo token holds for each
+ * minter, and for its owner. Aevo tokens expose neither `setLimits` nor
+ * `setBufferCap`, so this is how a router is approved to mint and capped.
+ *
+ * Derived from the deployed bytecode, as the source is not published.
+ * `authorities` answers a single bool word and `caps` a single uint256 word.
+ * `setOwner` hands the token to a new owner in one step: there is no pending
+ * owner to accept it, so an address that cannot act as owner is final.
+ */
+export const XERC20_AEVO_ABI = parseAbi([
+  'function authorities(address minter) view returns (bool)',
+  'function caps(address minter) view returns (uint256)',
+  'function updateAuthority(address minter, bool authorized)',
+  'function setCap(address minter, uint256 cap)',
+  'function owner() view returns (address)',
+  'function setOwner(address newOwner)',
+]);
+
+/**
+ * The selectors that identify an Aevo token: every one of them is part of the
+ * limit surface the SDK reads and writes, so a token carrying all four can be
+ * managed and one missing any cannot. The owner functions are not among them.
+ */
+export const AEVO_XERC20_SELECTORS = [
+  toFunctionSelector(getAbiItem({ abi: XERC20_AEVO_ABI, name: 'authorities' })),
+  toFunctionSelector(getAbiItem({ abi: XERC20_AEVO_ABI, name: 'caps' })),
+  toFunctionSelector(
+    getAbiItem({ abi: XERC20_AEVO_ABI, name: 'updateAuthority' }),
+  ),
+  toFunctionSelector(getAbiItem({ abi: XERC20_AEVO_ABI, name: 'setCap' })),
+];

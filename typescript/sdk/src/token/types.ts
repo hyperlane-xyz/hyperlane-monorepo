@@ -1,10 +1,12 @@
 import { compareVersions } from 'compare-versions';
+import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import {
   assert,
   isAddressEvm,
+  isNullish,
   isZeroishAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
@@ -189,6 +191,7 @@ export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 export enum XERC20Type {
   Velo = 'velo',
   Standard = 'standard',
+  Aevo = 'aevo',
 }
 
 export enum XERC20ExtraBridgeType {
@@ -213,14 +216,75 @@ export type XERC20StandardLimitConfig = z.infer<
   typeof XERC20StandardLimitConfigSchema
 >;
 
+export enum XERC20AevoCapType {
+  Unlimited = 'unlimited',
+  Raw = 'raw',
+}
+
+// The token does not bound a minter whose cap is zero. A config declares that
+// as unlimited, so a raw value must be positive: a zero would read as a minter
+// that may mint nothing.
+const XERC20AevoUnlimitedCapSchema = z.strictObject({
+  type: z.literal(XERC20AevoCapType.Unlimited),
+});
+
+const XERC20AevoRawCapSchema = z.strictObject({
+  type: z.literal(XERC20AevoCapType.Raw),
+  value: PositiveZBigNumberish.refine(
+    (value) => value <= constants.MaxUint256.toBigInt(),
+    { message: 'A raw Aevo cap must fit a uint256' },
+  ).transform((value) => value.toString()),
+});
+
+const XERC20AevoCapSchema = z.discriminatedUnion('type', [
+  XERC20AevoUnlimitedCapSchema,
+  XERC20AevoRawCapSchema,
+]);
+export type XERC20AevoCapConfig = z.infer<typeof XERC20AevoCapSchema>;
+
+// A declared Aevo block states the whole intended state of the minter, so
+// unlike the legacy Standard and Velo variants nothing in it is optional. A
+// minter that is not authorized declares no cap: the one the token keeps for it
+// is set again whenever the minter is authorized.
+const XERC20AevoUnauthorizedLimitConfigSchema = z.strictObject({
+  type: z.literal(XERC20Type.Aevo),
+  authorized: z.literal(false),
+});
+
+const XERC20AevoAuthorizedLimitConfigSchema = z.strictObject({
+  type: z.literal(XERC20Type.Aevo),
+  authorized: z.literal(true),
+  cap: XERC20AevoCapSchema,
+});
+
+const XERC20AevoLimitConfigSchema = z.discriminatedUnion('authorized', [
+  XERC20AevoUnauthorizedLimitConfigSchema,
+  XERC20AevoAuthorizedLimitConfigSchema,
+]);
+export type XERC20AevoLimitConfig = z.infer<typeof XERC20AevoLimitConfigSchema>;
+
 const xERC20Limits = z.discriminatedUnion('type', [
   XERC20VSLimitConfigSchema,
   XERC20StandardLimitConfigSchema,
+  XERC20AevoLimitConfigSchema,
 ]);
+
+// Aevo limits describe the warp route's own router. Which other contracts may
+// mint an Aevo token is not modelled, so an entry of extraBridges cannot carry
+// them, and its type does not either.
+const xERC20ExtraBridgeLimits = xERC20Limits.refine(
+  (limits): limits is XERC20VSLimitConfig | XERC20StandardLimitConfig =>
+    limits.type !== XERC20Type.Aevo,
+  {
+    message:
+      'Aevo limits apply to the router only: extra minters of an Aevo token are not modelled',
+  },
+);
+
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   bridgeType: z.enum(XERC20ExtraBridgeType).optional(),
   lockbox: z.string(),
-  limits: xERC20Limits,
+  limits: xERC20ExtraBridgeLimits,
 });
 
 const xERC20TokenMetadataSchema = z.object({
@@ -229,6 +293,20 @@ const xERC20TokenMetadataSchema = z.object({
       extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
       warpRouteLimits: xERC20Limits,
     })
+    // The other minters of an Aevo token are not modelled: nothing is derived
+    // for its extraBridges, and applying Standard or Velodrome limits to it
+    // would call setters it does not have.
+    .refine(
+      ({ warpRouteLimits, extraBridges }) =>
+        warpRouteLimits.type !== XERC20Type.Aevo ||
+        isNullish(extraBridges) ||
+        extraBridges.length === 0,
+      {
+        message:
+          "An Aevo token's limits apply to the router only: extraBridges are not supported for it",
+        path: ['extraBridges'],
+      },
+    )
     .optional(),
 });
 export type XERC20TokenMetadata = z.infer<typeof xERC20TokenMetadataSchema>;
@@ -242,7 +320,20 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
   .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
   })
-  .extend(xERC20TokenMetadataSchema.shape);
+  .extend(xERC20TokenMetadataSchema.shape)
+  // The limits of an Aevo token are read and set for the router of an xERC20
+  // route. A lockbox route is exported with the standard of the lockbox router,
+  // which reads limits through getters an Aevo token does not have.
+  .refine(
+    ({ type, xERC20 }) =>
+      type !== TokenType.XERC20Lockbox ||
+      xERC20?.warpRouteLimits.type !== XERC20Type.Aevo,
+    {
+      message:
+        "An Aevo token's limits apply to the router of an xERC20 route: an xERC20Lockbox config cannot declare them",
+      path: ['xERC20', 'warpRouteLimits'],
+    },
+  );
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);

@@ -68,6 +68,16 @@ export interface xERC20Limits {
   burn: bigint;
 }
 
+/**
+ * What an Aevo token holds for a minter, as it keeps it, which is not how
+ * AevoXERC20Limits states it: the token keeps a cap of zero for a minter it
+ * does not bound, and keeps the cap of a minter whose authority is revoked.
+ */
+export interface AevoMintAuthority {
+  authorized: boolean;
+  cap: bigint;
+}
+
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;

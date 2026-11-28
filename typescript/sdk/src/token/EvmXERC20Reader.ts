@@ -15,15 +15,22 @@ import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { throwIfNotMissingSelector } from '../utils/contract.js';
 
-import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
+import {
+  AevoMintAuthority,
+  RateLimitMidPoint,
+  xERC20Limits,
+} from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 import {
+  AevoXERC20Limits,
   StandardXERC20Limits,
   VeloXERC20Limits,
   XERC20LimitsMap,
   readXERC20Limits,
+  toAevoLimits,
   toStandardLimits,
   toVeloLimits,
 } from './xerc20-limits.js';
@@ -34,6 +41,7 @@ import {
 } from './xerc20.js';
 
 export type {
+  AevoXERC20Limits,
   StandardXERC20Limits,
   VeloXERC20Limits,
   XERC20Limits,
@@ -81,6 +89,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
       converters: {
         toStandardLimits: (limits) => this.toStandardLimits(limits),
         toVeloLimits: (rateLimits) => this.toVeloLimits(rateLimits),
+        toAevoLimits: (authority) => this.toAevoLimits(authority),
       },
     });
   }
@@ -96,16 +105,29 @@ export class EvmXERC20Reader extends HyperlaneReader {
    * BridgeLimitsSet, which getExtraLockBoxConfigs reads. Callers relying on
    * this therefore fall back to the bridges their config names for a Standard
    * token, which is why bringing the two paths together is worth doing.
+   *
+   * Also empty for an Aevo token, whose minters other than the warp route's own
+   * router are not modelled.
    */
   async readOnChainBridges(
     xERC20Address: Address,
     type: XERC20Type,
   ): Promise<Address[]> {
-    if (type === XERC20Type.Standard) {
-      this.logger.debug(
-        'Standard XERC20 bridge enumeration is not implemented here',
-      );
-      return [];
+    switch (type) {
+      case XERC20Type.Velo:
+        break;
+      case XERC20Type.Standard:
+        this.logger.debug(
+          'Standard XERC20 bridge enumeration is not implemented here',
+        );
+        return [];
+      case XERC20Type.Aevo:
+        this.logger.debug('Aevo XERC20 bridge enumeration is not modelled');
+        return [];
+      default: {
+        const exhaustiveCheck: never = type;
+        throw new Error(`Unknown xERC20 type: ${exhaustiveCheck}`);
+      }
     }
 
     const logsReader = EvmEventLogsReader.fromConfig(
@@ -139,9 +161,11 @@ export class EvmXERC20Reader extends HyperlaneReader {
   /**
    * Read the owner of the XERC20 token contract.
    * This owner controls limit/bridge management (setBufferCap, addBridge, etc.).
-   * Returns undefined if the XERC20 does not expose `owner()` (e.g. a
-   * third-party token using AccessControl instead of Ownable) so callers on the
-   * warp read/apply path don't break on non-Ownable tokens.
+   * Returns undefined only if the XERC20 does not expose `owner()` (e.g. a
+   * third-party token using AccessControl instead of Ownable), so callers on the
+   * warp apply path don't break on non-Ownable tokens. Any other failure, an
+   * unreachable RPC above all, is thrown: it says nothing of whether the token
+   * has an owner, and reading it as none drops an ownership change silently.
    */
   async readOwner(xERC20Address: Address): Promise<Address | undefined> {
     try {
@@ -151,6 +175,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
       ).owner();
       return normalizeAddress(owner);
     } catch (error) {
+      throwIfNotMissingSelector(error);
       this.logger.debug(
         { xERC20Address, error },
         'XERC20 does not expose owner(); treating owner as undefined',
@@ -189,5 +214,9 @@ export class EvmXERC20Reader extends HyperlaneReader {
 
   protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
     return toVeloLimits(rateLimits);
+  }
+
+  protected toAevoLimits(authority: AevoMintAuthority): AevoXERC20Limits {
+    return toAevoLimits(authority);
   }
 }

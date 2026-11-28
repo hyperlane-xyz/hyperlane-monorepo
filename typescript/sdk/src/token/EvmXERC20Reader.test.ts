@@ -9,14 +9,26 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneJsonRpcProvider } from '../providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 import { ProviderMethod } from '../providers/SmartProvider/ProviderMethods.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import {
+  errorStringRevertError,
+  ethersCallExceptionWithNestedError,
+  missingSelectorError,
+  networkError,
+} from '../test/errors.js';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 
 import { EvmXERC20Reader } from './EvmXERC20Reader.js';
-import { EvmXERC20VSAdapter } from './adapters/EvmTokenAdapter.js';
-import { RateLimitMidPoint } from './adapters/ITokenAdapter.js';
-import { VeloXERC20Limits } from './xerc20-limits.js';
-import { XERC20Type } from './types.js';
+import {
+  EvmXERC20AevoAdapter,
+  EvmXERC20VSAdapter,
+} from './adapters/EvmTokenAdapter.js';
+import {
+  AevoMintAuthority,
+  RateLimitMidPoint,
+} from './adapters/ITokenAdapter.js';
+import { AevoXERC20Limits, VeloXERC20Limits } from './xerc20-limits.js';
+import { XERC20AevoCapType, XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 
 const CHAIN_NAME = 'paginatedchain';
@@ -197,7 +209,10 @@ const LIMIT_BRIDGES: Address[] = Array.from(
     `0x${(index + 1).toString(16).padStart(2, '0').repeat(20)}`,
 );
 
-function createLimitsReader(concurrency?: number): EvmXERC20Reader {
+function createLimitsReader(
+  concurrency?: number,
+  ReaderClass: typeof EvmXERC20Reader = EvmXERC20Reader,
+): EvmXERC20Reader {
   const rpcUrl: RpcUrl = { http: RPC_URL, concurrency };
   const metadata: ChainMetadata = {
     chainId: CHAIN_ID,
@@ -214,7 +229,7 @@ function createLimitsReader(concurrency?: number): EvmXERC20Reader {
       name: CHAIN_NAME,
     }),
   );
-  return new EvmXERC20Reader(multiProvider, CHAIN_NAME);
+  return new ReaderClass(multiProvider, CHAIN_NAME);
 }
 
 function rateLimits(bufferCap: bigint): RateLimitMidPoint {
@@ -350,8 +365,88 @@ describe('EvmXERC20Reader', () => {
       expect(bridges).to.deep.equal([]);
       expect(fromConfig.notCalled).to.be.true;
     });
+
+    it('reads no logs for an Aevo XERC20', async () => {
+      const fromConfig = sinon.spy(EvmEventLogsReader, 'fromConfig');
+      const reader = createReader({ maxBlockRange: MAX_BLOCK_RANGE });
+
+      const bridges = await reader.readOnChainBridges(
+        XERC20_ADDRESS,
+        XERC20Type.Aevo,
+      );
+
+      expect(bridges).to.deep.equal([]);
+      expect(fromConfig.notCalled).to.be.true;
+    });
   });
   describe('readLimits', () => {
+    // What the token keeps is mapped to limits by toAevoLimits, which its own
+    // table covers; this is the read through the reader.
+    it('reads the authority and cap of each bridge of an Aevo XERC20', async () => {
+      const [otherBridge] = LIMIT_BRIDGES;
+      const getMintAuthority = sinon.stub(
+        EvmXERC20AevoAdapter.prototype,
+        'getMintAuthority',
+      );
+      getMintAuthority
+        .withArgs(OVERRIDE_BRIDGE)
+        .resolves({ authorized: true, cap: 5_000_000n });
+      getMintAuthority
+        .withArgs(otherBridge)
+        .resolves({ authorized: false, cap: 1000n });
+
+      const limits = await createLimitsReader().readLimits(
+        XERC20_ADDRESS,
+        [OVERRIDE_BRIDGE, otherBridge],
+        XERC20Type.Aevo,
+      );
+
+      expect(limits).to.deep.equal({
+        [OVERRIDE_BRIDGE]: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '5000000' },
+        },
+        [otherBridge]: { type: XERC20Type.Aevo, authorized: false },
+      });
+    });
+
+    it('reports what a subclass override returns for an Aevo XERC20', async () => {
+      class OverridingReader extends EvmXERC20Reader {
+        protected override toAevoLimits(
+          authority: AevoMintAuthority,
+        ): AevoXERC20Limits {
+          return authority.authorized
+            ? {
+                type: XERC20Type.Aevo,
+                authorized: true,
+                cap: {
+                  type: XERC20AevoCapType.Raw,
+                  value: `overridden-${authority.cap}`,
+                },
+              }
+            : { type: XERC20Type.Aevo, authorized: false };
+        }
+      }
+
+      sinon
+        .stub(EvmXERC20AevoAdapter.prototype, 'getMintAuthority')
+        .resolves({ authorized: true, cap: 7n });
+
+      const limits = await createLimitsReader(
+        undefined,
+        OverridingReader,
+      ).readLimits(XERC20_ADDRESS, [OVERRIDE_BRIDGE], XERC20Type.Aevo);
+
+      expect(limits).to.deep.equal({
+        [OVERRIDE_BRIDGE]: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: 'overridden-7' },
+        },
+      });
+    });
+
     // The conversions are protected on a root-exported class, so an override is
     // part of what the class promises. Reading through the module functions
     // directly would leave one silently uncalled.
@@ -446,5 +541,89 @@ describe('EvmXERC20Reader', () => {
         expect(peak).to.equal(testCase.expectedPeak);
       });
     }
+  });
+
+  describe('readOwner', () => {
+    const OWNER: Address = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa';
+    const transportFailure = () =>
+      ethersCallExceptionWithNestedError(
+        Object.assign(new Error('Too Many Requests'), {
+          code: 'SERVER_ERROR',
+          status: 429,
+          data: '0x',
+        }),
+      );
+
+    interface MissingGetterCase {
+      name: string;
+      answer: () => Promise<string>;
+    }
+
+    // What a node answers when the token has no owner() to call.
+    const missingGetterCases: MissingGetterCase[] = [
+      {
+        name: 'a revert without data',
+        answer: () => Promise.reject(missingSelectorError()),
+      },
+      {
+        name: 'an empty return',
+        answer: () => Promise.resolve('0x'),
+      },
+      {
+        name: 'an empty response from the provider',
+        answer: () =>
+          Promise.reject(new Error('Invalid response from provider')),
+      },
+    ];
+
+    for (const c of missingGetterCases) {
+      it(`reads no owner for a token that answers owner() with ${c.name}`, async () => {
+        const reader = createLimitsReader();
+        sinon.stub(reader.provider, 'call').callsFake(c.answer);
+
+        expect(await reader.readOwner(XERC20_ADDRESS)).to.equal(undefined);
+      });
+    }
+
+    interface FailureCase {
+      name: string;
+      error: () => Error;
+    }
+
+    // A failure to reach the token says nothing of whether it has an owner, and
+    // an owner read as absent is an ownership change that is silently dropped.
+    const failureCases: FailureCase[] = [
+      { name: 'a transport failure', error: transportFailure },
+      { name: 'a network error', error: networkError },
+      { name: 'a revert with a reason', error: errorStringRevertError },
+    ];
+
+    for (const c of failureCases) {
+      it(`rejects with ${c.name} instead of reading no owner`, async () => {
+        const reader = createLimitsReader();
+        const error = c.error();
+        sinon.stub(reader.provider, 'call').rejects(error);
+
+        let thrown: unknown;
+        try {
+          await reader.readOwner(XERC20_ADDRESS);
+        } catch (e) {
+          thrown = e;
+        }
+
+        expect(thrown).to.equal(error);
+      });
+    }
+
+    it('reads the owner of the token as a checksummed address', async () => {
+      const reader = createLimitsReader();
+      sinon
+        .stub(reader.provider, 'call')
+        .resolves(utils.defaultAbiCoder.encode(['address'], [OWNER]));
+
+      expect(await reader.readOwner(XERC20_ADDRESS)).to.equal(
+        utils.getAddress(OWNER),
+      );
+    });
   });
 });

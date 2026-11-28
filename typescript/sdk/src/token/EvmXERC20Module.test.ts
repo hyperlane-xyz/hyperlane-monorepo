@@ -1,20 +1,38 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import { constants, utils } from 'ethers';
 import sinon from 'sinon';
 
 import { IXERC20Lockbox__factory, Ownable__factory } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-
-import { EvmXERC20Module, XERC20ModuleConfig } from './EvmXERC20Module.js';
 import {
+  AEVO_OWNER_SELECTORS,
+  AEVO_SELECTORS,
+  abiWord,
+  aevoRaw,
+  aevoUnauthorized,
+  aevoUnlimited,
+} from '../test/aevoTokenFixture.js';
+import { OwnableConfig } from '../types.js';
+
+import {
+  EvmXERC20Module,
+  XERC20ModuleConfig,
+  transferAevoOwnershipTransactions,
+} from './EvmXERC20Module.js';
+import {
+  AevoXERC20Limits,
   EvmXERC20Reader,
   StandardXERC20Limits,
   VeloXERC20Limits,
 } from './EvmXERC20Reader.js';
 import { TokenType } from './config.js';
-import { XERC20Type } from './types.js';
+import { XERC20LimitsTokenConfig, XERC20Type } from './types.js';
+
+chai.use(chaiAsPromised);
 
 const XERC20_ADDRESS = '0x1111111111111111111111111111111111111111';
 const WARP_ROUTE_ADDRESS = '0x5555555555555555555555555555555555555555';
@@ -28,6 +46,22 @@ const PROXY_ADMIN_ADDRESS = '0xaaaaAAaaaaaAAAAaAaaaAaAaAAAaaAAaaaAAAAAa';
 
 const ownableInterface = Ownable__factory.createInterface();
 
+const word = abiWord;
+const UPDATE_AUTHORITY_SELECTOR = AEVO_SELECTORS.updateAuthority;
+const SET_CAP_SELECTOR = AEVO_SELECTORS.setCap;
+const SET_OWNER_SELECTOR = AEVO_OWNER_SELECTORS.setOwner;
+
+// The selectors the other token types are called with, written out from their
+// signatures.
+const selectorOf = (signature: string) => utils.id(signature).slice(0, 10);
+const SET_LIMITS_SELECTOR = selectorOf('setLimits(address,uint256,uint256)');
+const SET_BUFFER_CAP_SELECTOR = selectorOf('setBufferCap(address,uint256)');
+const SET_RATE_LIMIT_SELECTOR = selectorOf(
+  'setRateLimitPerSecond(address,uint128)',
+);
+const TRANSFER_OWNERSHIP_SELECTOR = selectorOf('transferOwnership(address)');
+const RENOUNCE_OWNERSHIP_SELECTOR = selectorOf('renounceOwnership()');
+
 // Decode the transferOwnership(address) argument so tests assert the tx actually
 // hands ownership to the expected address, not just that the annotation says so.
 function decodeTransferOwnershipTarget(data: string | undefined): string {
@@ -40,6 +74,90 @@ function decodeTransferOwnershipTarget(data: string | undefined): string {
   );
   return newOwner;
 }
+
+describe('transferAevoOwnershipTransactions', () => {
+  const CHAIN_ID = 31337;
+
+  interface NoOpCase {
+    name: string;
+    actual: Address;
+    expected: Address;
+  }
+
+  const noOpCases: NoOpCase[] = [
+    {
+      name: 'the owners are the same',
+      actual: OWNER_ADDRESS,
+      expected: OWNER_ADDRESS,
+    },
+    {
+      // The reader reports an owner checksummed, a config may write it in any
+      // case.
+      name: 'the owners are the same in another case',
+      actual: PROXY_ADMIN_ADDRESS,
+      expected: PROXY_ADMIN_ADDRESS.toLowerCase(),
+    },
+    {
+      name: 'both owners are the zero address',
+      actual: constants.AddressZero,
+      expected: constants.AddressZero,
+    },
+    {
+      name: 'both owners are the zero address, written differently',
+      actual: constants.AddressZero,
+      expected: constants.HashZero,
+    },
+  ];
+
+  for (const c of noOpCases) {
+    it(`emits nothing when ${c.name}`, () => {
+      expect(
+        transferAevoOwnershipTransactions(
+          CHAIN_ID,
+          XERC20_ADDRESS,
+          { owner: c.actual },
+          { owner: c.expected },
+        ),
+      ).to.deep.equal([]);
+    });
+  }
+
+  it('hands the token to the expected owner with setOwner', () => {
+    const txs = transferAevoOwnershipTransactions(
+      CHAIN_ID,
+      XERC20_ADDRESS,
+      { owner: OWNER_ADDRESS },
+      { owner: NEW_OWNER_ADDRESS },
+      'XERC20 token',
+    );
+
+    expect(
+      txs.map(({ chainId, to, data }) => ({ chainId, to, data })),
+    ).to.deep.equal([
+      {
+        chainId: CHAIN_ID,
+        to: XERC20_ADDRESS,
+        data: `${SET_OWNER_SELECTOR}${word(NEW_OWNER_ADDRESS)}`,
+      },
+    ]);
+    expect(txs[0].annotation).to.include(
+      'Transferring ownership of XERC20 token',
+    );
+  });
+
+  it('refuses to renounce the ownership of the token, whose setOwner reverts on the zero address', () => {
+    expect(() =>
+      transferAevoOwnershipTransactions(
+        CHAIN_ID,
+        XERC20_ADDRESS,
+        { owner: OWNER_ADDRESS },
+        { owner: constants.AddressZero },
+      ),
+    ).to.throw(
+      `${XERC20_ADDRESS} is an aevo token, whose ownership cannot be renounced`,
+    );
+  });
+});
 
 describe('EvmXERC20Module', () => {
   let multiProvider: MultiProvider;
@@ -86,6 +204,26 @@ describe('EvmXERC20Module', () => {
       chain: TestChainName.test1,
       config,
     });
+  };
+
+  const createAevoConfig = (limits: AevoXERC20Limits): XERC20ModuleConfig => ({
+    type: XERC20Type.Aevo,
+    limits: { [WARP_ROUTE_ADDRESS]: limits },
+  });
+
+  // What the token reports: the limits it holds and the owner it has, or none
+  // when it has no owner() to read.
+  const stubChain = (
+    module: EvmXERC20Module,
+    limits: XERC20ModuleConfig['limits'],
+    type: XERC20Type = XERC20Type.Aevo,
+    owner: Address | null = OWNER_ADDRESS,
+  ) => {
+    sandbox.stub(module.reader, 'deriveXERC20TokenType').resolves(type);
+    sandbox.stub(module.reader, 'readOwner').resolves(owner ?? undefined);
+    sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+    sandbox.stub(module.reader, 'readOnChainBridges').resolves([]);
+    sandbox.stub(module.reader, 'readLimits').resolves(limits);
   };
 
   beforeEach(() => {
@@ -427,9 +565,508 @@ describe('EvmXERC20Module', () => {
     });
   });
 
+  describe('Aevo XERC20', () => {
+    // The txs against the token for the router, as call data: a cap of zero
+    // is how a minter is left without a bound.
+    const setCap = (cap: bigint) => ({
+      to: XERC20_ADDRESS,
+      data: `${SET_CAP_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(cap)}`,
+    });
+    const updateAuthority = (authorized: boolean) => ({
+      to: XERC20_ADDRESS,
+      data: `${UPDATE_AUTHORITY_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(authorized ? 1 : 0)}`,
+    });
+
+    it('generates setCap then updateAuthority txs against the token, on its chain, for an authorized minter', async () => {
+      const limits = aevoRaw('1000');
+      const module = createModule(createAevoConfig(limits));
+
+      const txs = await module.generateSetLimitsTxs(WARP_ROUTE_ADDRESS, limits);
+
+      expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal([
+        setCap(1000n),
+        updateAuthority(true),
+      ]);
+      expect(txs[0].chainId).to.equal(
+        multiProvider.getEvmChainId(TestChainName.test1),
+      );
+    });
+
+    it('adds a bridge the same way it sets its limits', async () => {
+      const limits = aevoRaw('1000');
+      const module = createModule(createAevoConfig(limits));
+
+      const txs = await module.generateAddBridgeTxs(WARP_ROUTE_ADDRESS, limits);
+
+      expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal([
+        setCap(1000n),
+        updateAuthority(true),
+      ]);
+    });
+
+    interface UpdateCase {
+      name: string;
+      expected: AevoXERC20Limits;
+      // What the token holds for the router: an unauthorized entry when it holds
+      // nothing, which is what the reader reports for it.
+      actual: AevoXERC20Limits;
+      txs: Array<{ to: string; data: string }>;
+    }
+
+    const updateCases: UpdateCase[] = [
+      {
+        name: 'emits no tx when the authority and cap already match',
+        expected: aevoRaw('1000'),
+        actual: aevoRaw('1000'),
+        txs: [],
+      },
+      {
+        name: 'emits no tx when a minter expected not to be bound is not',
+        expected: aevoUnlimited(),
+        actual: aevoUnlimited(),
+        txs: [],
+      },
+      {
+        name: 'emits no tx when a minter expected not to be authorized is not',
+        expected: aevoUnauthorized(),
+        actual: aevoUnauthorized(),
+        txs: [],
+      },
+      {
+        // What the token kept for a minter that is not authorized is not read,
+        // and it is the cap the token applies once the minter is authorized
+        // again, so the cap is set whatever it kept.
+        name: 'authorizes a minter that is not authorized, setting its cap first',
+        expected: aevoRaw('1000'),
+        actual: aevoUnauthorized(),
+        txs: [setCap(1000n), updateAuthority(true)],
+      },
+      {
+        name: 'authorizes a minter that is not authorized without a bound',
+        expected: aevoUnlimited(),
+        actual: aevoUnauthorized(),
+        txs: [setCap(0n), updateAuthority(true)],
+      },
+      {
+        name: 'changes the cap of an authorized minter, and nothing else',
+        expected: aevoRaw('2000'),
+        actual: aevoRaw('1000'),
+        txs: [setCap(2000n)],
+      },
+      {
+        name: 'binds a minter that was not bound, and nothing else',
+        expected: aevoRaw('1000'),
+        actual: aevoUnlimited(),
+        txs: [setCap(1000n)],
+      },
+      {
+        name: 'unbinds a minter with a cap by setting a cap of zero, and nothing else',
+        expected: aevoUnlimited(),
+        actual: aevoRaw('1000'),
+        txs: [setCap(0n)],
+      },
+      {
+        name: 'revokes an authorized minter, and leaves its cap',
+        expected: aevoUnauthorized(),
+        actual: aevoRaw('1000'),
+        txs: [updateAuthority(false)],
+      },
+      {
+        name: 'revokes a minter that is not bound, and leaves its cap',
+        expected: aevoUnauthorized(),
+        actual: aevoUnlimited(),
+        txs: [updateAuthority(false)],
+      },
+      // A config handed to update directly is not one the schema parsed, which
+      // writes a raw cap as the decimal string of its value: a cap is the value
+      // it is written as, however many zeros it starts with.
+      {
+        name: 'emits no tx when the cap the token holds is written with leading zeros',
+        expected: aevoRaw('001000'),
+        actual: aevoRaw('1000'),
+        txs: [],
+      },
+      {
+        name: 'changes the cap of an authorized minter to one written with leading zeros',
+        expected: aevoRaw('002000'),
+        actual: aevoRaw('1000'),
+        txs: [setCap(2000n)],
+      },
+      {
+        // The same digits plus one, which a comparison of the leading digits
+        // alone would not tell apart.
+        name: 'changes the cap of an authorized minter to a larger one that starts with the same digits',
+        expected: aevoRaw('01001'),
+        actual: aevoRaw('1000'),
+        txs: [setCap(1001n)],
+      },
+      {
+        name: 'authorizes a minter that is not authorized with a cap written with leading zeros',
+        expected: aevoRaw('001000'),
+        actual: aevoUnauthorized(),
+        txs: [setCap(1000n), updateAuthority(true)],
+      },
+    ];
+
+    for (const c of updateCases) {
+      it(c.name, async () => {
+        const config = createAevoConfig(c.expected);
+        const module = createModule(config);
+        stubChain(module, { [WARP_ROUTE_ADDRESS]: c.actual });
+
+        const txs = await module.update(config);
+
+        expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal(c.txs);
+      });
+    }
+
+    it('leaves the config it is given as it is, whatever it does with a cap written with leading zeros', async () => {
+      const config = createAevoConfig(aevoRaw('001000'));
+      const module = createModule(config);
+      stubChain(module, { [WARP_ROUTE_ADDRESS]: aevoRaw('1000') });
+
+      await module.update(config);
+
+      expect(config.limits).to.deep.equal({
+        [WARP_ROUTE_ADDRESS]: aevoRaw('001000'),
+      });
+    });
+
+    it('rejects an Aevo config for a token that is not Aevo', async () => {
+      const config = createAevoConfig(aevoRaw('1000'));
+      const module = createModule(config);
+      stubChain(module, {}, XERC20Type.Standard);
+
+      await expect(module.update(config)).to.be.rejectedWith(
+        'XERC20 type mismatch: expected aevo but on-chain is standard',
+      );
+    });
+
+    it('rejects a Standard config for an Aevo token', async () => {
+      const config = createStandardConfig();
+      const module = createModule(config);
+      stubChain(module, {});
+
+      await expect(module.update(config)).to.be.rejectedWith(
+        'XERC20 type mismatch: expected standard but on-chain is aevo',
+      );
+    });
+  });
+
+  describe('ownership of the token', () => {
+    // The reader reports an owner checksummed, a config may write it in any
+    // case.
+    const CHECKSUMMED_OWNER = PROXY_ADMIN_ADDRESS;
+
+    interface TokenCase {
+      name: string;
+      type: XERC20Type;
+      // Limits the token already holds, so that only its owner can differ.
+      config: XERC20ModuleConfig;
+      // The tx that hands the token to the owner.
+      ownerTx: (owner: Address) => { to: string; data: string };
+    }
+
+    const tokenCases: TokenCase[] = [
+      {
+        name: 'a Standard token',
+        type: XERC20Type.Standard,
+        config: createStandardConfig(),
+        ownerTx: (owner) => ({
+          to: XERC20_ADDRESS,
+          data: `${TRANSFER_OWNERSHIP_SELECTOR}${word(owner)}`,
+        }),
+      },
+      {
+        name: 'a Velodrome token',
+        type: XERC20Type.Velo,
+        config: createVeloConfig(),
+        ownerTx: (owner) => ({
+          to: XERC20_ADDRESS,
+          data: `${TRANSFER_OWNERSHIP_SELECTOR}${word(owner)}`,
+        }),
+      },
+      {
+        // An Aevo token hands over through its own setOwner, which takes effect
+        // at once.
+        name: 'an Aevo token',
+        type: XERC20Type.Aevo,
+        config: createAevoConfig(aevoRaw('1000')),
+        ownerTx: (owner) => ({
+          to: XERC20_ADDRESS,
+          data: `${SET_OWNER_SELECTOR}${word(owner)}`,
+        }),
+      },
+    ];
+
+    for (const t of tokenCases) {
+      const update = async (
+        owner: Address | undefined,
+        actualOwner: Address | null,
+        options?: { includeOwnership?: boolean },
+      ) => {
+        const config: XERC20ModuleConfig = {
+          type: t.type,
+          limits: t.config.limits,
+          owner,
+        };
+        const module = createModule(config);
+        stubChain(module, t.config.limits, t.type, actualOwner);
+        const txs = await module.update(config, options);
+        return txs.map(({ to, data }) => ({ to, data }));
+      };
+
+      it(`hands ${t.name} to the expected owner when it differs`, async () => {
+        expect(
+          await update(NEW_OWNER_ADDRESS, OWNER_ADDRESS, {
+            includeOwnership: true,
+          }),
+        ).to.deep.equal([t.ownerTx(NEW_OWNER_ADDRESS)]);
+      });
+
+      it(`leaves ${t.name} alone when its owner matches in another case`, async () => {
+        expect(
+          await update(CHECKSUMMED_OWNER.toLowerCase(), CHECKSUMMED_OWNER, {
+            includeOwnership: true,
+          }),
+        ).to.deep.equal([]);
+      });
+
+      // The warp apply path reads the owner of the router, not of the token.
+      it(`leaves the owner of ${t.name} alone without includeOwnership`, async () => {
+        expect(await update(NEW_OWNER_ADDRESS, OWNER_ADDRESS)).to.deep.equal(
+          [],
+        );
+      });
+
+      // Nothing to hand over, and for an Aevo token nothing to refuse either:
+      // its setOwner reverts on the zero address.
+      it(`leaves ${t.name} alone when its owner and the expected owner are both the zero address`, async () => {
+        expect(
+          await update(constants.AddressZero, constants.AddressZero, {
+            includeOwnership: true,
+          }),
+        ).to.deep.equal([]);
+      });
+
+      it(`leaves the owner of ${t.name} alone when none is expected`, async () => {
+        expect(
+          await update(undefined, OWNER_ADDRESS, { includeOwnership: true }),
+        ).to.deep.equal([]);
+      });
+
+      // An Aevo token has an owner(), so one that reads as none is refused
+      // below. The other types may be tokens without it, which a deploy config
+      // names an owner for all the same.
+      if (t.type !== XERC20Type.Aevo) {
+        it(`leaves ${t.name} alone when it has no owner() to read`, async () => {
+          expect(
+            await update(NEW_OWNER_ADDRESS, null, { includeOwnership: true }),
+          ).to.deep.equal([]);
+        });
+      }
+
+      // The warp apply path asks for no ownership at all.
+      it(`leaves ${t.name} alone, whether or not it has an owner() to read, without includeOwnership`, async () => {
+        expect(await update(NEW_OWNER_ADDRESS, null)).to.deep.equal([]);
+      });
+    }
+
+    it('refuses to hand over an Aevo token whose owner cannot be read', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createAevoConfig(aevoRaw('1000')),
+        owner: NEW_OWNER_ADDRESS,
+      };
+      const module = createModule(config);
+      stubChain(module, config.limits, XERC20Type.Aevo, null);
+
+      await expect(
+        module.update(config, { includeOwnership: true }),
+      ).to.be.rejectedWith(
+        `Cannot hand over the Aevo token ${XERC20_ADDRESS} on ${TestChainName.test1}`,
+      );
+    });
+
+    it('leaves an Aevo token whose owner cannot be read alone when none is expected', async () => {
+      const config = createAevoConfig(aevoRaw('1000'));
+      const module = createModule(config);
+      stubChain(module, config.limits, XERC20Type.Aevo, null);
+
+      expect(
+        await module.update(config, { includeOwnership: true }),
+      ).to.deep.equal([]);
+    });
+
+    it('hands an Aevo token over after its limits are set', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createAevoConfig(aevoRaw('1000')),
+        owner: NEW_OWNER_ADDRESS,
+      };
+      const module = createModule(config);
+      stubChain(
+        module,
+        { [WARP_ROUTE_ADDRESS]: aevoRaw('2000') },
+        XERC20Type.Aevo,
+        OWNER_ADDRESS,
+      );
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal([
+        {
+          to: XERC20_ADDRESS,
+          data: `${SET_CAP_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(1000n)}`,
+        },
+        {
+          to: XERC20_ADDRESS,
+          data: `${SET_OWNER_SELECTOR}${word(NEW_OWNER_ADDRESS)}`,
+        },
+      ]);
+    });
+
+    it('renounces the ownership of a Standard token', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createStandardConfig(),
+        owner: constants.AddressZero,
+      };
+      const module = createModule(config);
+      stubChain(module, config.limits, XERC20Type.Standard);
+
+      const txs = await module.update(config, { includeOwnership: true });
+
+      expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal([
+        { to: XERC20_ADDRESS, data: RENOUNCE_OWNERSHIP_SELECTOR },
+      ]);
+    });
+
+    it('refuses to renounce the ownership of an Aevo token, whose setOwner reverts on the zero address', async () => {
+      const config: XERC20ModuleConfig = {
+        ...createAevoConfig(aevoRaw('1000')),
+        owner: constants.AddressZero,
+      };
+      const module = createModule(config);
+      stubChain(module, config.limits);
+
+      await expect(
+        module.update(config, { includeOwnership: true }),
+      ).to.be.rejectedWith('whose ownership cannot be renounced');
+    });
+  });
+
+  describe('limits that already match', () => {
+    // A limit the token already holds must not be set again, zero included:
+    // an apply that converges emits nothing.
+    const zeroStandard: StandardXERC20Limits = {
+      type: XERC20Type.Standard,
+      mint: '0',
+      burn: '0',
+    };
+    const zeroVelo: VeloXERC20Limits = {
+      type: XERC20Type.Velo,
+      bufferCap: '0',
+      rateLimitPerSecond: '0',
+    };
+
+    // The txs against the token for the router, as call data.
+    const setLimits = (mint: bigint, burn: bigint) => ({
+      to: XERC20_ADDRESS,
+      data: `${SET_LIMITS_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(mint)}${word(burn)}`,
+    });
+    const setBufferCap = (bufferCap: bigint) => ({
+      to: XERC20_ADDRESS,
+      data: `${SET_BUFFER_CAP_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(bufferCap)}`,
+    });
+    const setRateLimit = (rateLimit: bigint) => ({
+      to: XERC20_ADDRESS,
+      data: `${SET_RATE_LIMIT_SELECTOR}${word(WARP_ROUTE_ADDRESS)}${word(rateLimit)}`,
+    });
+
+    interface Case {
+      name: string;
+      type: XERC20Type;
+      expected: XERC20ModuleConfig['limits'][string];
+      actual: XERC20ModuleConfig['limits'][string];
+      txs: Array<{ to: string; data: string }>;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'emits no tx when a Standard limit expected to be zero is zero',
+        type: XERC20Type.Standard,
+        expected: zeroStandard,
+        actual: zeroStandard,
+        txs: [],
+      },
+      {
+        name: 'emits no tx when a Velodrome limit expected to be zero is zero',
+        type: XERC20Type.Velo,
+        expected: zeroVelo,
+        actual: zeroVelo,
+        txs: [],
+      },
+      {
+        name: 'still sets a Standard limit that differs from a non zero one',
+        type: XERC20Type.Standard,
+        expected: { type: XERC20Type.Standard, mint: '2', burn: '2' },
+        actual: { type: XERC20Type.Standard, mint: '1', burn: '2' },
+        txs: [setLimits(2n, 2n)],
+      },
+      {
+        name: 'still sets a Velodrome limit that differs from a non zero one',
+        type: XERC20Type.Velo,
+        expected: {
+          type: XERC20Type.Velo,
+          bufferCap: '2',
+          rateLimitPerSecond: '2',
+        },
+        actual: {
+          type: XERC20Type.Velo,
+          bufferCap: '1',
+          rateLimitPerSecond: '2',
+        },
+        txs: [setBufferCap(2n), setRateLimit(2n)],
+      },
+      {
+        name: 'still sets a Standard limit the token holds as zero',
+        type: XERC20Type.Standard,
+        expected: { type: XERC20Type.Standard, mint: '2', burn: '2' },
+        actual: zeroStandard,
+        txs: [setLimits(2n, 2n)],
+      },
+      {
+        name: 'still zeroes a Standard limit the token holds as non zero',
+        type: XERC20Type.Standard,
+        expected: zeroStandard,
+        actual: { type: XERC20Type.Standard, mint: '1', burn: '2' },
+        txs: [setLimits(0n, 0n)],
+      },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const config: XERC20ModuleConfig = {
+          type: c.type,
+          limits: { [WARP_ROUTE_ADDRESS]: c.expected },
+        };
+        const module = createModule(config);
+        sandbox.stub(module.reader, 'deriveXERC20TokenType').resolves(c.type);
+        sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+        sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+        sandbox.stub(module.reader, 'readOnChainBridges').resolves([]);
+        sandbox
+          .stub(module.reader, 'readLimits')
+          .resolves({ [WARP_ROUTE_ADDRESS]: c.actual });
+
+        const txs = await module.update(config);
+
+        expect(txs.map(({ to, data }) => ({ to, data }))).to.deep.equal(c.txs);
+      });
+    }
+  });
+
   describe('fromWarpRouteConfig', () => {
     it('creates module from standard warp route config', async () => {
-      const warpRouteConfig = {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
         type: TokenType.XERC20,
         token: XERC20_ADDRESS,
         xERC20: {
@@ -458,7 +1095,7 @@ describe('EvmXERC20Module', () => {
     });
 
     it('creates module from velodrome warp route config', async () => {
-      const warpRouteConfig = {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
         type: TokenType.XERC20,
         token: XERC20_ADDRESS,
         xERC20: {
@@ -487,7 +1124,7 @@ describe('EvmXERC20Module', () => {
     });
 
     it('includes extra bridges in config', async () => {
-      const warpRouteConfig = {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
         type: TokenType.XERC20,
         token: XERC20_ADDRESS,
         xERC20: {
@@ -530,7 +1167,7 @@ describe('EvmXERC20Module', () => {
         .stub(IXERC20Lockbox__factory, 'connect')
         .returns({ callStatic: { XERC20: xerc20Stub } } as any);
 
-      const warpRouteConfig = {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
         type: TokenType.XERC20Lockbox,
         token: LOCKBOX_ADDRESS,
         xERC20: {
@@ -565,18 +1202,19 @@ describe('EvmXERC20Module', () => {
     });
 
     it('populates expected owner and proxyAdmin owner from config.owner', async () => {
-      const warpRouteConfig = {
-        type: TokenType.XERC20,
-        token: XERC20_ADDRESS,
-        owner: OWNER_ADDRESS,
-        xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            bufferCap: '1000000000000000000',
-            rateLimitPerSecond: '100000000000000000',
+      const warpRouteConfig: XERC20LimitsTokenConfig & Partial<OwnableConfig> =
+        {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          owner: OWNER_ADDRESS,
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              bufferCap: '1000000000000000000',
+              rateLimitPerSecond: '100000000000000000',
+            },
           },
-        },
-      };
+        };
 
       const { config } = await EvmXERC20Module.fromWarpRouteConfig(
         multiProvider,
@@ -589,12 +1227,217 @@ describe('EvmXERC20Module', () => {
       expect(config.proxyAdmin).to.deep.equal({ owner: OWNER_ADDRESS });
     });
 
+    it('declares the limits of an Aevo warp route', async () => {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+        xERC20: { warpRouteLimits: aevoRaw('1000') },
+      };
+
+      const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+
+      expect(config.type).to.equal(XERC20Type.Aevo);
+      expect(config.limits).to.deep.equal({
+        [WARP_ROUTE_ADDRESS]: aevoRaw('1000'),
+      });
+    });
+
+    interface RawCapCase {
+      name: string;
+      declared: string;
+      expected: string;
+    }
+
+    // The config a caller hands in is not always one the schema parsed, which
+    // writes a raw cap as the decimal string of its value.
+    const rawCapCases: RawCapCase[] = [
+      {
+        name: 'one that is already written out',
+        declared: '100',
+        expected: '100',
+      },
+      { name: 'one with leading zeros', declared: '00100', expected: '100' },
+      {
+        name: 'one above 2^53 with leading zeros',
+        declared: '000123456789012345678901',
+        expected: '123456789012345678901',
+      },
+    ];
+
+    for (const c of rawCapCases) {
+      it(`expects the value of a raw Aevo cap written out, for ${c.name}`, async () => {
+        const warpRouteConfig: XERC20LimitsTokenConfig = {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          xERC20: { warpRouteLimits: aevoRaw(c.declared) },
+        };
+
+        const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+          multiProvider,
+          TestChainName.test1,
+          warpRouteConfig,
+          WARP_ROUTE_ADDRESS,
+        );
+
+        expect(config.limits).to.deep.equal({
+          [WARP_ROUTE_ADDRESS]: aevoRaw(c.expected),
+        });
+      });
+    }
+
+    it('emits nothing for a raw Aevo cap with leading zeros that the token already holds', async () => {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+        xERC20: { warpRouteLimits: aevoRaw('00100') },
+      };
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+      stubChain(module, { [WARP_ROUTE_ADDRESS]: aevoRaw('100') });
+
+      expect(await module.update(config)).to.have.lengthOf(0);
+    });
+
+    it('leaves a cap that is not raw, and a minter that is not authorized, as declared', async () => {
+      for (const limits of [aevoUnlimited(), aevoUnauthorized()]) {
+        const warpRouteConfig: XERC20LimitsTokenConfig = {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          xERC20: { warpRouteLimits: limits },
+        };
+
+        const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+          multiProvider,
+          TestChainName.test1,
+          warpRouteConfig,
+          WARP_ROUTE_ADDRESS,
+        );
+
+        expect(config.limits).to.deep.equal({ [WARP_ROUTE_ADDRESS]: limits });
+      }
+    });
+
+    it('expects the owner of an Aevo token as it does of any other', async () => {
+      const warpRouteConfig: XERC20LimitsTokenConfig & Partial<OwnableConfig> =
+        {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          owner: OWNER_ADDRESS,
+          xERC20: { warpRouteLimits: aevoRaw('1000') },
+        };
+
+      const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+
+      expect(config.owner).to.equal(OWNER_ADDRESS);
+      expect(config.proxyAdmin).to.deep.equal({ owner: OWNER_ADDRESS });
+    });
+
+    it('derives an Aevo token, and manages none of its limits, when none are declared', async () => {
+      sandbox
+        .stub(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Aevo);
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+      };
+
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+      sandbox.stub(module.reader, 'readOwner').resolves(OWNER_ADDRESS);
+      sandbox.stub(module.reader, 'readProxyAdmin').resolves(undefined);
+
+      expect(config).to.deep.equal({ type: XERC20Type.Aevo, limits: {} });
+      expect(await module.update(config)).to.have.lengthOf(0);
+    });
+
+    interface PartialLimitCase {
+      name: string;
+      limits: XERC20LimitsTokenConfig['xERC20'];
+    }
+
+    // A Standard or Velodrome entry that leaves out either of its limits is not
+    // managed: the limit it leaves out is neither read nor set.
+    const partialLimitCases: PartialLimitCase[] = [
+      {
+        name: 'a Standard entry that leaves out its burn limit',
+        limits: { warpRouteLimits: { type: XERC20Type.Standard, mint: '1' } },
+      },
+      {
+        name: 'a Standard entry that leaves out its mint limit',
+        limits: { warpRouteLimits: { type: XERC20Type.Standard, burn: '1' } },
+      },
+      {
+        name: 'a Velodrome entry that leaves out its rate limit',
+        limits: {
+          warpRouteLimits: { type: XERC20Type.Velo, bufferCap: '1' },
+        },
+      },
+      {
+        name: 'a Velodrome entry that leaves out its buffer cap',
+        limits: {
+          warpRouteLimits: {
+            type: XERC20Type.Velo,
+            rateLimitPerSecond: '1',
+          },
+        },
+      },
+      {
+        name: 'an extra bridge entry that leaves out a limit',
+        limits: {
+          warpRouteLimits: { type: XERC20Type.Standard },
+          extraBridges: [
+            {
+              lockbox: EXTRA_BRIDGE_ADDRESS,
+              limits: { type: XERC20Type.Velo, bufferCap: '1' },
+            },
+          ],
+        },
+      },
+    ];
+
+    for (const c of partialLimitCases) {
+      it(`manages no limit for ${c.name}`, async () => {
+        const warpRouteConfig: XERC20LimitsTokenConfig = {
+          type: TokenType.XERC20,
+          token: XERC20_ADDRESS,
+          xERC20: c.limits,
+        };
+
+        const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+          multiProvider,
+          TestChainName.test1,
+          warpRouteConfig,
+          WARP_ROUTE_ADDRESS,
+        );
+
+        expect(config.limits).to.deep.equal({});
+      });
+    }
+
     it('derives type from chain when limits missing', async () => {
       const typeStub = sandbox
         .stub(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')
         .resolves(XERC20Type.Velo);
 
-      const warpRouteConfig = {
+      const warpRouteConfig: XERC20LimitsTokenConfig = {
         type: TokenType.XERC20,
         token: XERC20_ADDRESS,
       };

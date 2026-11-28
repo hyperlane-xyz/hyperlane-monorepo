@@ -2,6 +2,8 @@ import {
   CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
+  HypFiatToken__factory,
+  HypXERC20__factory,
   IFiatToken__factory,
   IXERC20__factory,
   PackageVersioned__factory,
@@ -12,7 +14,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import sinon from 'sinon';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import {
@@ -22,6 +24,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { blockAt } from '../test/aevoChainStubs.js';
 import {
   errorStringRevertError,
   ethersCallExceptionWithNestedError,
@@ -31,11 +34,17 @@ import {
   panicRevertError,
   unrecognisedCustomRevertError,
 } from '../test/errors.js';
+import {
+  AEVO_SELECTORS,
+  AEVO_USDC_IMPLEMENTATION,
+  AEVO_USDC_PROXY,
+  aevoTokenCode,
+} from '../test/aevoTokenFixture.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenType } from './config.js';
-import { XERC20Type } from './types.js';
+import { XERC20AevoCapType, XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 
 chai.use(chaiAsPromised);
@@ -636,6 +645,10 @@ describe('EvmWarpRouteReader', () => {
     async function deriveWithXERC20Probe(
       probeError?: Error,
       wrappedTokenCode?: string,
+      {
+        routerCode,
+        fiatMint = false,
+      }: { routerCode?: string; fiatMint?: boolean } = {},
     ): Promise<TokenType> {
       const wrappedTokenSelector = HypERC20Collateral__factory.createInterface()
         .getSighash('wrappedToken')
@@ -650,7 +663,7 @@ describe('EvmWarpRouteReader', () => {
         .callsFake(async (address) =>
           (await address).toLowerCase() === wrappedToken.toLowerCase()
             ? (wrappedTokenCode ?? `0x${xerc20Selector}`)
-            : `0x${wrappedTokenSelector}`,
+            : (routerCode ?? ensure0x(wrappedTokenSelector)),
         );
       sandbox.stub(provider, 'getStorageAt').resolves(`0x${'00'.repeat(32)}`);
       sandbox.stub(HypERC20Collateral__factory, 'connect').returns({
@@ -662,8 +675,11 @@ describe('EvmWarpRouteReader', () => {
       sandbox.stub(IXERC20__factory, 'connect').returns({
         'mintingCurrentLimitOf(address)': probe,
       } as unknown as ReturnType<typeof IXERC20__factory.connect>);
+      const mint = sandbox.stub();
+      if (fiatMint) mint.resolves({});
+      else mint.rejects(missingSelectorError());
       sandbox.stub(IFiatToken__factory, 'connect').returns({
-        callStatic: { mint: sandbox.stub().rejects(missingSelectorError()) },
+        callStatic: { mint },
       } as unknown as ReturnType<typeof IFiatToken__factory.connect>);
       sandbox.stub(EverclearTokenBridge__factory, 'connect').returns({
         callStatic: {
@@ -705,6 +721,70 @@ describe('EvmWarpRouteReader', () => {
       );
     });
 
+    // The token of a HypXERC20 router that exposes no mintingCurrentLimitOf is
+    // told from the code of the router, which burns through
+    // burn(address,uint256). The routers are the core build, not selectors
+    // written out here, and the Aevo token is the recorded one: a proxy that
+    // delegates, so its getter cannot be ruled out and the probe is made.
+    interface RouterCodeCase {
+      name: string;
+      routerCode: string;
+      wrappedTokenCode: string;
+      fiatMint?: boolean;
+      expected: TokenType;
+    }
+
+    const aevoProxyCode = aevoTokenCode(AEVO_USDC_PROXY);
+    const routerCodeCases: RouterCodeCase[] = [
+      {
+        name: 'reads a HypXERC20 router as xERC20 when its Aevo token answers the probe with a missing selector',
+        routerCode: HypXERC20__factory.bytecode,
+        wrappedTokenCode: aevoProxyCode,
+        expected: TokenType.XERC20,
+      },
+      {
+        name: 'reads a HypXERC20 router as xERC20 though its Aevo token mints for it',
+        routerCode: HypXERC20__factory.bytecode,
+        wrappedTokenCode: aevoProxyCode,
+        fiatMint: true,
+        expected: TokenType.XERC20,
+      },
+      {
+        name: 'reads a HypXERC20 router as xERC20 when its token lacks the getter and the probe is skipped',
+        routerCode: HypXERC20__factory.bytecode,
+        wrappedTokenCode: '0x6080604052deadbeef',
+        expected: TokenType.XERC20,
+      },
+      {
+        name: 'reads a HypERC20Collateral router over an Aevo token as collateral',
+        routerCode: HypERC20Collateral__factory.bytecode,
+        wrappedTokenCode: aevoProxyCode,
+        expected: TokenType.collateral,
+      },
+      {
+        name: 'reads a HypFiatToken router as collateralFiat',
+        routerCode: HypFiatToken__factory.bytecode,
+        wrappedTokenCode: '0x6080604052deadbeef',
+        fiatMint: true,
+        expected: TokenType.collateralFiat,
+      },
+    ];
+
+    for (const c of routerCodeCases) {
+      it(c.name, async () => {
+        expect(
+          await deriveWithXERC20Probe(
+            missingSelectorError(),
+            c.wrappedTokenCode,
+            {
+              routerCode: c.routerCode,
+              fiatMint: c.fiatMint,
+            },
+          ),
+        ).to.equal(c.expected);
+      });
+    }
+
     const fallThroughCases = [
       { name: 'a panic revert', error: panicRevertError },
       { name: 'a missing selector', error: missingSelectorError },
@@ -745,6 +825,19 @@ describe('EvmWarpRouteReader', () => {
       let thrown: unknown;
       try {
         await deriveWithXERC20Probe(error);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).to.equal(error);
+    });
+
+    it('rethrows a surfaced probe failure of a HypXERC20 router instead of reading it from its code', async () => {
+      const error = errorStringRevertError();
+      let thrown: unknown;
+      try {
+        await deriveWithXERC20Probe(error, undefined, {
+          routerCode: HypXERC20__factory.bytecode,
+        });
       } catch (e) {
         thrown = e;
       }
@@ -803,6 +896,10 @@ describe('EvmWarpRouteReader', () => {
       };
     }
 
+    // The entries are the two words a token answers a bridge with: the mint
+    // and burn limits of a Standard token, the buffer cap and rate limit of a
+    // Velodrome one, and for an Aevo token whether the minter is authorized, as
+    // '1' or '0', and its cap.
     function stubToken(
       type: XERC20Type,
       limits: Record<string, [string, string]>,
@@ -811,8 +908,18 @@ describe('EvmWarpRouteReader', () => {
       const getCode = sandbox
         .stub(provider, 'getCode')
         .resolves(
-          `0x${type === XERC20Type.Velo ? setBufferCapSelector : setLimitsSelector}`,
+          type === XERC20Type.Aevo
+            ? aevoTokenCode(AEVO_USDC_IMPLEMENTATION)
+            : ensure0x(
+                type === XERC20Type.Velo
+                  ? setBufferCapSelector
+                  : setLimitsSelector,
+              ),
         );
+      // An Aevo token is read at the block that was the latest.
+      if (type === XERC20Type.Aevo) {
+        sandbox.stub(reader.provider, 'getBlock').resolves(blockAt(100));
+      }
       sandbox.stub(provider, 'call').callsFake(async (transaction) => {
         const data = await transaction.data;
         assert(typeof data === 'string', 'Expected call data');
@@ -834,6 +941,15 @@ describe('EvmWarpRouteReader', () => {
           return ethers.utils.defaultAbiCoder.encode(['uint256'], [entry[0]]);
         }
         if (selector === burningMaxLimitOfSelector) {
+          return ethers.utils.defaultAbiCoder.encode(['uint256'], [entry[1]]);
+        }
+        if (selector === AEVO_SELECTORS.authorities) {
+          return ethers.utils.defaultAbiCoder.encode(
+            ['bool'],
+            [entry[0] === '1'],
+          );
+        }
+        if (selector === AEVO_SELECTORS.caps) {
           return ethers.utils.defaultAbiCoder.encode(['uint256'], [entry[1]]);
         }
         throw new Error(`Unexpected call ${selector}`);
@@ -970,6 +1086,50 @@ describe('EvmWarpRouteReader', () => {
           extraBridges: undefined,
         },
       });
+    });
+
+    // Which other contracts may mint an Aevo token is not modelled, so no log of
+    // the token is read and only the authority and cap of the router are.
+    it('derives the authority and cap of the router of an Aevo token, whatever other minters it holds', async () => {
+      const getLogsByTopic = sandbox
+        .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+        .rejects(new Error('Unexpected log read'));
+      stubToken(XERC20Type.Aevo, {
+        [WARP_ROUTER.toLowerCase()]: ['1', '5000000'],
+        [EXTRA_BRIDGE.toLowerCase()]: ['1', '0'],
+      });
+
+      const config = await reader.fetchXERC20Config(
+        XERC20_ADDRESS,
+        WARP_ROUTER,
+      );
+
+      expect(config).to.deep.equal({
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Aevo,
+            authorized: true,
+            cap: { type: XERC20AevoCapType.Raw, value: '5000000' },
+          },
+          extraBridges: undefined,
+        },
+      });
+      sinon.assert.notCalled(getLogsByTopic);
+    });
+
+    it('propagates a transient failure of an Aevo token instead of reporting an empty xERC20 config', async () => {
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      sandbox
+        .stub(provider, 'getCode')
+        .resolves(aevoTokenCode(AEVO_USDC_IMPLEMENTATION));
+      sandbox.stub(reader.provider, 'getBlock').resolves(blockAt(100));
+      sandbox
+        .stub(provider, 'call')
+        .rejects(new Error('Invalid response from provider'));
+
+      await expect(
+        reader.fetchXERC20Config(XERC20_ADDRESS, WARP_ROUTER),
+      ).to.be.rejectedWith('Invalid response from provider');
     });
 
     // A third-party token implementing neither limit interface is not drift and

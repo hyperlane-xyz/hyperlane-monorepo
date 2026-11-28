@@ -643,6 +643,10 @@ export {
   randomIsmConfig,
   randomDeployableIsmConfig,
 } from './test/testUtils.js';
+export {
+  DeployedAevoXERC20Token,
+  deployAevoXERC20Token,
+} from './test/aevoToken.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
@@ -823,8 +827,10 @@ export {
   EvmTokenAdapter,
   EvmXERC20VSAdapter,
   EvmXERC20Adapter,
+  EvmXERC20AevoAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
+  AevoMintAuthority,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -910,6 +916,7 @@ export type {
   WarpRouteCheckViolation,
 } from './token/warpCheck.js';
 export {
+  AevoXERC20Limits,
   EvmXERC20Reader,
   StandardXERC20Limits,
   VeloXERC20Limits,
@@ -1012,6 +1019,8 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
+  XERC20AevoCapConfig,
+  XERC20AevoCapType,
   XERC20VSLimitConfig,
   XERC20Type,
   XERC20ExtraBridgeType,
@@ -1030,6 +1039,7 @@ export {
 } from './token/xerc20.js';
 export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_AEVO_ABI,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
 export {

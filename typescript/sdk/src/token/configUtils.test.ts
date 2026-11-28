@@ -42,6 +42,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
+  XERC20VSLimitConfig,
   isMovableCollateralTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
@@ -612,7 +613,7 @@ describe('configUtils', () => {
         '0xB000000000000000000000000000000000000000',
       );
 
-      const limits = {
+      const limits: XERC20VSLimitConfig = {
         type: XERC20Type.Velo,
         bufferCap: '20000000000000',
         rateLimitPerSecond: '5000000000',
