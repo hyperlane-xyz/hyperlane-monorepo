@@ -2,7 +2,6 @@
 import 'zod/compile';
 
 import { Wallet } from 'ethers';
-import path from 'path';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -17,6 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
+import { resolveBridgeStateFilePath } from './config/resolveBridgeStateFile.js';
 import { KeyFunder } from './core/KeyFunder.js';
 import { KeyFunderMetrics } from './metrics/Metrics.js';
 
@@ -50,8 +50,13 @@ async function main(): Promise<void> {
     const config = configLoader.config;
     const configuredChains = configLoader.getConfiguredChains();
     const signerChains = configLoader.getRequiredSignerChains();
+    const bridgeStateFile = resolveBridgeStateFilePath({
+      config,
+      configFile,
+      envBridgeStateFile: process.env.KEYFUNDER_BRIDGE_STATE_FILE,
+    });
     logger.info(
-      { chains: configuredChains, signerChains },
+      { chains: configuredChains, signerChains, bridgeStateFile },
       'Loaded keyfunder configuration',
     );
 
@@ -81,7 +86,7 @@ async function main(): Promise<void> {
     // Tron's JSON-RPC rejects eth_sendRawTransaction, so Tron chains need a
     // TronWallet (native HTTP wallet API) for the funding write path. Other
     // chains use a standard ethers Wallet. setSharedSigner can't be mixed with
-    // per-chain signers, so wire every destination and bridge-origin chain explicitly.
+    // per-chain signers, so wire every active destination and bridge-origin chain explicitly.
     const evmSigner = new Wallet(privateKey);
     const tronChains: string[] = [];
     for (const chain of signerChains) {
@@ -105,8 +110,9 @@ async function main(): Promise<void> {
     );
 
     let igp: HyperlaneIgp | undefined;
+    const activeChainSet = new Set(configLoader.getChainsToProcess());
     const igpEntries = Object.entries(config.chains)
-      .filter(([, cfg]) => cfg.igp)
+      .filter(([chain, cfg]) => activeChainSet.has(chain) && cfg.igp)
       .map(([chain, cfg]) => [
         chain,
         { interchainGasPaymaster: cfg.igp!.address },
@@ -125,14 +131,6 @@ async function main(): Promise<void> {
       config.metrics,
       config.metrics?.labels,
     );
-
-    const bridgeStateFile =
-      config.bridgeStateFile ??
-      process.env.KEYFUNDER_BRIDGE_STATE_FILE ??
-      path.join(
-        path.dirname(path.resolve(configFile)),
-        '.keyfunder-bridge-state.json',
-      );
 
     const funder = new KeyFunder(multiProvider, config, {
       logger,

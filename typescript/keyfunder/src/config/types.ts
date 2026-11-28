@@ -8,22 +8,62 @@ const AddressSchema = z
     'Must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
   );
 
+const BALANCE_STRING_REGEX = /^(?:\d+)(?:\.\d{1,18})?$/;
+
 // Requires leading digit (e.g., "0.5" not ".5") for YAML readability
 const BalanceStringSchema = z
   .string()
   .regex(
-    /^(?:\d+)(?:\.\d{1,18})?$/,
+    BALANCE_STRING_REGEX,
     'Must be a valid non-negative decimal string with leading digit (e.g., "0.5" not ".5", up to 18 decimals)',
   );
 
 const MAX_UINT32 = 0xffffffff;
 
-function hasRepresentablePrecision(amount: string, decimals: number): boolean {
+export enum BridgeStack {
+  OpStack = 'opStack',
+  ArbitrumOrbit = 'arbitrumOrbit',
+}
+
+export enum OpStackBridgeMode {
+  OptimismPortal = 'optimismPortal',
+  L1StandardBridge = 'l1StandardBridge',
+  HyperlaneHook = 'hyperlaneHook',
+}
+
+export enum ArbitrumOrbitBridgeMode {
+  EthInbox = 'ethInbox',
+  Erc20Inbox = 'erc20Inbox',
+  RetryableTicket = 'retryableTicket',
+  HyperlaneHook = 'hyperlaneHook',
+}
+
+/**
+ * Strips trailing fractional zeros so values like "1.0" are accepted by
+ * ethers.utils.parseUnits even when token precision is 0 decimals.
+ */
+export function normalizeDecimalAmountString(amount: string): string {
   const dotIndex = amount.indexOf('.');
+  if (dotIndex === -1) {
+    return amount;
+  }
+  const integerPart = amount.slice(0, dotIndex);
+  const trimmedFraction = amount.slice(dotIndex + 1).replace(/0+$/, '');
+  return trimmedFraction.length > 0
+    ? `${integerPart}.${trimmedFraction}`
+    : integerPart;
+}
+
+export function hasRepresentablePrecision(
+  amount: string,
+  decimals: number,
+): boolean {
+  const normalized = normalizeDecimalAmountString(amount);
+  const dotIndex = normalized.indexOf('.');
   if (dotIndex === -1) {
     return true;
   }
-  return amount.length - dotIndex - 1 <= decimals;
+  return normalized.length - dotIndex - 1 <= decimals;
 }
 
 function validateBridgeAmountLimits(
@@ -32,6 +72,15 @@ function validateBridgeAmountLimits(
   ctx: z.RefinementCtx,
   pathPrefix: (string | number)[] = [],
 ): void {
+  // Skip numeric conversion when syntax checks already failed so safeParse
+  // surfaces the schema's field-level regex diagnostic instead of throwing.
+  if (
+    !BALANCE_STRING_REGEX.test(cfg.minBridgeThreshold) ||
+    !BALANCE_STRING_REGEX.test(cfg.maxBridgeAmount)
+  ) {
+    return;
+  }
+
   let minRepresentable = true;
   let maxRepresentable = true;
 
@@ -57,8 +106,22 @@ function validateBridgeAmountLimits(
     return;
   }
 
-  const minUnits = ethers.utils.parseUnits(cfg.minBridgeThreshold, decimals);
-  const maxUnits = ethers.utils.parseUnits(cfg.maxBridgeAmount, decimals);
+  const minUnits = ethers.utils.parseUnits(
+    normalizeDecimalAmountString(cfg.minBridgeThreshold),
+    decimals,
+  );
+  const maxUnits = ethers.utils.parseUnits(
+    normalizeDecimalAmountString(cfg.maxBridgeAmount),
+    decimals,
+  );
+  if (maxUnits.isZero()) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...pathPrefix, 'maxBridgeAmount'],
+      message: 'maxBridgeAmount must be greater than zero',
+    });
+    return;
+  }
   if (maxUnits.lt(minUnits)) {
     ctx.addIssue({
       code: 'custom',
@@ -125,6 +188,7 @@ export const HyperlaneHookBridgeDeliverySchema = z.object({
   mailboxAddress: AddressSchema,
   hookAddress: AddressSchema,
   recipientAddress: AddressSchema,
+  destinationMailboxAddress: AddressSchema.optional(),
   destinationDomain: z
     .number()
     .int()
@@ -138,9 +202,9 @@ export const HyperlaneHookBridgeDeliverySchema = z.object({
 
 export const OpStackBridgeConfigSchema = z
   .object({
-    stack: z.literal('opStack'),
+    stack: z.literal(BridgeStack.OpStack),
     originChain: z.string().min(1),
-    mode: z.enum(['optimismPortal', 'l1StandardBridge', 'hyperlaneHook']),
+    mode: z.enum(OpStackBridgeMode),
     bridgeContract: AddressSchema.optional(),
     l2GasLimit: z.number().int().min(21_000).max(10_000_000).default(200_000),
     minBridgeThreshold: BalanceStringSchema.default('0.01'),
@@ -150,7 +214,9 @@ export const OpStackBridgeConfigSchema = z
   })
   .superRefine((cfg, ctx) => {
     const hasModeConfig =
-      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.bridgeContract;
+      cfg.mode === OpStackBridgeMode.HyperlaneHook
+        ? !!cfg.hookDelivery
+        : !!cfg.bridgeContract;
     if (!hasModeConfig) {
       ctx.addIssue({
         code: 'custom',
@@ -163,14 +229,9 @@ export const OpStackBridgeConfigSchema = z
 
 export const ArbitrumOrbitBridgeConfigSchema = z
   .object({
-    stack: z.literal('arbitrumOrbit'),
+    stack: z.literal(BridgeStack.ArbitrumOrbit),
     originChain: z.string().min(1),
-    mode: z.enum([
-      'ethInbox',
-      'erc20Inbox',
-      'retryableTicket',
-      'hyperlaneHook',
-    ]),
+    mode: z.enum(ArbitrumOrbitBridgeMode),
     inboxAddress: AddressSchema.optional(),
     originGasToken: z
       .object({
@@ -188,7 +249,9 @@ export const ArbitrumOrbitBridgeConfigSchema = z
   })
   .superRefine((cfg, ctx) => {
     const hasModeConfig =
-      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.inboxAddress;
+      cfg.mode === ArbitrumOrbitBridgeMode.HyperlaneHook
+        ? !!cfg.hookDelivery
+        : !!cfg.inboxAddress;
     if (!hasModeConfig) {
       ctx.addIssue({
         code: 'custom',
@@ -197,7 +260,10 @@ export const ArbitrumOrbitBridgeConfigSchema = z
       });
     }
 
-    if (cfg.mode === 'erc20Inbox' && !cfg.originGasToken) {
+    if (
+      cfg.mode === ArbitrumOrbitBridgeMode.Erc20Inbox &&
+      !cfg.originGasToken
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['originGasToken'],
@@ -206,7 +272,10 @@ export const ArbitrumOrbitBridgeConfigSchema = z
       });
     }
 
-    const decimals = cfg.originGasToken?.decimals ?? 18;
+    const decimals =
+      cfg.mode === ArbitrumOrbitBridgeMode.Erc20Inbox
+        ? (cfg.originGasToken?.decimals ?? 18)
+        : 18;
     validateBridgeAmountLimits(cfg, decimals, ctx);
   });
 
@@ -234,8 +303,8 @@ export const ChainConfigSchema = z
       chainCfg.bridge &&
       chainCfg.erc20GasToken &&
       !(
-        chainCfg.bridge.stack === 'arbitrumOrbit' &&
-        chainCfg.bridge.mode === 'erc20Inbox'
+        chainCfg.bridge.stack === BridgeStack.ArbitrumOrbit &&
+        chainCfg.bridge.mode === ArbitrumOrbitBridgeMode.Erc20Inbox
       )
     ) {
       validateBridgeAmountLimits(

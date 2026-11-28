@@ -10,16 +10,22 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-import type {
-  ArbitrumOrbitBridgeConfig,
-  BridgeConfig,
-  HyperlaneHookBridgeDelivery,
-  OpStackBridgeConfig,
+import {
+  type ArbitrumOrbitBridgeConfig,
+  ArbitrumOrbitBridgeMode,
+  type BridgeConfig,
+  BridgeStack,
+  type HyperlaneHookBridgeDelivery,
+  normalizeDecimalAmountString,
+  type OpStackBridgeConfig,
+  OpStackBridgeMode,
 } from '../config/types.js';
 
+import { extractBridgeDeliveryRefFromReceipt } from './BridgeDelivery.js';
 import {
   type BridgeStateStore,
   type PersistedBridgeAttempt,
+  getUnresolvedOriginNativeSpend,
   reconcilePendingBridgeAttempt,
   withRecipientBridgeLock,
 } from './BridgeStateStore.js';
@@ -39,8 +45,13 @@ export const BRIDGE_INTERFACES = {
     'function createRetryableTicket(address to, uint256 l2CallValue, uint256 maxSubmissionCost, address excessFeeRefundAddress, address callValueRefundAddress, uint256 gasLimit, uint256 maxFeePerGas, bytes data) payable returns (uint256)',
   ]),
   arbitrumErc20Inbox: new ethers.utils.Interface([
+    'function bridge() view returns (address)',
     'function depositERC20(uint256 _amount) returns (uint256)',
     'function createRetryableTicket(address to, uint256 l2CallValue, uint256 maxSubmissionCost, address excessFeeRefundAddress, address callValueRefundAddress, uint256 gasLimit, uint256 maxFeePerGas, uint256 tokenTotalFeeAmount, bytes data) returns (uint256)',
+  ]),
+  arbitrumErc20Bridge: new ethers.utils.Interface([
+    'function nativeToken() view returns (address)',
+    'function nativeTokenDecimals() view returns (uint8)',
   ]),
   hyperlaneMailbox: new ethers.utils.Interface([
     'function dispatch(uint32 destinationDomain, bytes32 recipientAddress, bytes messageBody, bytes customHookMetadata, address customHook) payable returns (bytes32)',
@@ -68,11 +79,14 @@ export interface BridgeFundingResult {
   txHashes: string[];
 }
 
-function getBridgeDecimals(
+export function getBridgeDecimals(
   bridge: BridgeConfig,
   destinationDecimals: number,
 ): number {
-  if (bridge.stack === 'arbitrumOrbit' && bridge.mode === 'erc20Inbox') {
+  if (
+    bridge.stack === BridgeStack.ArbitrumOrbit &&
+    bridge.mode === ArbitrumOrbitBridgeMode.Erc20Inbox
+  ) {
     return bridge.originGasToken?.decimals ?? destinationDecimals;
   }
   return destinationDecimals;
@@ -152,16 +166,99 @@ async function assertDeployedContract(
   }
 }
 
+async function verifyArbitrumErc20InboxTokenConfig(params: {
+  originProvider: ethers.providers.Provider;
+  originChain: string;
+  inboxAddress: string;
+  expectedTokenAddress: string;
+  expectedDecimals: number;
+}): Promise<void> {
+  const {
+    originProvider,
+    originChain,
+    inboxAddress,
+    expectedTokenAddress,
+    expectedDecimals,
+  } = params;
+
+  const rawBridgeAddr = await originProvider.call({
+    to: inboxAddress,
+    data: BRIDGE_INTERFACES.arbitrumErc20Inbox.encodeFunctionData('bridge'),
+  });
+  const decodedBridge =
+    BRIDGE_INTERFACES.arbitrumErc20Inbox.decodeFunctionResult(
+      'bridge',
+      rawBridgeAddr,
+    );
+  const bridgeAddress: unknown = decodedBridge[0];
+  assert(
+    typeof bridgeAddress === 'string' && ethers.utils.isAddress(bridgeAddress),
+    `Arbitrum Orbit ERC20Inbox ${inboxAddress} on ${originChain} returned an invalid bridge address`,
+  );
+
+  await assertDeployedContract(
+    originProvider,
+    originChain,
+    bridgeAddress,
+    'Arbitrum Orbit ERC20Bridge contract',
+  );
+
+  const [rawNativeToken, rawBridgeDecimals, onchainTokenDecimals] =
+    await Promise.all([
+      originProvider.call({
+        to: bridgeAddress,
+        data: BRIDGE_INTERFACES.arbitrumErc20Bridge.encodeFunctionData(
+          'nativeToken',
+        ),
+      }),
+      originProvider.call({
+        to: bridgeAddress,
+        data: BRIDGE_INTERFACES.arbitrumErc20Bridge.encodeFunctionData(
+          'nativeTokenDecimals',
+        ),
+      }),
+      ERC20__factory.connect(expectedTokenAddress, originProvider).decimals(),
+    ]);
+
+  const decodedNativeToken =
+    BRIDGE_INTERFACES.arbitrumErc20Bridge.decodeFunctionResult(
+      'nativeToken',
+      rawNativeToken,
+    );
+  const onchainNativeToken: unknown = decodedNativeToken[0];
+  assert(
+    typeof onchainNativeToken === 'string' &&
+      eqAddress(onchainNativeToken, expectedTokenAddress),
+    `Arbitrum Orbit ERC20Inbox native token mismatch on ${originChain}: configured ${expectedTokenAddress}, bridge reports ${String(onchainNativeToken)}`,
+  );
+
+  const decodedBridgeDecimals =
+    BRIDGE_INTERFACES.arbitrumErc20Bridge.decodeFunctionResult(
+      'nativeTokenDecimals',
+      rawBridgeDecimals,
+    );
+  const onchainBridgeDecimals: unknown = decodedBridgeDecimals[0];
+  assert(
+    typeof onchainBridgeDecimals === 'number' &&
+      onchainBridgeDecimals === expectedDecimals &&
+      onchainTokenDecimals === expectedDecimals,
+    `Arbitrum Orbit ERC20 gas token decimals mismatch on ${originChain}: configured ${expectedDecimals}, bridge reports ${String(onchainBridgeDecimals)}, token reports ${onchainTokenDecimals}`,
+  );
+}
+
 async function populateOriginTxWithGasCost(
   multiProvider: MultiProvider,
   originChain: string,
+  funderAddress: string,
   tx: PopulatedTransaction,
 ): Promise<{
   transaction: PopulatedTransaction;
   gasCost: BigNumber;
   feePerGas: BigNumber;
+  assignedNonce?: number;
 }> {
   const signer = multiProvider.getSigner(originChain);
+  const originProvider = multiProvider.getProvider(originChain);
   const prepared = await multiProvider.prepareTx(originChain, tx);
   const populated =
     typeof signer.populateTransaction === 'function'
@@ -177,7 +274,30 @@ async function populateOriginTxWithGasCost(
     populated?.gasPrice ??
     tx.maxFeePerGas ??
     tx.gasPrice ??
-    (await multiProvider.getProvider(originChain).getGasPrice());
+    (await originProvider.getGasPrice());
+
+  let assignedNonce: number | undefined;
+  const nonceRaw = populated?.nonce ?? tx.nonce;
+  if (nonceRaw != null) {
+    assignedNonce = BigNumber.from(nonceRaw).toNumber();
+  } else if (typeof originProvider.getTransactionCount === 'function') {
+    const pendingCount = await originProvider.getTransactionCount(
+      funderAddress,
+      'pending',
+    );
+    if (typeof pendingCount === 'number') {
+      assignedNonce = pendingCount;
+    }
+  }
+  if (
+    assignedNonce === undefined &&
+    typeof signer.getTransactionCount === 'function'
+  ) {
+    const signerPending = await signer.getTransactionCount('pending');
+    if (typeof signerPending === 'number') {
+      assignedNonce = signerPending;
+    }
+  }
 
   const gasLimit = BigNumber.from(gasLimitRaw);
   const feePerGas = BigNumber.from(feePerGasRaw);
@@ -186,6 +306,8 @@ async function populateOriginTxWithGasCost(
   const merged: PopulatedTransaction = {
     ...tx,
     gasLimit,
+    ...(assignedNonce !== undefined ? { nonce: assignedNonce } : {}),
+    ...(populated?.chainId != null ? { chainId: populated.chainId } : {}),
     ...(populated?.type != null ? { type: populated.type } : {}),
     ...(populated?.maxFeePerGas != null
       ? {
@@ -203,19 +325,27 @@ async function populateOriginTxWithGasCost(
         : {}),
   };
 
-  return { transaction: merged, gasCost, feePerGas };
+  return { transaction: merged, gasCost, feePerGas, assignedNonce };
 }
 
 async function assertOriginNativeReserve(params: {
   multiProvider: MultiProvider;
+  stateStore?: BridgeStateStore;
   originChain: string;
+  funderAddress: string;
+  destinationChain: string;
+  recipient: string;
   requiredValue: BigNumber;
   gasCost: BigNumber;
   reserveBufferStr: string;
 }): Promise<void> {
   const {
     multiProvider,
+    stateStore,
     originChain,
+    funderAddress,
+    destinationChain,
+    recipient,
     requiredValue,
     gasCost,
     reserveBufferStr,
@@ -223,15 +353,28 @@ async function assertOriginNativeReserve(params: {
   const nativeDecimals =
     multiProvider.getChainMetadata(originChain).nativeToken?.decimals ?? 18;
   const signer = multiProvider.getSigner(originChain);
-  const originBalance = await signer.getBalance();
+  const [originBalance, unresolvedSpend] = await Promise.all([
+    signer.getBalance(),
+    getUnresolvedOriginNativeSpend({
+      multiProvider,
+      stateStore,
+      originChain,
+      funderAddress,
+      excludeDestinationChain: destinationChain,
+      excludeRecipient: recipient,
+    }),
+  ]);
   const reserveBuffer = ethers.utils.parseUnits(
-    reserveBufferStr,
+    normalizeDecimalAmountString(reserveBufferStr),
     nativeDecimals,
   );
-  const totalRequired = requiredValue.add(gasCost).add(reserveBuffer);
+  const totalRequired = requiredValue
+    .add(gasCost)
+    .add(unresolvedSpend)
+    .add(reserveBuffer);
   if (originBalance.lt(totalRequired)) {
     throw new Error(
-      `Insufficient origin balance on ${originChain}: has ${ethers.utils.formatUnits(originBalance, nativeDecimals)}, needs ${ethers.utils.formatUnits(totalRequired, nativeDecimals)} (including gas fees and reserve buffer)`,
+      `Insufficient origin balance on ${originChain}: has ${ethers.utils.formatUnits(originBalance, nativeDecimals)}, needs ${ethers.utils.formatUnits(totalRequired, nativeDecimals)} (including unresolved deposits, gas fees, and reserve buffer)`,
     );
   }
 }
@@ -250,25 +393,29 @@ function extractAttachedTxHash(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) {
     return undefined;
   }
-  const candidate = error as {
-    txHash?: unknown;
-    transactionHash?: unknown;
-    transaction?: { hash?: unknown };
-  };
-  if (typeof candidate.txHash === 'string' && candidate.txHash.length > 0) {
-    return candidate.txHash;
+  if (
+    'txHash' in error &&
+    typeof error.txHash === 'string' &&
+    error.txHash.length > 0
+  ) {
+    return error.txHash;
   }
   if (
-    typeof candidate.transactionHash === 'string' &&
-    candidate.transactionHash.length > 0
+    'transactionHash' in error &&
+    typeof error.transactionHash === 'string' &&
+    error.transactionHash.length > 0
   ) {
-    return candidate.transactionHash;
+    return error.transactionHash;
   }
   if (
-    typeof candidate.transaction?.hash === 'string' &&
-    candidate.transaction.hash.length > 0
+    'transaction' in error &&
+    typeof error.transaction === 'object' &&
+    error.transaction !== null &&
+    'hash' in error.transaction &&
+    typeof error.transaction.hash === 'string' &&
+    error.transaction.hash.length > 0
   ) {
-    return candidate.transaction.hash;
+    return error.transaction.hash;
   }
   return undefined;
 }
@@ -277,6 +424,9 @@ async function submitTrackedDepositTransaction(params: {
   multiProvider: MultiProvider;
   originChain: string;
   transaction: PopulatedTransaction;
+  assignedNonce?: number;
+  originNativeValue: BigNumber;
+  originGasBudget: BigNumber;
   approvalTxHashes: string[];
   persistence: DepositPersistenceContext;
 }): Promise<string> {
@@ -284,17 +434,35 @@ async function submitTrackedDepositTransaction(params: {
     multiProvider,
     originChain,
     transaction,
+    assignedNonce,
+    originNativeValue,
+    originGasBudget,
     approvalTxHashes,
     persistence,
   } = params;
   const { stateStore } = persistence;
 
   const signer = multiProvider.getSigner(originChain);
-  const rawNonce =
-    typeof signer.getTransactionCount === 'function'
-      ? await signer.getTransactionCount('latest')
-      : undefined;
-  const originNonce = typeof rawNonce === 'number' ? rawNonce : undefined;
+  let signedTransaction: string | undefined;
+  let precomputedHash: string | undefined;
+  if (
+    typeof signer.signTransaction === 'function' &&
+    transaction.nonce !== undefined
+  ) {
+    try {
+      const rawSigned = await signer.signTransaction({
+        ...transaction,
+        from: persistence.funderAddress,
+      });
+      if (typeof rawSigned === 'string' && rawSigned.startsWith('0x')) {
+        signedTransaction = rawSigned;
+        precomputedHash = ethers.utils.keccak256(rawSigned);
+      }
+    } catch {
+      // Signers that delegate signing to a remote RPC or hardware device throw here;
+      // TransactionSubmissionOptions still captures the hash on submission attempt.
+    }
+  }
 
   const now = Date.now();
   let attempt: PersistedBridgeAttempt = {
@@ -307,7 +475,14 @@ async function submitTrackedDepositTransaction(params: {
     bridgedAmount: persistence.bridgedDestinationAmount.toString(),
     baselineDestinationBalance:
       persistence.baselineDestinationBalance.toString(),
-    originNonce,
+    originNativeValue: originNativeValue.toString(),
+    originGasBudget: originGasBudget.toString(),
+    ...(assignedNonce !== undefined ? { originNonce: assignedNonce } : {}),
+    broadcastStage: 'before_attempt',
+    ...(signedTransaction !== undefined ? { signedTransaction } : {}),
+    ...(precomputedHash !== undefined
+      ? { depositTxHash: precomputedHash }
+      : {}),
     approvalTxHashes: [...approvalTxHashes],
     phase: 'prepared',
     createdAtMs: now,
@@ -324,12 +499,13 @@ async function submitTrackedDepositTransaction(params: {
       transaction,
       {
         onSubmissionAttempt: async (txHash?: string) => {
-          if (txHash && stateStore) {
-            attempt = {
-              ...attempt,
-              depositTxHash: txHash,
-              updatedAtMs: Date.now(),
-            };
+          attempt = {
+            ...attempt,
+            broadcastStage: 'attempting',
+            depositTxHash: txHash ?? attempt.depositTxHash,
+            updatedAtMs: Date.now(),
+          };
+          if (stateStore) {
             await stateStore.set(attempt);
           }
         },
@@ -337,6 +513,7 @@ async function submitTrackedDepositTransaction(params: {
           attempt = {
             ...attempt,
             phase: 'submitted',
+            broadcastStage: 'submitted',
             depositTxHash: txHash,
             updatedAtMs: Date.now(),
           };
@@ -360,10 +537,23 @@ async function submitTrackedDepositTransaction(params: {
     }
 
     if (stateStore) {
+      const destMeta = multiProvider.getChainMetadata(
+        persistence.destinationChain,
+      );
+      const destChainId =
+        typeof destMeta.chainId === 'number' ? destMeta.chainId : undefined;
+      const deliveryRef = extractBridgeDeliveryRefFromReceipt({
+        receipt,
+        bridge: persistence.bridge,
+        destinationChainId: destChainId,
+      });
+
       attempt = {
         ...attempt,
         phase: 'confirmed',
+        broadcastStage: 'submitted',
         depositTxHash: receipt.transactionHash,
+        ...(deliveryRef ? { deliveryRef } : {}),
         updatedAtMs: Date.now(),
       };
       await stateStore.set(attempt);
@@ -375,7 +565,7 @@ async function submitTrackedDepositTransaction(params: {
       if (error instanceof TransactionSubmissionError) {
         if (
           error.submissionState === 'not_submitted' &&
-          !attempt.depositTxHash &&
+          attempt.broadcastStage === 'before_attempt' &&
           !error.txHash
         ) {
           await stateStore.delete(
@@ -389,6 +579,10 @@ async function submitTrackedDepositTransaction(params: {
               error.submissionState === 'submitted'
                 ? 'submitted'
                 : attempt.phase,
+            broadcastStage:
+              error.submissionState === 'submitted'
+                ? 'submitted'
+                : 'attempting',
             depositTxHash: error.txHash ?? attempt.depositTxHash,
             updatedAtMs: Date.now(),
           };
@@ -396,15 +590,14 @@ async function submitTrackedDepositTransaction(params: {
         }
       } else {
         const attachedHash = extractAttachedTxHash(error);
-        if (attachedHash) {
-          attempt = {
-            ...attempt,
-            phase: 'submitted',
-            depositTxHash: attachedHash,
-            updatedAtMs: Date.now(),
-          };
-          await stateStore.set(attempt);
-        }
+        attempt = {
+          ...attempt,
+          phase: attachedHash ? 'submitted' : attempt.phase,
+          broadcastStage: attachedHash ? 'submitted' : 'attempting',
+          depositTxHash: attachedHash ?? attempt.depositTxHash,
+          updatedAtMs: Date.now(),
+        };
+        await stateStore.set(attempt);
       }
     }
     throw error;
@@ -431,6 +624,19 @@ async function dispatchViaHyperlaneHook(params: {
     hookDelivery,
     persistence,
   } = params;
+
+  const destinationMetadata = multiProvider.getChainMetadata(destinationChain);
+  const expectedDomain =
+    typeof destinationMetadata.domainId === 'number'
+      ? destinationMetadata.domainId
+      : typeof destinationMetadata.chainId === 'number'
+        ? destinationMetadata.chainId
+        : undefined;
+  assert(
+    expectedDomain !== undefined &&
+      expectedDomain === hookDelivery.destinationDomain,
+    `Configured hookDelivery.destinationDomain (${hookDelivery.destinationDomain}) does not match ${destinationChain} domain metadata (${String(expectedDomain)})`,
+  );
 
   const originProvider = multiProvider.getProvider(originChain);
   const destinationProvider = multiProvider.getProvider(destinationChain);
@@ -483,13 +689,20 @@ async function dispatchViaHyperlaneHook(params: {
       ],
     );
     const rawQuote = await originProvider.call({
+      from: funderAddress,
       to: hookDelivery.mailboxAddress,
       data: quoteData,
     });
-    const [quotedFee] = BRIDGE_INTERFACES.hyperlaneMailbox.decodeFunctionResult(
-      'quoteDispatch',
-      rawQuote,
-    ) as [BigNumber];
+    const decodedQuote =
+      BRIDGE_INTERFACES.hyperlaneMailbox.decodeFunctionResult(
+        'quoteDispatch',
+        rawQuote,
+      );
+    const quotedFee: unknown = decodedQuote[0];
+    assert(
+      BigNumber.isBigNumber(quotedFee),
+      'Mailbox quoteDispatch returned an invalid fee value',
+    );
     assert(
       quotedFee.gte(amount),
       `Mailbox quoteDispatch returned ${quotedFee.toString()}, less than bridged value ${amount.toString()}`,
@@ -506,16 +719,28 @@ async function dispatchViaHyperlaneHook(params: {
       ],
     );
 
-    const { transaction: preparedTx, gasCost } =
-      await populateOriginTxWithGasCost(multiProvider, originChain, {
+    const {
+      transaction: preparedTx,
+      gasCost,
+      assignedNonce,
+    } = await populateOriginTxWithGasCost(
+      multiProvider,
+      originChain,
+      funderAddress,
+      {
         to: hookDelivery.mailboxAddress,
         value: quotedFee,
         data,
-      });
+      },
+    );
 
     await assertOriginNativeReserve({
       multiProvider,
+      stateStore: persistence.stateStore,
       originChain,
+      funderAddress,
+      destinationChain,
+      recipient,
       requiredValue: quotedFee,
       gasCost,
       reserveBufferStr: reserveBuffer,
@@ -525,6 +750,9 @@ async function dispatchViaHyperlaneHook(params: {
       multiProvider,
       originChain,
       transaction: preparedTx,
+      assignedNonce,
+      originNativeValue: quotedFee,
+      originGasBudget: gasCost,
       approvalTxHashes: [],
       persistence,
     });
@@ -548,7 +776,7 @@ async function executeOpStackBridge(params: {
     persistence,
   } = params;
 
-  if (bridge.mode === 'hyperlaneHook') {
+  if (bridge.mode === OpStackBridgeMode.HyperlaneHook) {
     assert(bridge.hookDelivery, 'Missing hookDelivery for OP Stack hook mode');
     const txHash = await dispatchViaHyperlaneHook({
       multiProvider,
@@ -584,7 +812,7 @@ async function executeOpStackBridge(params: {
     funderAddress,
     async () => {
       const data =
-        bridge.mode === 'optimismPortal'
+        bridge.mode === OpStackBridgeMode.OptimismPortal
           ? BRIDGE_INTERFACES.optimismPortal.encodeFunctionData(
               'depositTransaction',
               [recipient, amount, bridge.l2GasLimit, false, '0x'],
@@ -594,16 +822,28 @@ async function executeOpStackBridge(params: {
               [recipient, bridge.l2GasLimit, '0x'],
             );
 
-      const { transaction: preparedTx, gasCost } =
-        await populateOriginTxWithGasCost(multiProvider, bridge.originChain, {
+      const {
+        transaction: preparedTx,
+        gasCost,
+        assignedNonce,
+      } = await populateOriginTxWithGasCost(
+        multiProvider,
+        bridge.originChain,
+        funderAddress,
+        {
           to: bridgeContract,
           value: amount,
           data,
-        });
+        },
+      );
 
       await assertOriginNativeReserve({
         multiProvider,
+        stateStore: persistence.stateStore,
         originChain: bridge.originChain,
+        funderAddress,
+        destinationChain,
+        recipient,
         requiredValue: amount,
         gasCost,
         reserveBufferStr: bridge.originReserveBuffer,
@@ -613,6 +853,9 @@ async function executeOpStackBridge(params: {
         multiProvider,
         originChain: bridge.originChain,
         transaction: preparedTx,
+        assignedNonce,
+        originNativeValue: amount,
+        originGasBudget: gasCost,
         approvalTxHashes: [],
         persistence,
       });
@@ -641,7 +884,7 @@ async function executeArbitrumOrbitBridge(params: {
     persistence,
   } = params;
 
-  if (bridge.mode === 'hyperlaneHook') {
+  if (bridge.mode === ArbitrumOrbitBridgeMode.HyperlaneHook) {
     assert(
       bridge.hookDelivery,
       'Missing hookDelivery for Arbitrum Orbit hook mode',
@@ -676,7 +919,7 @@ async function executeArbitrumOrbitBridge(params: {
     bridge.originChain,
   );
 
-  if (bridge.mode === 'erc20Inbox') {
+  if (bridge.mode === ArbitrumOrbitBridgeMode.Erc20Inbox) {
     const originGasToken = bridge.originGasToken;
     assert(
       originGasToken,
@@ -688,6 +931,13 @@ async function executeArbitrumOrbitBridge(params: {
       originGasToken.address,
       'Arbitrum Orbit origin ERC20 gas token',
     );
+    await verifyArbitrumErc20InboxTokenConfig({
+      originProvider,
+      originChain: bridge.originChain,
+      inboxAddress,
+      expectedTokenAddress: originGasToken.address,
+      expectedDecimals: originGasToken.decimals,
+    });
 
     return withOriginSignerLock(bridge.originChain, funderAddress, async () => {
       const isSelfDeposit = eqAddress(recipient, funderAddress);
@@ -728,6 +978,7 @@ async function executeArbitrumOrbitBridge(params: {
           } = await populateOriginTxWithGasCost(
             multiProvider,
             bridge.originChain,
+            funderAddress,
             resetRawTx,
           );
           const preflightGasBudget = resetGasCost
@@ -736,7 +987,11 @@ async function executeArbitrumOrbitBridge(params: {
 
           await assertOriginNativeReserve({
             multiProvider,
+            stateStore: persistence.stateStore,
             originChain: bridge.originChain,
+            funderAddress,
+            destinationChain,
+            recipient,
             requiredValue: BigNumber.from(0),
             gasCost: preflightGasBudget,
             reserveBufferStr: bridge.originReserveBuffer,
@@ -760,12 +1015,17 @@ async function executeArbitrumOrbitBridge(params: {
         } = await populateOriginTxWithGasCost(
           multiProvider,
           bridge.originChain,
+          funderAddress,
           approveRawTx,
         );
 
         await assertOriginNativeReserve({
           multiProvider,
+          stateStore: persistence.stateStore,
           originChain: bridge.originChain,
+          funderAddress,
+          destinationChain,
+          recipient,
           requiredValue: BigNumber.from(0),
           gasCost: approveGasCost.add(
             ERC20_INBOX_DEPOSIT_GAS_ESTIMATE.mul(approveFeePerGas),
@@ -800,16 +1060,28 @@ async function executeArbitrumOrbitBridge(params: {
             ],
           );
 
-      const { transaction: depositPreparedTx, gasCost: depositGasCost } =
-        await populateOriginTxWithGasCost(multiProvider, bridge.originChain, {
+      const {
+        transaction: depositPreparedTx,
+        gasCost: depositGasCost,
+        assignedNonce,
+      } = await populateOriginTxWithGasCost(
+        multiProvider,
+        bridge.originChain,
+        funderAddress,
+        {
           to: inboxAddress,
           value: BigNumber.from(0),
           data: depositData,
-        });
+        },
+      );
 
       await assertOriginNativeReserve({
         multiProvider,
+        stateStore: persistence.stateStore,
         originChain: bridge.originChain,
+        funderAddress,
+        destinationChain,
+        recipient,
         requiredValue: BigNumber.from(0),
         gasCost: depositGasCost,
         reserveBufferStr: bridge.originReserveBuffer,
@@ -819,6 +1091,9 @@ async function executeArbitrumOrbitBridge(params: {
         multiProvider,
         originChain: bridge.originChain,
         transaction: depositPreparedTx,
+        assignedNonce,
+        originNativeValue: BigNumber.from(0),
+        originGasBudget: depositGasCost,
         approvalTxHashes,
         persistence,
       });
@@ -828,19 +1103,34 @@ async function executeArbitrumOrbitBridge(params: {
   }
 
   return withOriginSignerLock(bridge.originChain, funderAddress, async () => {
-    if (bridge.mode === 'ethInbox' && eqAddress(recipient, funderAddress)) {
+    if (
+      bridge.mode === ArbitrumOrbitBridgeMode.EthInbox &&
+      eqAddress(recipient, funderAddress)
+    ) {
       const data =
         BRIDGE_INTERFACES.arbitrumInbox.encodeFunctionData('depositEth');
-      const { transaction: preparedTx, gasCost } =
-        await populateOriginTxWithGasCost(multiProvider, bridge.originChain, {
+      const {
+        transaction: preparedTx,
+        gasCost,
+        assignedNonce,
+      } = await populateOriginTxWithGasCost(
+        multiProvider,
+        bridge.originChain,
+        funderAddress,
+        {
           to: inboxAddress,
           value: amount,
           data,
-        });
+        },
+      );
 
       await assertOriginNativeReserve({
         multiProvider,
+        stateStore: persistence.stateStore,
         originChain: bridge.originChain,
+        funderAddress,
+        destinationChain,
+        recipient,
         requiredValue: amount,
         gasCost,
         reserveBufferStr: bridge.originReserveBuffer,
@@ -850,6 +1140,9 @@ async function executeArbitrumOrbitBridge(params: {
         multiProvider,
         originChain: bridge.originChain,
         transaction: preparedTx,
+        assignedNonce,
+        originNativeValue: amount,
+        originGasBudget: gasCost,
         approvalTxHashes: [],
         persistence,
       });
@@ -878,16 +1171,28 @@ async function executeArbitrumOrbitBridge(params: {
       ],
     );
 
-    const { transaction: preparedTx, gasCost } =
-      await populateOriginTxWithGasCost(multiProvider, bridge.originChain, {
+    const {
+      transaction: preparedTx,
+      gasCost,
+      assignedNonce,
+    } = await populateOriginTxWithGasCost(
+      multiProvider,
+      bridge.originChain,
+      funderAddress,
+      {
         to: inboxAddress,
         value: totalCallValue,
         data,
-      });
+      },
+    );
 
     await assertOriginNativeReserve({
       multiProvider,
+      stateStore: persistence.stateStore,
       originChain: bridge.originChain,
+      funderAddress,
+      destinationChain,
+      recipient,
       requiredValue: totalCallValue,
       gasCost,
       reserveBufferStr: bridge.originReserveBuffer,
@@ -897,6 +1202,9 @@ async function executeArbitrumOrbitBridge(params: {
       multiProvider,
       originChain: bridge.originChain,
       transaction: preparedTx,
+      assignedNonce,
+      originNativeValue: totalCallValue,
+      originGasBudget: gasCost,
       approvalTxHashes: [],
       persistence,
     });
@@ -935,14 +1243,24 @@ export async function bridgeKeyFunding(params: {
       (await multiProvider.getProvider(destinationChain).getBalance(recipient));
 
     if (stateStore) {
-      const activeAttempt = await reconcilePendingBridgeAttempt({
-        multiProvider,
-        stateStore,
-        destinationChain,
-        recipient,
-        currentDestinationBalance: currentDestBalance,
-        logger,
-      });
+      let activeAttempt: PersistedBridgeAttempt | undefined;
+      try {
+        activeAttempt = await reconcilePendingBridgeAttempt({
+          multiProvider,
+          stateStore,
+          destinationChain,
+          recipient,
+          bridge,
+          logger,
+        });
+      } catch (error) {
+        logger.warn(
+          { error, destinationChain, recipient },
+          'Failed to reconcile pending bridge attempt in bridgeKeyFunding; retaining stored attempt',
+        );
+        activeAttempt = await stateStore.get(destinationChain, recipient);
+      }
+
       if (activeAttempt) {
         logger.info(
           {
@@ -959,7 +1277,7 @@ export async function bridgeKeyFunding(params: {
 
     const originDecimals = getBridgeDecimals(bridge, destinationDecimals);
     const minThresholdOrigin = ethers.utils.parseUnits(
-      bridge.minBridgeThreshold,
+      normalizeDecimalAmountString(bridge.minBridgeThreshold),
       originDecimals,
     );
 
@@ -990,7 +1308,7 @@ export async function bridgeKeyFunding(params: {
     }
 
     const maxAmountOrigin = ethers.utils.parseUnits(
-      bridge.maxBridgeAmount,
+      normalizeDecimalAmountString(bridge.maxBridgeAmount),
       originDecimals,
     );
     const shortfallOrigin = scaleUnitsCeil(
@@ -1006,6 +1324,18 @@ export async function bridgeKeyFunding(params: {
       originDecimals,
       destinationDecimals,
     );
+
+    if (bridgedOriginAmount.isZero() || bridgedDestinationAmount.isZero()) {
+      logger.warn(
+        {
+          destinationChain,
+          recipient,
+          maxBridgeAmount: bridge.maxBridgeAmount,
+        },
+        'Computed bridged credit is zero after applying maxBridgeAmount, skipping deposit',
+      );
+      return null;
+    }
 
     const funderAddress = await multiProvider.getSignerAddress(
       bridge.originChain,
@@ -1037,7 +1367,7 @@ export async function bridgeKeyFunding(params: {
     };
 
     const txHashes =
-      bridge.stack === 'opStack'
+      bridge.stack === BridgeStack.OpStack
         ? await executeOpStackBridge({
             multiProvider,
             destinationChain,

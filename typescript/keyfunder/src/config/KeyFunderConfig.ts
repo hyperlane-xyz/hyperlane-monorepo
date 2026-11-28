@@ -37,14 +37,16 @@ export class KeyFunderConfigLoader {
   }
 
   /**
-   * Returns the union of configured destination chains and any bridge
-   * originChain values so signers and RPC overrides cover bridge origins too.
+   * Returns active destination chains plus any bridge originChain referenced
+   * by an active destination, ignoring retired origins on skipped destinations.
    */
   getRequiredSignerChains(): string[] {
-    const chains = new Set<string>(Object.keys(this.config.chains));
-    for (const chainConfig of Object.values(this.config.chains)) {
-      if (chainConfig.bridge?.originChain) {
-        chains.add(chainConfig.bridge.originChain);
+    const activeDestinations = this.getChainsToProcess();
+    const chains = new Set<string>(activeDestinations);
+    for (const chain of activeDestinations) {
+      const originChain = this.config.chains[chain]?.bridge?.originChain;
+      if (originChain) {
+        chains.add(originChain);
       }
     }
     return Array.from(chains);

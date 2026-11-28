@@ -30,6 +30,10 @@ spec:
               value: info
             - name: KEYFUNDER_CONFIG_FILE
               value: /config/keyfunder.yaml
+            {{- if or .Values.storage.enabled .Values.hyperlane.bridgeStateFile }}
+            - name: KEYFUNDER_BRIDGE_STATE_FILE
+              value: {{ .Values.hyperlane.bridgeStateFile | default "/state/bridge-state.json" | quote }}
+            {{- end }}
             {{- if .Values.hyperlane.registryUri }}
             - name: REGISTRY_URI
               value: {{ .Values.hyperlane.registryUri }}
@@ -49,7 +53,16 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
+            {{- if .Values.storage.enabled }}
+            - name: state
+              mountPath: /state
+            {{- end }}
           volumes:
           - name: config
             configMap:
               name: key-funder-config
+          {{- if .Values.storage.enabled }}
+          - name: state
+            persistentVolumeClaim:
+              claimName: key-funder-state
+          {{- end }}
