@@ -9,7 +9,10 @@ import { TestChainName, test1 } from '../consts/testChains.js';
 import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
+import {
+  EvmEtherscanLikeEventLogsReader,
+  EvmEventLogsReader,
+} from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { missingSelectorError, networkError } from '../test/errors.js';
@@ -20,20 +23,70 @@ const MESSAGE_BLACKLISTED_TOPIC =
   BlacklistIsm__factory.createInterface().getEventTopic('MessageBlacklisted');
 const BLACKLIST_ADDRESS = '0x5d4C14B895392BD935583ebFfE0f5159540FE8bC';
 const BLACKLISTED_ID = `0x${'11'.repeat(32)}`;
+const EARLY_BLACKLISTED_ID = `0x${'22'.repeat(32)}`;
+const LATE_BLACKLISTED_ID = `0x${'33'.repeat(32)}`;
 const DEPLOYMENT_BLOCK = 100;
 const FINALIZED_BLOCK = 456;
 const NETWORK = { chainId: test1.domainId, name: TestChainName.test1 };
 
-function messageBlacklistedLog(): GetEventLogsResponse {
+type ServedRange = { fromBlock: number; toBlock: number };
+
+function messageBlacklistedLog(
+  messageId = BLACKLISTED_ID,
+  blockNumber = 120,
+): GetEventLogsResponse {
   return {
     address: BLACKLIST_ADDRESS,
-    blockNumber: 120,
+    blockNumber,
     data: '0x',
     logIndex: 0,
-    topics: [MESSAGE_BLACKLISTED_TOPIC, BLACKLISTED_ID],
+    topics: [MESSAGE_BLACKLISTED_TOPIC, messageId],
     transactionHash: `0x${'ab'.repeat(32)}`,
     transactionIndex: 0,
   };
+}
+
+function rpcMessageBlacklistedLog(
+  messageId: string,
+  blockNumber: number,
+): providers.Log {
+  return {
+    ...messageBlacklistedLog(messageId, blockNumber),
+    blockHash: `0x${'cd'.repeat(32)}`,
+    removed: false,
+  };
+}
+
+function blockWindow(filter: unknown): ServedRange {
+  if (typeof filter !== 'object' || filter === null) {
+    throw new Error('Expected log filter object');
+  }
+  const fromBlock: unknown = Reflect.get(filter, 'fromBlock');
+  const toBlock: unknown = Reflect.get(filter, 'toBlock');
+  if (typeof fromBlock !== 'number' || typeof toBlock !== 'number') {
+    throw new Error('Expected numeric block bounds on the log filter');
+  }
+  return { fromBlock, toBlock };
+}
+
+function spanOf({ fromBlock, toBlock }: ServedRange): number {
+  return toBlock - fromBlock + 1;
+}
+
+function blockInRange(blockNumber: number, range: ServedRange): boolean {
+  return blockNumber >= range.fromBlock && blockNumber <= range.toBlock;
+}
+
+function expectFullCoverage(
+  served: ServedRange[],
+  fromBlock: number,
+  toBlock: number,
+): void {
+  expect(served[0].fromBlock).to.equal(fromBlock);
+  expect(served[served.length - 1].toBlock).to.equal(toBlock);
+  for (let i = 1; i < served.length; i++) {
+    expect(served[i].fromBlock).to.equal(served[i - 1].toBlock + 1);
+  }
 }
 
 const FINALIZED_BLOCK_HEX = '0x1c8';
@@ -75,6 +128,29 @@ describe('readBlacklistedIds', () => {
     sandbox
       .stub(BlacklistIsm__factory, 'connect')
       .returns(contractDouble<BlacklistIsm>({ values }));
+  }
+
+  function nonRecoverableError(message: string) {
+    return Object.assign(new Error(message), { isRecoverable: false });
+  }
+
+  function realGenesisReader(paginationBlockRange: number): EvmEventLogsReader {
+    getLogsByTopic.restore();
+    getContractDeploymentBlockFromExplorer.restore();
+    sandbox
+      .stub(
+        EvmEtherscanLikeEventLogsReader.prototype,
+        'getContractDeploymentBlockNumber',
+      )
+      .rejects(nonRecoverableError('explorer deployment lookup failed'));
+    sandbox
+      .stub(EvmEtherscanLikeEventLogsReader.prototype, 'getContractLogs')
+      .rejects(nonRecoverableError('explorer logs failed'));
+    sandbox.stub(provider, 'getCode').resolves('0x01');
+    return EvmEventLogsReader.fromConfig(
+      { chain: TestChainName.test1, paginationBlockRange },
+      multiProvider,
+    );
   }
 
   interface EnumerableCase {
@@ -200,6 +276,89 @@ describe('readBlacklistedIds', () => {
         eventTopic: MESSAGE_BLACKLISTED_TOPIC,
         fromBlock: 0,
       },
+    ]);
+  });
+
+  it('scans genesis through RPC fallback with no pagination gap', async () => {
+    const latestBlock = 25;
+    const providerCap = 10;
+    const reader = realGenesisReader(20);
+    const requested: ServedRange[] = [];
+    const served: ServedRange[] = [];
+    sandbox.stub(provider, 'getBlockNumber').resolves(latestBlock);
+    sandbox.stub(provider, 'getLogs').callsFake(async (filter) => {
+      const range = blockWindow(await filter);
+      requested.push(range);
+      if (spanOf(range) > providerCap) {
+        throw new Error('query returned more than 10000 results');
+      }
+      served.push(range);
+
+      const logs: providers.Log[] = [];
+      if (blockInRange(3, range)) {
+        logs.push(rpcMessageBlacklistedLog(EARLY_BLACKLISTED_ID, 3));
+      }
+      if (blockInRange(23, range)) {
+        logs.push(rpcMessageBlacklistedLog(LATE_BLACKLISTED_ID, 23));
+      }
+      return logs;
+    });
+    connectBlacklist(sandbox.stub().rejects(missingSelectorError()));
+
+    const ids = await readBlacklistedIds(
+      TestChainName.test1,
+      BLACKLIST_ADDRESS,
+      multiProvider,
+      reader,
+    );
+
+    expect(ids).to.deep.equal([EARLY_BLACKLISTED_ID, LATE_BLACKLISTED_ID]);
+    expect(requested).to.deep.equal([
+      { fromBlock: 0, toBlock: 19 },
+      { fromBlock: 0, toBlock: 9 },
+      { fromBlock: 10, toBlock: 19 },
+      { fromBlock: 20, toBlock: 25 },
+    ]);
+    expectFullCoverage(served, 0, latestBlock);
+  });
+
+  it('fails closed when a later RPC pagination range fails', async () => {
+    const reader = realGenesisReader(10);
+    const requested: ServedRange[] = [];
+    sandbox.stub(provider, 'getBlockNumber').resolves(25);
+    sandbox.stub(provider, 'getLogs').callsFake(async (filter) => {
+      const range = blockWindow(await filter);
+      requested.push(range);
+      if (range.fromBlock === 10) {
+        throw Object.assign(new Error('unauthorized'), { status: 401 });
+      }
+      return blockInRange(3, range)
+        ? [rpcMessageBlacklistedLog(EARLY_BLACKLISTED_ID, 3)]
+        : [];
+    });
+    connectBlacklist(sandbox.stub().rejects(missingSelectorError()));
+
+    let ids: string[] | undefined;
+    let thrown: unknown;
+    try {
+      ids = await readBlacklistedIds(
+        TestChainName.test1,
+        BLACKLIST_ADDRESS,
+        multiProvider,
+        reader,
+      );
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(ids).to.equal(undefined);
+    assert(thrown instanceof Error, 'expected the read to fail');
+    expect(thrown.message).to.include('rebuilding the set');
+    assert(thrown.cause instanceof Error, 'expected an error cause');
+    expect(thrown.cause.message).to.equal('unauthorized');
+    expect(requested).to.deep.equal([
+      { fromBlock: 0, toBlock: 9 },
+      { fromBlock: 10, toBlock: 19 },
     ]);
   });
 
