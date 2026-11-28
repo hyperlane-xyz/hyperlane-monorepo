@@ -13,6 +13,13 @@ import { buildBlockTagOverrides } from '../token/adapters/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { throwIfNotMissingSelector } from '../utils/contract.js';
 
+export const BLACKLIST_LOG_SCAN_BLOCK_RANGE = 1_000_000;
+
+// The lowest block a genesis fallback scan starts from when the explorer cannot
+// supply the deployment block. A lower bound at or below the true deployment
+// block only adds empty ranges; it can never omit an earlier entry.
+const GENESIS_BLOCK_NUMBER = 0;
+
 const logger = rootLogger.child({ module: 'BlacklistIsmUtils' });
 
 /**
@@ -118,11 +125,21 @@ async function resolveBlockNumber(
  * `EvmEventLogsReader` behaviour rather than anything specific to blacklists;
  * every consumer reading logs through an explorer has the same exposure.
  *
- * The replay requires an explorer-derived deployment block. The explorer either
- * reports the block directly or supplies the deployment transaction whose
- * receipt establishes it. That bound is passed explicitly to the log reader, so
- * an explorer log failure can still fall back to RPC without replacing the
- * bound with one derived by bisecting historical `eth_getCode` responses.
+ * The replay starts at the deployment block, which the explorer supplies as an
+ * authoritative lower bound — it either reports the block directly or supplies
+ * the deployment transaction whose receipt establishes it. That bound is only an
+ * optimization: it shrinks the range scanned, never the set found.
+ *
+ * When the explorer cannot supply it, the replay falls back to scanning from
+ * genesis rather than deriving a bound by bisecting historical `eth_getCode`
+ * over the RPC. That bisection is a historical-state read: a pruned or
+ * non-archive node may answer `0x` for archive heights, so the search can
+ * converge *above* the true deployment block and silently drop earlier
+ * `MessageBlacklisted` IDs. A genesis start avoids that code-bisection risk:
+ * beginning at or below the true deployment block only adds empty ranges. The
+ * log replay still depends on the provider retaining the historical log data it
+ * is asked for, and fails closed on a range it cannot complete rather than
+ * returning a prefix of it.
  *
  * `blockTag` reads the set as of that block instead of the latest one: it is
  * passed to `values()`, and the log replay stops at it, resolving a named tag
@@ -152,11 +169,29 @@ export async function readBlacklistedIds(
   }
 
   const logsReader =
-    eventLogsReader ?? EvmEventLogsReader.fromConfig({ chain }, multiProvider);
+    eventLogsReader ??
+    EvmEventLogsReader.fromConfig(
+      { chain, paginationBlockRange: BLACKLIST_LOG_SCAN_BLOCK_RANGE },
+      multiProvider,
+    );
 
   try {
-    const fromBlock =
-      await logsReader.getContractDeploymentBlockFromExplorer(address);
+    let fromBlock: number;
+    try {
+      fromBlock =
+        await logsReader.getContractDeploymentBlockFromExplorer(address);
+    } catch (error) {
+      // The explorer could not supply the deployment block (no usable explorer,
+      // or the lookup failed). Do not bisect `eth_getCode` over the RPC to derive
+      // one: a pruned node may answer `0x` for archive state, so the search can
+      // converge above the true deployment block and drop earlier IDs. Scan from
+      // genesis instead; it only adds empty ranges, never omits an entry.
+      logger.debug(
+        { chain, address, err: error },
+        'Explorer deployment-block lookup failed; scanning MessageBlacklisted logs from genesis.',
+      );
+      fromBlock = GENESIS_BLOCK_NUMBER;
+    }
     const query: Parameters<EvmEventLogsReader['getLogsByTopic']>[0] = {
       contractAddress: address,
       eventTopic: MESSAGE_BLACKLISTED_EVENT_SELECTOR,

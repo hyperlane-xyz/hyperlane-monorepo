@@ -1,0 +1,5 @@
+---
+'@hyperlane-xyz/sdk': minor
+---
+
+The legacy BlacklistIsm reader now falls back to scanning MessageBlacklisted logs from genesis when the block explorer cannot supply the contract deployment block, so blacklist ISMs stay readable on chains without a getcontractcreation-capable explorer. The scan itself still runs through the existing EvmEventLogsReader strategies (explorer log queries first, RPC range pagination as the fallback); only the start block changes to genesis. The explorer-derived deployment block remains the authoritative lower bound when available; the reader no longer bisects historical eth_getCode to derive one, which could converge above the true deployment block on pruned nodes and silently drop earlier blacklisted IDs. A genesis start only adds empty ranges, never omits an entry. The replay still depends on the provider retaining the historical logs it is asked for, and a wide pagination range plus fail-closed behaviour on any range it cannot complete keep it from returning a partial set.
