@@ -16,6 +16,7 @@ import type {
   ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
+import { bridgeKeyFunding } from './BridgeFunder.js';
 
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
@@ -347,6 +348,30 @@ export class KeyFunder {
     const funderBalance = await this.getFunderBalance(chain);
 
     if (funderBalance.lt(fundingAmount)) {
+      const bridgeConfig = this.config.chains[chain].bridge;
+      if (bridgeConfig) {
+        const bridgeResult = await bridgeKeyFunding({
+          multiProvider: this.multiProvider,
+          destinationChain: chain,
+          bridge: bridgeConfig,
+          recipient: key.address,
+          shortfallAmount: fundingAmount,
+          destinationDecimals: decimals,
+          logger,
+        });
+        if (bridgeResult) {
+          this.options.metrics?.recordFundingAmount(
+            chain,
+            key.address,
+            key.role,
+            parseFloat(
+              ethers.utils.formatUnits(bridgeResult.bridgedAmount, decimals),
+            ),
+          );
+        }
+        return;
+      }
+
       logger.error(
         {
           funderBalance: ethers.utils.formatUnits(funderBalance, decimals),

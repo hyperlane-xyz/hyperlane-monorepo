@@ -1,26 +1,40 @@
 export { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
 export {
-  KeyFunderConfigSchema,
-  RoleConfigSchema,
-  IgpConfigSchema,
-  SweepConfigSchema,
+  ArbitrumOrbitBridgeConfigSchema,
+  BridgeConfigSchema,
   ChainConfigSchema,
+  HyperlaneHookBridgeDeliverySchema,
+  IgpConfigSchema,
+  KeyFunderConfigSchema,
   MetricsConfigSchema,
+  OpStackBridgeConfigSchema,
+  RoleConfigSchema,
+  SweepConfigSchema,
 } from './config/types.js';
 export type {
+  ArbitrumOrbitBridgeConfig,
+  BridgeConfig,
+  ChainConfig,
+  HyperlaneHookBridgeDelivery,
+  IgpConfig,
   KeyFunderConfig,
   KeyFunderConfigInput,
-  RoleConfig,
-  IgpConfig,
-  SweepConfig,
-  ChainConfig,
   MetricsConfig,
+  OpStackBridgeConfig,
   ResolvedKeyConfig,
+  RoleConfig,
+  SweepConfig,
 } from './config/types.js';
 
 export {
-  KeyFunder,
+  BRIDGE_INTERFACES,
+  bridgeKeyFunding,
+  formatStandardHookMetadata,
+  type BridgeFundingResult,
+} from './core/BridgeFunder.js';
+export {
   calculateMultipliedBalance,
+  KeyFunder,
   type KeyFunderOptions,
 } from './core/KeyFunder.js';
 export { KeyFunderMetrics } from './metrics/Metrics.js';

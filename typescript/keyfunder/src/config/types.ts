@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
 const AddressSchema = z
@@ -67,6 +68,102 @@ export const SweepConfigSchema = z
     },
   );
 
+export const HyperlaneHookBridgeDeliverySchema = z.object({
+  mailboxAddress: AddressSchema,
+  hookAddress: AddressSchema,
+  destinationDomain: z.number().int().positive(),
+  gasLimit: z.number().int().min(50_000).max(5_000_000).default(250_000),
+});
+
+export const OpStackBridgeConfigSchema = z
+  .object({
+    stack: z.literal('opStack'),
+    originChain: z.string().min(1),
+    mode: z.enum(['optimismPortal', 'l1StandardBridge', 'hyperlaneHook']),
+    bridgeContract: AddressSchema.optional(),
+    l2GasLimit: z.number().int().min(21_000).max(10_000_000).default(200_000),
+    minBridgeThreshold: BalanceStringSchema.default('0.01'),
+    maxBridgeAmount: BalanceStringSchema.default('5'),
+    originReserveBuffer: BalanceStringSchema.default('0.05'),
+    hookDelivery: HyperlaneHookBridgeDeliverySchema.optional(),
+  })
+  .refine(
+    (cfg) =>
+      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.bridgeContract,
+    {
+      message:
+        'OP Stack bridge requires bridgeContract for canonical modes or hookDelivery for hyperlaneHook mode',
+    },
+  )
+  .refine(
+    (cfg) =>
+      ethers.utils
+        .parseUnits(cfg.maxBridgeAmount, 18)
+        .gte(ethers.utils.parseUnits(cfg.minBridgeThreshold, 18)),
+    {
+      message:
+        'maxBridgeAmount must be greater than or equal to minBridgeThreshold',
+      path: ['maxBridgeAmount'],
+    },
+  );
+
+export const ArbitrumOrbitBridgeConfigSchema = z
+  .object({
+    stack: z.literal('arbitrumOrbit'),
+    originChain: z.string().min(1),
+    mode: z.enum([
+      'ethInbox',
+      'erc20Inbox',
+      'retryableTicket',
+      'hyperlaneHook',
+    ]),
+    inboxAddress: AddressSchema.optional(),
+    originGasToken: z
+      .object({
+        address: AddressSchema,
+        decimals: z.number().int().min(0).max(255).default(18),
+      })
+      .optional(),
+    l2GasLimit: z.number().int().min(21_000).max(10_000_000).default(300_000),
+    maxSubmissionCostWei: z.string().regex(/^\d+$/).default('100000000000000'),
+    maxFeePerGasWei: z.string().regex(/^\d+$/).default('1000000000'),
+    minBridgeThreshold: BalanceStringSchema.default('0.01'),
+    maxBridgeAmount: BalanceStringSchema.default('5'),
+    originReserveBuffer: BalanceStringSchema.default('0.05'),
+    hookDelivery: HyperlaneHookBridgeDeliverySchema.optional(),
+  })
+  .refine(
+    (cfg) =>
+      cfg.mode === 'hyperlaneHook' ? !!cfg.hookDelivery : !!cfg.inboxAddress,
+    {
+      message:
+        'Arbitrum Orbit bridge requires inboxAddress for canonical Inbox modes or hookDelivery for hyperlaneHook mode',
+    },
+  )
+  .refine((cfg) => cfg.mode !== 'erc20Inbox' || !!cfg.originGasToken, {
+    message:
+      'originGasToken is required when Arbitrum Orbit mode is erc20Inbox',
+    path: ['originGasToken'],
+  })
+  .refine(
+    (cfg) => {
+      const decimals = Math.min(cfg.originGasToken?.decimals ?? 18, 18);
+      return ethers.utils
+        .parseUnits(cfg.maxBridgeAmount, decimals)
+        .gte(ethers.utils.parseUnits(cfg.minBridgeThreshold, decimals));
+    },
+    {
+      message:
+        'maxBridgeAmount must be greater than or equal to minBridgeThreshold',
+      path: ['maxBridgeAmount'],
+    },
+  );
+
+export const BridgeConfigSchema = z.union([
+  OpStackBridgeConfigSchema,
+  ArbitrumOrbitBridgeConfigSchema,
+]);
+
 export const ChainConfigSchema = z.object({
   // Explicit opt-in: some ERC20 native-token interfaces still support native sends.
   erc20GasToken: z
@@ -78,6 +175,7 @@ export const ChainConfigSchema = z.object({
   balances: z.record(z.string(), BalanceStringSchema).optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),
+  bridge: BridgeConfigSchema.optional(),
 });
 
 export const MetricsConfigSchema = z.object({
@@ -110,11 +208,32 @@ export const KeyFunderConfigSchema = z
       message:
         'Chain balances reference undefined roles. All roles must be defined in the roles section.',
     },
+  )
+  .refine(
+    (data) => {
+      for (const [chainName, chainConfig] of Object.entries(data.chains)) {
+        if (chainConfig.bridge && chainConfig.bridge.originChain === chainName) {
+          return false;
+        }
+      }
+      return true;
+    },
+    {
+      message: 'Chain bridge originChain cannot match the destination chain.',
+    },
   );
 
 export type RoleConfig = z.infer<typeof RoleConfigSchema>;
 export type IgpConfig = z.infer<typeof IgpConfigSchema>;
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
+export type HyperlaneHookBridgeDelivery = z.infer<
+  typeof HyperlaneHookBridgeDeliverySchema
+>;
+export type OpStackBridgeConfig = z.infer<typeof OpStackBridgeConfigSchema>;
+export type ArbitrumOrbitBridgeConfig = z.infer<
+  typeof ArbitrumOrbitBridgeConfigSchema
+>;
+export type BridgeConfig = z.infer<typeof BridgeConfigSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
 export type KeyFunderConfig = z.infer<typeof KeyFunderConfigSchema>;
