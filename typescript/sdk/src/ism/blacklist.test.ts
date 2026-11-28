@@ -50,8 +50,10 @@ function rpcMessageBlacklistedLog(
   messageId: string,
   blockNumber: number,
 ): providers.Log {
+  const { topics, ...rest } = messageBlacklistedLog(messageId, blockNumber);
   return {
-    ...messageBlacklistedLog(messageId, blockNumber),
+    ...rest,
+    topics: [...topics],
     blockHash: `0x${'cd'.repeat(32)}`,
     removed: false,
   };
